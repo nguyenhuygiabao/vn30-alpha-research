@@ -6,6 +6,12 @@ LABELS_PATH: str = "data/processed/labels.parquet"
 
 TARGET_COLUMN: str = "forward_relative_return_5d"
 
+LABEL_COLUMNS: list[str] = [
+    "forward_return_5d",
+    "vn30_forward_return_5d",
+    TARGET_COLUMN,
+]
+
 KEY_COLUMNS: list[str] = [
     "date",
     "ticker",
@@ -18,7 +24,7 @@ def load_modeling_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
     labels = pd.read_parquet(LABELS_PATH)
 
     selected_labels = labels[
-        KEY_COLUMNS + [TARGET_COLUMN]
+        KEY_COLUMNS + LABEL_COLUMNS
     ].copy()
 
     return features, selected_labels
@@ -106,11 +112,11 @@ def split_window_data(
     pd.DataFrame,
     pd.Series
 ]: 
-    forbiden_columns = KEY_COLUMNS + [TARGET_COLUMN]
+    forbidden_columns = KEY_COLUMNS + LABEL_COLUMNS
 
     if any(
         column in feature_columns
-        for column in forbiden_columns
+        for column in forbidden_columns
     ): 
         raise ValueError(
             "Features columns cannot contain date, ticker, or target."
