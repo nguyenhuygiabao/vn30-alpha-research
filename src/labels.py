@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 from .data_loader import load_ohlcv_csv
 
-STOCK_SOURCE_PATH = "sample_data/sample_ohlcv.csv"
+STOCK_SOURCE_PATH = "data/raw/yahoo/vn30_test_ohlcv.csv"
 BENCHMARK_SOURCE_PATH = "sample_data/sample_vn30.csv"
 OUTPUT_PATH = "data/processed/labels.parquet"
 
@@ -94,7 +94,37 @@ def build_vn30_forward_returns(benchmark_data : pd.DataFrame,) -> pd.DataFrame:
     )
     
     return benchmark
-    
+
+def build_equal_weight_benchmark_forward_returns(
+    stock_data: pd.DataFrame,
+) -> pd.DataFrame:
+    """Create equal-weight benchmark forward returns from the stock universe."""
+
+    stock_returns = build_forward_labels(stock_data)
+
+    benchmark = (
+        stock_returns
+        .groupby("date")
+        [
+            [
+                "forward_return_1d",
+                "forward_return_5d",
+                "forward_return_10d",
+            ]
+        ]
+        .mean()
+        .reset_index()
+        .rename(
+            columns={
+                "forward_return_1d": "vn30_forward_return_1d",
+                "forward_return_5d": "vn30_forward_return_5d",
+                "forward_return_10d": "vn30_forward_return_10d",
+            }
+        )
+    )
+
+    return benchmark
+
 def add_relative_forward_labels(stock_labels: pd.DataFrame, benchmark_labels: pd.DataFrame,) -> pd.DataFrame: 
     """Add stock returns relative to the VN30 benchmark"""
 
@@ -126,24 +156,65 @@ def add_relative_forward_labels(stock_labels: pd.DataFrame, benchmark_labels: pd
 
     return combined
 
+def add_leave_one_out_equal_weight_relative_labels(
+    stock_labels: pd.DataFrame,
+) -> pd.DataFrame:
+    """Add relative labels versus the rest of the stock universe."""
+
+    labels = stock_labels.copy()
+
+    horizon_map = {
+        "1d": "forward_return_1d",
+        "5d": "forward_return_5d",
+        "10d": "forward_return_10d",
+    }
+
+    for horizon_name, forward_column in horizon_map.items():
+        benchmark_column = f"vn30_forward_return_{horizon_name}"
+        relative_column = f"forward_relative_return_{horizon_name}"
+
+        date_return_sum = (
+            labels
+            .groupby("date")[forward_column]
+            .transform("sum")
+        )
+
+        date_return_count = (
+            labels
+            .groupby("date")[forward_column]
+            .transform("count")
+        )
+
+        labels[benchmark_column] = (
+            date_return_sum
+            - labels[forward_column]
+        ) / (
+            date_return_count
+            - 1
+        )
+
+        labels.loc[
+            date_return_count <= 1,
+            benchmark_column,
+        ] = pd.NA
+
+        labels[relative_column] = (
+            labels[forward_column]
+            - labels[benchmark_column]
+        )
+
+    return labels
 
 def main() -> None: 
     """Build, save, and verify the forward-label dataset"""
 
     stock_data = load_ohlcv_csv(STOCK_SOURCE_PATH)
-    benchmark_data = pd.read_csv(
-        BENCHMARK_SOURCE_PATH,
-        parse_dates = ["date"],
-    )
 
     stock_labels = build_forward_labels(stock_data)
     
-    benchmark_labels = build_vn30_forward_returns(benchmark_data)
+    benchmark_labels = build_equal_weight_benchmark_forward_returns(stock_data)
 
-    labels = add_relative_forward_labels( 
-        stock_labels,
-        benchmark_labels,
-    )
+    labels = add_leave_one_out_equal_weight_relative_labels(stock_labels)
 
     output_path = Path(OUTPUT_PATH)
 

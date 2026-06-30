@@ -40,14 +40,19 @@ def get_model_feature_columns(
         + RAW_MARKET_COLUMNS
     )
 
-    feature_columns = [
+    candidate_columns = [
         column
         for column in data.columns
         if column not in forbidden_columns
     ]
 
-    return feature_columns
+    feature_columns = [
+        column
+        for column in candidate_columns
+        if not data[column].isna().all()
+    ]
 
+    return feature_columns
 
 def fit_predict_linear_model(
     model,

@@ -12,7 +12,7 @@ from src.walk_forward_split import (
 )
 
 
-data = load_ohlcv_csv("sample_data/sample_ohlcv.csv")
+data = load_ohlcv_csv("data/raw/yahoo/vn30_test_ohlcv.csv")
 
 features = build_combined_features(data)
 
@@ -62,6 +62,12 @@ non_numeric_features = historical_rows[feature_columns].select_dtypes(
     ]
 ).columns.tolist()
 
+all_missing_feature_columns = [
+    column
+    for column in feature_columns
+    if historical_rows[column].isna().all()
+]
+
 can_cast_features_to_float = True
 
 try:
@@ -79,6 +85,7 @@ historical_targets_known = historical_rows["forward_relative_return_5d"].notna()
 prediction_targets_missing = prediction_rows["forward_relative_return_5d"].isna().all()
 forbidden_columns_excluded = forbidden_feature_columns == []
 features_castable = can_cast_features_to_float
+all_missing_features_excluded = all_missing_feature_columns == []
 
 print("Input rows:", len(data))
 print("Combined feature rows:", len(features))
@@ -92,6 +99,7 @@ print("Missing required columns:", missing_columns)
 print("Duplicate ticker-date keys:", duplicate_keys)
 print("Forbidden feature columns:", forbidden_feature_columns)
 print("Non-numeric feature columns:", non_numeric_features)
+print("All-missing feature columns:", all_missing_feature_columns)
 
 print("\nRows preserved:", rows_preserved)
 print("Required columns exist:", required_columns_exist)
@@ -100,4 +108,5 @@ print("Modeling rows correct:", modeling_rows_correct)
 print("Historical targets known:", historical_targets_known)
 print("Prediction targets missing:", prediction_targets_missing)
 print("Forbidden columns excluded:", forbidden_columns_excluded)
+print("All-missing features excluded:", all_missing_features_excluded)
 print("Features castable to float:", features_castable)
