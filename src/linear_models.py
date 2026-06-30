@@ -55,6 +55,10 @@ def fit_predict_linear_model(
     y_train: pd.Series,
     x_test: pd.DataFrame,
 ) -> pd.Series:
+
+    clean_x_train = x_train.astype(float)
+    clean_x_test = x_test.astype(float)
+
     pipeline = Pipeline(
         steps=[
             (
@@ -70,9 +74,9 @@ def fit_predict_linear_model(
         ]
     )
 
-    pipeline.fit(x_train, y_train)
+    pipeline.fit(clean_x_train, y_train)
 
-    predictions = pipeline.predict(x_test)
+    predictions = pipeline.predict(clean_x_test)
 
     return pd.Series(
         predictions,

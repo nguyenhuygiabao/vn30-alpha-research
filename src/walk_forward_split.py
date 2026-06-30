@@ -1,7 +1,7 @@
 from __future__ import annotations
 import pandas as pd
 
-FEATURES_PATH: str = "data/processed/features_momentum.parquet"
+FEATURES_PATH: str = "data/processed/features_combined.parquet"
 LABELS_PATH: str = "data/processed/labels.parquet"
 
 TARGET_COLUMN: str = "forward_relative_return_5d"
@@ -19,6 +19,7 @@ KEY_COLUMNS: list[str] = [
 
 PURGE_DAYS: int = 5
 
+
 def load_modeling_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
     features = pd.read_parquet(FEATURES_PATH)
     labels = pd.read_parquet(LABELS_PATH)
@@ -29,17 +30,19 @@ def load_modeling_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
 
     return features, selected_labels
 
+
 def build_modeling_dataset(
         features: pd.DataFrame,
         labels: pd.DataFrame,
 ) -> pd.DataFrame:
     modeling_dataset = features.merge(
-        labels, 
+        labels,
         on = KEY_COLUMNS,
         how = "left",
         validate= "one_to_one",
     )
     return modeling_dataset
+
 
 def separate_target_rows(
         modeling_dataset: pd.DataFrame,
@@ -57,10 +60,13 @@ def separate_target_rows(
     )
 
     return historical_rows, prediction_rows
+
+
 def get_sorted_dates(historical_rows: pd.DataFrame,) -> pd.DatetimeIndex:
     unique_dates = pd.DatetimeIndex(historical_rows["date"].drop_duplicates())
 
     return unique_dates.sort_values()
+
 
 def build_walk_forward_date_windows(
         dates: pd.DatetimeIndex,
@@ -97,8 +103,9 @@ def build_walk_forward_date_windows(
         )
 
         window_start += step_size
-        
+
     return windows
+
 
 def split_window_data(
         historical_rows: pd.DataFrame,
@@ -111,17 +118,17 @@ def split_window_data(
     pd.Series,
     pd.DataFrame,
     pd.Series
-]: 
+]:
     forbidden_columns = KEY_COLUMNS + LABEL_COLUMNS
 
     if any(
         column in feature_columns
         for column in forbidden_columns
-    ): 
+    ):
         raise ValueError(
             "Features columns cannot contain date, ticker, or target."
         )
-   
+
 
     train_rows = historical_rows[historical_rows["date"].isin(window["train_dates"])].copy()
 
@@ -140,7 +147,8 @@ def split_window_data(
 
     return x_train, y_train, x_val, y_val, x_test, y_test
 
-def main() -> None: 
+
+def main() -> None:
     print("Features path:", FEATURES_PATH)
     print("labels path:", LABELS_PATH)
     print("Target column:", TARGET_COLUMN)
@@ -191,13 +199,13 @@ def main() -> None:
     historical_dates = get_sorted_dates(historical_rows)
     print("\nHistorical date count", len(historical_dates))
     print("Earliest historical date:", historical_dates.min())
-    print("Latest historical date:", historical_dates.max())    
+    print("Latest historical date:", historical_dates.max())
 
     windows = build_walk_forward_date_windows(dates = historical_dates,
                                               train_size=1,
-                                              validation_size= 1, 
+                                              validation_size= 1,
                                               test_size= 1,
-                                              purge_size= PURGE_DAYS, 
+                                              purge_size= PURGE_DAYS,
                                               step_size= 1)
     print("Walk-forward windows from official sample:", len(windows))
 
