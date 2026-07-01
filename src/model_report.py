@@ -145,9 +145,11 @@ def build_model_report(
         ),
         "",
         (
-            "Important caution: the current dataset is still a tiny toy "
-            "sample. The numbers below validate the evaluation pipeline, "
-            "but they should not be treated as real market evidence."
+            "Important caution: the current dataset uses the current VN30 constituent "
+            "list applied backward through time. The numbers below are real-data "
+            "walk-forward results, but they are not final market evidence until "
+            "survivorship bias, liquidity limits, and transaction costs are handled "
+            "more carefully."
         ),
         "",
         "## Regression model comparison",
