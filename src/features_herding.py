@@ -25,7 +25,6 @@ def calculate_volume_concentration_top_n(
 
     return top_value_traded / total_value_traded
 
-
 def calculate_rolling_average_pairwise_correlation(
     data: pd.DataFrame,
     window: int = ROLLING_CORRELATION_WINDOW,
@@ -52,25 +51,20 @@ def calculate_rolling_average_pairwise_correlation(
             end_position + 1 - window : end_position + 1
         ]
 
+        correlation_matrix = window_returns.corr(
+            min_periods=2,
+        )
+
         pairwise_correlations = []
 
         for first_ticker, second_ticker in combinations(
-            window_returns.columns,
+            correlation_matrix.columns,
             2,
         ):
-            pair_returns = window_returns[
-                [
-                    first_ticker,
-                    second_ticker,
-                ]
-            ].dropna()
-
-            if len(pair_returns) < 2:
-                continue
-
-            correlation = pair_returns[first_ticker].corr(
-                pair_returns[second_ticker]
-            )
+            correlation = correlation_matrix.loc[
+                first_ticker,
+                second_ticker,
+            ]
 
             if pd.notna(correlation):
                 pairwise_correlations.append(correlation)
@@ -90,7 +84,6 @@ def calculate_rolling_average_pairwise_correlation(
         )
 
     return pd.DataFrame(correlations)
-
 
 def add_cross_sectional_herding_features(
     data: pd.DataFrame,

@@ -12,7 +12,7 @@ from src.walk_forward_split import (
 )
 
 
-data = load_ohlcv_csv("data/raw/yahoo/vn30_test_ohlcv.csv")
+data = load_ohlcv_csv("data/raw/vnstock/vn30_ohlcv.csv")
 
 features = build_combined_features(data)
 

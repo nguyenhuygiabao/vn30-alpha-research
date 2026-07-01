@@ -12,7 +12,7 @@ from src.features_momentum import add_momentum_features
 from src.price_limit import add_estimated_price_limits
 
 
-SOURCE_PATH: str = "data/raw/yahoo/vn30_test_ohlcv.csv"
+SOURCE_PATH: str = "data/raw/vnstock/vn30_ohlcv.csv"
 COMBINED_FEATURES_PATH: str = "data/processed/features_combined.parquet"
 
 

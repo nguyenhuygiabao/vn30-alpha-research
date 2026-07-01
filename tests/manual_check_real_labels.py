@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 
-RAW_DATA_PATH: str = "data/raw/yahoo/vn30_test_ohlcv.csv"
+RAW_DATA_PATH: str = "data/raw/vnstock/vn30_ohlcv.csv"
 LABELS_PATH: str = "data/processed/labels.parquet"
 
 MAIN_TARGET: str = "forward_relative_return_5d"
@@ -114,8 +114,8 @@ required_columns_present = missing_columns == []
 rows_match_raw_data = len(labels) == len(raw_data)
 duplicate_keys_absent = duplicate_keys == 0
 tickers_match_raw_data = actual_tickers == expected_tickers
-valid_targets_exist = valid_main_target_rows > 10000
-missing_target_rows_correct = missing_main_target_rows == 30
+valid_targets_exist = valid_main_target_rows > 46000
+missing_target_rows_correct = missing_main_target_rows == 150
 missing_target_by_ticker_correct = (
     missing_main_target_by_ticker == 5
 ).all()
