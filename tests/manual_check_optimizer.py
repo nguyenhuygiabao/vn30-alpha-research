@@ -13,6 +13,7 @@ from src.optimizer import (
     OPTIMIZED_WEIGHTS_PATH,
     TREE_MODEL_PREDICTIONS_PATH,
     calculate_turnover,
+    HERDING_SCORE_COLUMN,
 )
 
 TOLERANCE: float = 1e-8
@@ -24,8 +25,11 @@ REQUIRED_COLUMNS: list[str] = [
     "predicted_return",
     "actual_return",
     "model_name",
+    "optimization_mode",
     "portfolio_turnover",
     "issuer_group",
+    HERDING_SCORE_COLUMN,
+    "high_herding_day",
 ]
 
 
@@ -45,7 +49,12 @@ def main() -> None:
         for column in REQUIRED_COLUMNS
     )
 
-    duplicate_keys_absent = weights.duplicated(KEY_COLUMNS).sum() == 0
+    duplicate_keys_absent = weights.duplicated(
+    [
+        "optimization_mode",
+        *KEY_COLUMNS,
+    ]
+    ).sum() == 0
 
     weights_non_negative = weights["weight"].min() >= 0
 
@@ -53,15 +62,20 @@ def main() -> None:
 
     max_weight_respected = weights["weight"].max() <= MAX_WEIGHT + TOLERANCE
 
-    daily_weight_sum = weights.groupby("date")["weight"].sum()
-
-    daily_issuer_group_weight = weights.groupby(
-        [
-            "date",
-            ISSUER_GROUP_COLUMN,
-        ]
+    daily_weight_sum = weights.groupby(
+    [
+        "optimization_mode",
+        "date",
+    ]
     )["weight"].sum()
 
+    daily_issuer_group_weight = weights.groupby(
+    [
+        "optimization_mode",
+        "date",
+        ISSUER_GROUP_COLUMN,
+    ]
+    )["weight"].sum()
     issuer_group_cap_respected = (
         daily_issuer_group_weight.max()
         <= MAX_ISSUER_GROUP_WEIGHT + TOLERANCE
@@ -72,33 +86,45 @@ def main() -> None:
     weight_sum_respected = daily_weight_sum.max() <= 1.0 + TOLERANCE
 
     stored_turnover_respected = (
-        weights.groupby("date")["portfolio_turnover"].max().max()
+        weights.groupby(
+    [
+        "optimization_mode",
+        "date",
+    ]
+    )["portfolio_turnover"].max().max()
         <= MAX_TURNOVER + TOLERANCE
     )
 
     recalculated_turnovers = []
 
-    previous_weights = pd.Series(dtype=float)
+    for optimization_mode, mode_weights in weights.groupby("optimization_mode"):
+        previous_weights = pd.Series(dtype=float)
 
-    for date, date_weights in weights.groupby("date"):
-        current_weights = date_weights.set_index("ticker")["weight"]
+        for date, date_weights in mode_weights.groupby("date"):
+            current_weights = date_weights.set_index("ticker")["weight"]
 
-        turnover = calculate_turnover(
-            old_weights=previous_weights,
-            new_weights=current_weights,
-        )
+            turnover = calculate_turnover(
+                old_weights=previous_weights,
+                new_weights=current_weights,
+            )
 
-        recalculated_turnovers.append(
-            {
-                "date": date,
-                "recalculated_turnover": turnover,
-                "stored_turnover": date_weights["portfolio_turnover"].max(),
-            }
-        )
+            recalculated_turnovers.append(
+                {
+                    "optimization_mode": optimization_mode,
+                    "date": date,
+                    "recalculated_turnover": turnover,
+                    "stored_turnover": date_weights["portfolio_turnover"].max(),
+                }
+            )
 
-        previous_weights = current_weights
+            previous_weights = current_weights
 
     turnover_check = pd.DataFrame(recalculated_turnovers)
+
+    maximum_turnover_difference = (
+        turnover_check["recalculated_turnover"]
+        - turnover_check["stored_turnover"]
+    ).abs().max()
 
     recalculated_turnover_respected = (
         turnover_check["recalculated_turnover"].max()
@@ -106,13 +132,7 @@ def main() -> None:
     )
 
     stored_turnover_matches_recalculated = (
-        (
-            turnover_check["recalculated_turnover"]
-            - turnover_check["stored_turnover"]
-        )
-        .abs()
-        .max()
-        <= TOLERANCE
+    maximum_turnover_difference <= TOLERANCE
     )
 
     dates_match_model_predictions = (
@@ -122,6 +142,66 @@ def main() -> None:
 
     only_expected_model = weights["model_name"].eq(MODEL_NAME).all()
 
+    optimization_modes = set(weights["optimization_mode"].unique())
+
+    expected_optimization_modes_present = optimization_modes == {
+        "normal",
+        "herding_aware",
+    }
+
+    daily_mode_summary = (
+        weights.groupby(
+            [
+                "optimization_mode",
+                "high_herding_day",
+                "date",
+            ]
+        )
+        .agg(
+            total_weight=("weight", "sum"),
+            max_stock_weight=("weight", "max"),
+            selected_count=("ticker", "count"),
+        )
+        .reset_index()
+    )
+
+    herding_summary = daily_mode_summary.groupby(
+        [
+            "optimization_mode",
+            "high_herding_day",
+        ]
+    ).agg(
+        dates=("date", "nunique"),
+        average_total_weight=("total_weight", "mean"),
+        average_max_stock_weight=("max_stock_weight", "mean"),
+        average_selected_count=("selected_count", "mean"),
+    )
+
+    normal_high_herding = daily_mode_summary[
+        (daily_mode_summary["optimization_mode"] == "normal")
+        & daily_mode_summary["high_herding_day"]
+    ]
+
+    herding_aware_high_herding = daily_mode_summary[
+        (daily_mode_summary["optimization_mode"] == "herding_aware")
+        & daily_mode_summary["high_herding_day"]
+    ]
+
+    herding_aware_reduces_exposure = (
+        herding_aware_high_herding["total_weight"].mean()
+        < normal_high_herding["total_weight"].mean()
+    )
+
+    herding_aware_reduces_max_weight = (
+        herding_aware_high_herding["max_stock_weight"].mean()
+        < normal_high_herding["max_stock_weight"].mean()
+    )
+
+    herding_aware_reduces_selected_count = (
+        herding_aware_high_herding["selected_count"].mean()
+        < normal_high_herding["selected_count"].mean()
+    )
+
     print("Optimized weight rows:", len(weights))
     print("Date count:", weights["date"].nunique())
     print("Ticker count:", weights["ticker"].nunique())
@@ -129,13 +209,17 @@ def main() -> None:
     print("Maximum weight:", weights["weight"].max())
     print("Maximum daily weight sum:", daily_weight_sum.max())
     print("Maximum issuer group weight:", daily_issuer_group_weight.max())
-    print("Maximum stored turnover:", weights.groupby("date")["portfolio_turnover"].max().max())
-    print("Maximum recalculated turnover:", turnover_check["recalculated_turnover"].max())
-    print("Maximum turnover difference:", (
-        turnover_check["recalculated_turnover"]
-        - turnover_check["stored_turnover"]
-    ).abs().max())
+    print("Maximum stored turnover:", weights.groupby(
+    [
+        "optimization_mode",
+        "date",
+    ]
+    )["portfolio_turnover"].max().max())
 
+    print("Maximum recalculated turnover:", turnover_check["recalculated_turnover"].max())
+    print("Maximum turnover difference:", maximum_turnover_difference)
+    print("\nHerding control summary:")
+    print(herding_summary.round(6))
     print("\nRequired columns present:", required_columns_present)
     print("Duplicate keys absent:", duplicate_keys_absent)
     print("Weights non-negative:", weights_non_negative)
@@ -149,6 +233,10 @@ def main() -> None:
     print("Only expected model:", only_expected_model)
     print("Issuer group complete:", issuer_group_complete)
     print("Issuer group cap respected:", issuer_group_cap_respected)
+    print("Expected optimization modes present:", expected_optimization_modes_present)
+    print("Herding-aware reduces exposure:", herding_aware_reduces_exposure)
+    print("Herding-aware reduces max weight:", herding_aware_reduces_max_weight)
+    print("Herding-aware reduces selected count:", herding_aware_reduces_selected_count)
 
 if __name__ == "__main__":
     main()

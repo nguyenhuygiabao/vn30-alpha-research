@@ -125,157 +125,160 @@ def apply_price_limit_execution_rules(
     execution_reference: pd.DataFrame,
 ) -> pd.DataFrame:
     adjusted_frames = []
-    previous_weights = pd.Series(dtype=float)
 
-    for date, date_weights in weights.groupby("date"):
-        working = date_weights.copy()
+    for optimization_mode, mode_weights in weights.groupby("optimization_mode"):
+        previous_weights = pd.Series(dtype=float)
 
-        current_weights = working.set_index("ticker")["weight"]
+        for date, date_weights in mode_weights.groupby("date"):
+            working = date_weights.copy()
+            current_weights = working.set_index("ticker")["weight"]
 
-        all_tickers = previous_weights.index.union(current_weights.index)
+            all_tickers = previous_weights.index.union(current_weights.index)
 
-        previous_aligned = previous_weights.reindex(
-            all_tickers,
-            fill_value=0.0,
-        )
-
-        current_aligned = current_weights.reindex(
-            all_tickers,
-            fill_value=0.0,
-        )
-
-        execution_rows = pd.DataFrame(
-            {
-                "ticker": all_tickers,
-                "previous_weight": previous_aligned.values,
-                "target_weight": current_aligned.values,
-            }
-        )
-
-        execution_rows["date"] = date
-
-        date_execution_reference = execution_reference[
-            execution_reference["date"] == date
-        ]
-
-        execution_rows = execution_rows.merge(
-            date_execution_reference,
-            on=[
-                "date",
-                "ticker",
-            ],
-            how="left",
-        )
-
-        execution_rows["close_at_ceiling_today"] = execution_rows[
-            "close_at_ceiling_today"
-        ].eq(True)
-
-        execution_rows["close_at_floor_today"] = execution_rows[
-            "close_at_floor_today"
-        ].eq(True)
-
-        execution_rows["buy_blocked_by_ceiling"] = (
-            execution_rows["target_weight"]
-            > execution_rows["previous_weight"]
-        ) & execution_rows["close_at_ceiling_today"]
-
-        execution_rows["sell_blocked_by_floor"] = (
-            execution_rows["target_weight"]
-            < execution_rows["previous_weight"]
-        ) & execution_rows["close_at_floor_today"]
-
-        execution_rows["execution_adjusted_weight"] = execution_rows[
-            "target_weight"
-        ]
-
-        blocked_trade = (
-            execution_rows["buy_blocked_by_ceiling"]
-            | execution_rows["sell_blocked_by_floor"]
-        )
-
-        execution_rows.loc[
-            blocked_trade,
-            "execution_adjusted_weight",
-        ] = execution_rows.loc[
-            blocked_trade,
-            "previous_weight",
-        ]
-
-        total_weight = execution_rows["execution_adjusted_weight"].sum()
-
-        if total_weight > 1.0:
-            buy_increase = (
-                execution_rows["execution_adjusted_weight"]
-                - execution_rows["previous_weight"]
-            ).clip(lower=0.0)
-
-            total_buy_increase = buy_increase.sum()
-
-            excess_weight = total_weight - 1.0
-
-            if total_buy_increase > 0:
-                buy_reduction_scale = max(
-                    1.0 - excess_weight / total_buy_increase,
-                    0.0,
-                )
-
-                execution_rows["execution_adjusted_weight"] = (
-                    execution_rows["previous_weight"]
-                    + (
-                        execution_rows["execution_adjusted_weight"]
-                        - execution_rows["previous_weight"]
-                    ).clip(lower=0.0) * buy_reduction_scale
-                    + (
-                        execution_rows["execution_adjusted_weight"]
-                        - execution_rows["previous_weight"]
-                    ).clip(upper=0.0)
-                )
-
-        actual_turnover = 0.5 * (
-            execution_rows["execution_adjusted_weight"]
-            - execution_rows["previous_weight"]
-        ).abs().sum()
-
-        if actual_turnover > MAX_EXECUTION_TURNOVER:
-            scale = max(
-                (MAX_EXECUTION_TURNOVER - EXECUTION_TURNOVER_BUFFER)
-                / actual_turnover,
-                0.0,
+            previous_aligned = previous_weights.reindex(
+                all_tickers,
+                fill_value=0.0,
             )
 
-            execution_rows["execution_adjusted_weight"] = (
-                execution_rows["previous_weight"]
-                + scale
-                * (
+            current_aligned = current_weights.reindex(
+                all_tickers,
+                fill_value=0.0,
+            )
+
+            execution_rows = pd.DataFrame(
+                {
+                    "ticker": all_tickers,
+                    "previous_weight": previous_aligned.values,
+                    "target_weight": current_aligned.values,
+                }
+            )
+
+            execution_rows["date"] = date
+            execution_rows["optimization_mode"] = optimization_mode
+
+            date_execution_reference = execution_reference[
+                execution_reference["date"] == date
+            ]
+
+            execution_rows = execution_rows.merge(
+                date_execution_reference,
+                on=[
+                    "date",
+                    "ticker",
+                ],
+                how="left",
+            )
+
+            execution_rows["close_at_ceiling_today"] = execution_rows[
+                "close_at_ceiling_today"
+            ].eq(True)
+
+            execution_rows["close_at_floor_today"] = execution_rows[
+                "close_at_floor_today"
+            ].eq(True)
+
+            execution_rows["buy_blocked_by_ceiling"] = (
+                execution_rows["target_weight"]
+                > execution_rows["previous_weight"]
+            ) & execution_rows["close_at_ceiling_today"]
+
+            execution_rows["sell_blocked_by_floor"] = (
+                execution_rows["target_weight"]
+                < execution_rows["previous_weight"]
+            ) & execution_rows["close_at_floor_today"]
+
+            execution_rows["execution_adjusted_weight"] = execution_rows[
+                "target_weight"
+            ]
+
+            blocked_trade = (
+                execution_rows["buy_blocked_by_ceiling"]
+                | execution_rows["sell_blocked_by_floor"]
+            )
+
+            execution_rows.loc[
+                blocked_trade,
+                "execution_adjusted_weight",
+            ] = execution_rows.loc[
+                blocked_trade,
+                "previous_weight",
+            ]
+
+            total_weight = execution_rows["execution_adjusted_weight"].sum()
+
+            if total_weight > 1.0:
+                buy_increase = (
                     execution_rows["execution_adjusted_weight"]
                     - execution_rows["previous_weight"]
-                )
-            )
+                ).clip(lower=0.0)
+
+                total_buy_increase = buy_increase.sum()
+
+                excess_weight = total_weight - 1.0
+
+                if total_buy_increase > 0:
+                    buy_reduction_scale = max(
+                        1.0 - excess_weight / total_buy_increase,
+                        0.0,
+                    )
+
+                    execution_rows["execution_adjusted_weight"] = (
+                        execution_rows["previous_weight"]
+                        + (
+                            execution_rows["execution_adjusted_weight"]
+                            - execution_rows["previous_weight"]
+                        ).clip(lower=0.0) * buy_reduction_scale
+                        + (
+                            execution_rows["execution_adjusted_weight"]
+                            - execution_rows["previous_weight"]
+                        ).clip(upper=0.0)
+                    )
 
             actual_turnover = 0.5 * (
                 execution_rows["execution_adjusted_weight"]
                 - execution_rows["previous_weight"]
             ).abs().sum()
 
-        execution_rows["weight"] = execution_rows["execution_adjusted_weight"]
-        execution_rows["portfolio_turnover"] = actual_turnover
+            if actual_turnover > MAX_EXECUTION_TURNOVER:
+                scale = max(
+                    (MAX_EXECUTION_TURNOVER - EXECUTION_TURNOVER_BUFFER)
+                    / actual_turnover,
+                    0.0,
+                )
 
-        execution_rows = execution_rows[
-            execution_rows["execution_adjusted_weight"] > MIN_EXECUTION_WEIGHT
-        ]
+                execution_rows["execution_adjusted_weight"] = (
+                    execution_rows["previous_weight"]
+                    + scale
+                    * (
+                        execution_rows["execution_adjusted_weight"]
+                        - execution_rows["previous_weight"]
+                    )
+                )
 
-        adjusted_frames.append(execution_rows)
+                actual_turnover = 0.5 * (
+                    execution_rows["execution_adjusted_weight"]
+                    - execution_rows["previous_weight"]
+                ).abs().sum()
 
-        previous_weights = execution_rows.set_index("ticker")[
-            "execution_adjusted_weight"
-        ]
+            execution_rows["weight"] = execution_rows["execution_adjusted_weight"]
+            execution_rows["portfolio_turnover"] = actual_turnover
+
+            execution_rows = execution_rows[
+                execution_rows["execution_adjusted_weight"] > MIN_EXECUTION_WEIGHT
+            ]
+
+            adjusted_frames.append(execution_rows)
+
+            previous_weights = execution_rows.set_index("ticker")[
+                "execution_adjusted_weight"
+            ]
 
     return pd.concat(
         adjusted_frames,
         ignore_index=True,
     ).sort_values(
         [
+            "optimization_mode",
             "date",
             "ticker",
         ]
@@ -297,7 +300,12 @@ def calculate_backtest_returns(
         0.0,
     )
 
-    daily_returns = working.groupby("date").agg(
+    daily_returns = working.groupby(
+        [
+            "optimization_mode",
+            "date",
+        ]
+    ).agg(
         before_cost_return=("weighted_actual_return", "sum"),
         portfolio_turnover=("portfolio_turnover", "max"),
         selected_count=("ticker", "count"),
@@ -331,15 +339,63 @@ def calculate_backtest_returns(
     )
 
     daily_returns["cumulative_before_cost_active_return"] = (
-        daily_returns["before_cost_return"].cumsum()
+        daily_returns.groupby(level="optimization_mode")[
+            "before_cost_return"
+        ].cumsum()
     )
 
     daily_returns["cumulative_after_cost_active_return"] = (
-        daily_returns["after_cost_return"].cumsum()
+        daily_returns.groupby(level="optimization_mode")[
+            "after_cost_return"
+        ].cumsum()
     )
 
     return daily_returns.reset_index()
 
+def calculate_performance_summary(
+    backtest_returns: pd.DataFrame,
+) -> pd.DataFrame:
+    summary_rows = []
+
+    for keys, group in backtest_returns.groupby(
+        [
+            "optimization_mode",
+            "execution_mode",
+        ]
+    ):
+        optimization_mode, execution_mode = keys
+
+        ordered = group.sort_values("date").copy()
+
+        cumulative_return = ordered["cumulative_after_cost_active_return"]
+        running_peak = cumulative_return.cummax()
+        drawdown = cumulative_return - running_peak
+
+        average_after_cost_return = ordered["after_cost_return"].mean()
+        return_volatility = ordered["after_cost_return"].std()
+
+        if return_volatility > 0:
+            diagnostic_sharpe = average_after_cost_return / return_volatility
+        else:
+            diagnostic_sharpe = float("nan")
+
+        summary_rows.append(
+            {
+                "optimization_mode": optimization_mode,
+                "execution_mode": execution_mode,
+                "average_after_cost_return": average_after_cost_return,
+                "return_volatility": return_volatility,
+                "diagnostic_sharpe": diagnostic_sharpe,
+                "max_active_drawdown": drawdown.min(),
+                "average_turnover": ordered["portfolio_turnover"].mean(),
+                "maximum_turnover": ordered["portfolio_turnover"].max(),
+                "final_cumulative_after_cost_active_return": (
+                    cumulative_return.iloc[-1]
+                ),
+            }
+        )
+
+    return pd.DataFrame(summary_rows)
 
 def save_backtest_returns(
     backtest_returns: pd.DataFrame,
@@ -397,7 +453,12 @@ def main() -> None:
     output_path = save_backtest_returns(backtest_returns)
 
     print("Backtest returns path:", output_path)
-    comparison_summary = backtest_returns.groupby("execution_mode").agg(
+    comparison_summary = backtest_returns.groupby(
+    [
+        "optimization_mode",
+        "execution_mode",
+    ]
+).agg(
     date_count=("date", "nunique"),
     average_before_cost_return=("before_cost_return", "mean"),
     average_after_cost_return=("after_cost_return", "mean"),
@@ -407,11 +468,14 @@ def main() -> None:
     final_cumulative_after_cost_active_return=(
         "cumulative_after_cost_active_return",
         "last",
-        ),
-    )
-
-    print("\nExecution mode comparison:")
+    ),
+)
+    print("\nOptimization and execution mode comparison:")
     print(comparison_summary)
+    performance_summary = calculate_performance_summary(backtest_returns)
+
+    print("\nPerformance summary:")
+    print(performance_summary.to_string(index=False))
     print("Backtest rows:", len(backtest_returns))
     print("Date count:", backtest_returns["date"].nunique())
     print("Average before-cost return:", backtest_returns["before_cost_return"].mean())

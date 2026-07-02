@@ -8,6 +8,7 @@ import pandas as pd
 TREE_MODEL_PREDICTIONS_PATH: str = "data/processed/tree_model_predictions.parquet"
 OPTIMIZED_WEIGHTS_PATH: str = "data/processed/optimized_weights.parquet"
 VN30_UNIVERSE_PATH: str = "config/vn30_universe.csv"
+FEATURES_PATH: str = "data/processed/features_combined.parquet"
 
 MODEL_NAME: str = "gradient_boosting"
 
@@ -18,6 +19,12 @@ MIN_WEIGHT: float = 1e-8
 TURNOVER_BUFFER: float = 1e-6
 MAX_ISSUER_GROUP_WEIGHT: float = 0.40
 ISSUER_GROUP_COLUMN: str = "issuer_group"
+HERDING_SCORE_COLUMN: str = "herding_corr_score"
+HIGH_HERDING_THRESHOLD: float = 0.80
+HERDING_AWARE_TOP_N: int = 5
+HERDING_AWARE_MAX_WEIGHT: float = 0.15
+HERDING_AWARE_TARGET_EXPOSURE: float = 0.75
+HERDING_AWARE_MIN_PREDICTED_RETURN: float = 0.0
 
 KEY_COLUMNS: list[str] = [
     "date",
@@ -31,7 +38,7 @@ def load_model_predictions(
     predictions = pd.read_parquet(path)
 
     predictions["date"] = pd.to_datetime(predictions["date"])
-    
+
     universe = load_universe_metadata()
 
     predictions = predictions.merge(
@@ -70,12 +77,66 @@ def load_universe_metadata(
 
     return universe[required_columns].copy()
 
+def load_daily_herding_state(
+    path: str = FEATURES_PATH,
+) -> pd.DataFrame:
+    features = pd.read_parquet(path)
+
+    features["date"] = pd.to_datetime(features["date"])
+
+    required_columns = [
+        "date",
+        HERDING_SCORE_COLUMN,
+    ]
+
+    missing_columns = [
+        column
+        for column in required_columns
+        if column not in features.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(f"Missing herding columns: {missing_columns}")
+
+    daily_herding = (
+        features.groupby("date")[HERDING_SCORE_COLUMN]
+        .first()
+        .reset_index()
+    )
+
+    daily_herding["high_herding_day"] = (
+        daily_herding[HERDING_SCORE_COLUMN] >= HIGH_HERDING_THRESHOLD
+    )
+
+    return daily_herding
+
 def build_target_weights_for_date(
     date_predictions: pd.DataFrame,
     top_n: int = TOP_N,
     max_weight: float = MAX_WEIGHT,
+    target_exposure: float = 1.0,
+    min_predicted_return: float | None = None,
 ) -> pd.DataFrame:
-    ranked = date_predictions.sort_values(
+
+    eligible_predictions = date_predictions.copy()
+
+    if min_predicted_return is not None:
+        eligible_predictions = eligible_predictions[
+            eligible_predictions["predicted_return"] > min_predicted_return
+        ]
+
+    if eligible_predictions.empty:
+        return pd.DataFrame(
+            columns=[
+                "date",
+                "ticker",
+                ISSUER_GROUP_COLUMN,
+                "predicted_return",
+                "target_weight",
+            ]
+        )
+
+    ranked = eligible_predictions.sort_values(
         [
             "predicted_return",
             "ticker",
@@ -86,8 +147,10 @@ def build_target_weights_for_date(
         ],
     ).head(top_n)
 
+    selected_count = len(ranked)
+
     weight = min(
-        1.0 / top_n,
+        target_exposure / selected_count,
         max_weight,
     )
 
@@ -183,6 +246,7 @@ def build_optimized_weights(
     top_n: int = TOP_N,
     max_weight: float = MAX_WEIGHT,
     max_turnover: float = MAX_TURNOVER,
+    optimization_mode: str = "normal",
 ) -> pd.DataFrame:
     model_predictions = predictions[
         predictions["model_name"] == model_name
@@ -196,10 +260,32 @@ def build_optimized_weights(
     universe_metadata = load_universe_metadata()
 
     for date, date_predictions in model_predictions.groupby("date"):
+        is_high_herding_day = bool(
+            date_predictions["high_herding_day"].iloc[0]
+        )
+
+        use_herding_controls = (
+            optimization_mode == "herding_aware"
+            and is_high_herding_day
+        )
+
+        if use_herding_controls:
+            date_top_n = HERDING_AWARE_TOP_N
+            date_max_weight = HERDING_AWARE_MAX_WEIGHT
+            date_target_exposure = HERDING_AWARE_TARGET_EXPOSURE
+            date_min_predicted_return = HERDING_AWARE_MIN_PREDICTED_RETURN
+        else:
+            date_top_n = top_n
+            date_max_weight = max_weight
+            date_target_exposure = 1.0
+            date_min_predicted_return = None
+
         target_frame = build_target_weights_for_date(
             date_predictions=date_predictions,
-            top_n=top_n,
-            max_weight=max_weight,
+            top_n=date_top_n,
+            max_weight=date_max_weight,
+            target_exposure=date_target_exposure,
+            min_predicted_return=date_min_predicted_return,
         )
 
         target_weights = target_frame.set_index("ticker")["target_weight"]
@@ -230,6 +316,8 @@ def build_optimized_weights(
                     "ticker",
                     "predicted_return",
                     "actual_return",
+                    HERDING_SCORE_COLUMN,
+                    "high_herding_day",
                 ]
             ],
             on=[
@@ -240,6 +328,7 @@ def build_optimized_weights(
         )
 
         output["model_name"] = model_name
+        output["optimization_mode"] = optimization_mode
         output["portfolio_turnover"] = calculate_turnover(
             old_weights=previous_weights,
             new_weights=optimized_weights,
@@ -281,13 +370,65 @@ def save_optimized_weights(
 
 def main() -> None:
     predictions = load_model_predictions()
-    weights = build_optimized_weights(predictions)
+    daily_herding = load_daily_herding_state()
+    print("Herding dates:", len(daily_herding))
+    print("High-herding dates:", daily_herding["high_herding_day"].sum())
+    print("High-herding threshold:", HIGH_HERDING_THRESHOLD)
+    predictions = predictions.merge(
+    daily_herding,
+    on="date",
+    how="left",
+    )
+
+    missing_herding_rows = predictions["high_herding_day"].isna().sum()
+
+    if missing_herding_rows > 0:
+        raise ValueError(
+            f"Missing herding state for {missing_herding_rows} prediction rows"
+        )
+
+    print("Prediction rows:", len(predictions))
+    print(
+        "Prediction rows on high-herding dates:",
+        predictions["high_herding_day"].sum(),
+    )
+    normal_weights = build_optimized_weights(
+        predictions=predictions,
+        optimization_mode="normal",
+    )
+
+    herding_aware_weights = build_optimized_weights(
+        predictions=predictions,
+        optimization_mode="herding_aware",
+    )
+
+    weights = pd.concat(
+        [
+            normal_weights,
+            herding_aware_weights,
+        ],
+        ignore_index=True,
+    )
+
     output_path = save_optimized_weights(weights)
 
-    daily_weight_sum = weights.groupby("date")["weight"].sum()
-    daily_turnover = weights.groupby("date")["portfolio_turnover"].max()
+    daily_weight_sum = weights.groupby(
+        [
+            "optimization_mode",
+            "date",
+        ]
+    )["weight"].sum()
+
+    daily_turnover = weights.groupby(
+        [
+            "optimization_mode",
+            "date",
+        ]
+    )["portfolio_turnover"].max()
+
     daily_issuer_group_weight = weights.groupby(
         [
+            "optimization_mode",
             "date",
             ISSUER_GROUP_COLUMN,
         ]
@@ -302,8 +443,15 @@ def main() -> None:
     print("Maximum daily weight sum:", daily_weight_sum.max())
     print("Maximum daily turnover:", daily_turnover.max())
     print("Maximum issuer group weight:", daily_issuer_group_weight.max())
-    print("Duplicate ticker-date keys:", weights.duplicated(KEY_COLUMNS).sum())
+    duplicate_keys = weights.duplicated(
+    [
+        "optimization_mode",
+        "date",
+        "ticker",
+    ]
+    ).sum()
 
+    print("Duplicate mode-date-ticker keys:", duplicate_keys)
     print("\nSample:")
     print(weights.head(20))
 
