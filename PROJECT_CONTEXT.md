@@ -446,6 +446,7 @@ Final report tables and figures can be committed.
 - Added reports/report_index.md
 - Added scripts/report_summary.py
 - Added scripts/run_full_pipeline.py for controlled one-command pipeline refresh
+- Added scripts/clean_generated_outputs.py for safe stale-output preview and cleanup
 - Added .gitignore rules for generated data
 - Removed BOM from requirements.txt
 - Made reports/data_quality_report.md deterministic by removing runtime timestamp noise
@@ -458,7 +459,9 @@ scripts/run_full_pipeline.py
 
 Main commands:
 
-py .\scripts\run_full_pipeline.py --dry-run
+py .\scripts\run_full_pipeline.py
+py .\scripts\clean_generated_outputs.py
+py .\scripts\clean_generated_outputs.py --confirm
 py .\scripts\run_full_pipeline.py --stop-after data_quality
 py .\scripts\run_full_pipeline.py --start-at features --stop-after labels
 py .\scripts\run_full_pipeline.py --start-at linear_models --stop-after classification_models
@@ -473,7 +476,7 @@ The runner executes src modules with py -m style through sys.executable, so rela
 ## Priority next upgrades
 
 1. Keep PROJECT_CONTEXT.md updated when project state changes.
-2. Add stale-output handling before reruns.
+2. Connect stale-output cleaning into the pipeline runner after more testing.
 3. Add clean audit/update workflow after each rerun.
 4. Add optional daily auto-update through Windows Task Scheduler or GitHub Actions later.
 5. Add Streamlit dashboard after the command-line workflow is stable.
