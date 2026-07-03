@@ -446,6 +446,8 @@ Final report tables and figures can be committed.
 - Added reports/report_index.md
 - Added scripts/report_summary.py
 - Added scripts/run_full_pipeline.py for controlled one-command pipeline refresh
+- Added --clean-first to the pipeline runner for optional stale-output cleanup
+- Added --summary-only to the pipeline runner for quick report checks
 - Added scripts/clean_generated_outputs.py for safe stale-output preview and cleanup
 - Added .gitignore rules for generated data
 - Removed BOM from requirements.txt
@@ -459,15 +461,29 @@ scripts/run_full_pipeline.py
 
 Main commands:
 
-py .\scripts\run_full_pipeline.py
-py .\scripts\clean_generated_outputs.py
-py .\scripts\clean_generated_outputs.py --confirm
+py .\scripts\run_full_pipeline.py --dry-run
+py .\scripts\run_full_pipeline.py --summary-only
+py .\scripts\run_full_pipeline.py --clean-first --dry-run
+py .\scripts\run_full_pipeline.py --clean-first
 py .\scripts\run_full_pipeline.py --stop-after data_quality
 py .\scripts\run_full_pipeline.py --start-at features --stop-after labels
 py .\scripts\run_full_pipeline.py --start-at linear_models --stop-after classification_models
 py .\scripts\run_full_pipeline.py --start-at baseline_portfolios --stop-after backtester
 py .\scripts\run_full_pipeline.py --start-at ablation_tests --stop-after report_summary
 py .\scripts\run_full_pipeline.py
+
+Generated-output cleaner commands:
+
+py .\scripts\clean_generated_outputs.py
+py .\scripts\clean_generated_outputs.py --confirm
+
+Safety notes:
+
+- Normal pipeline runs do not delete generated parquet outputs.
+- --clean-first deletes generated data/processed parquet files before rerunning the pipeline.
+- --clean-first --dry-run previews cleanup and pipeline steps without deleting files.
+- --summary-only runs only the report summary step.
+- --clean-first --summary-only is blocked unless --dry-run is also used.
 
 Important implementation note:
 
@@ -476,10 +492,10 @@ The runner executes src modules with py -m style through sys.executable, so rela
 ## Priority next upgrades
 
 1. Keep PROJECT_CONTEXT.md updated when project state changes.
-2. Connect stale-output cleaning into the pipeline runner after more testing.
-3. Add clean audit/update workflow after each rerun.
-4. Add optional daily auto-update through Windows Task Scheduler or GitHub Actions later.
-5. Add Streamlit dashboard after the command-line workflow is stable.
+2. Add a clean audit/update workflow after each rerun.
+3. Add optional daily auto-update through Windows Task Scheduler or GitHub Actions later.
+4. Add Streamlit dashboard after the command-line workflow is stable.
+5. Add HTML or Excel report export if needed.
 
 ## Future research upgrades
 
