@@ -187,13 +187,15 @@ These files are local reproducible outputs and should not be committed unless th
 Completed usability upgrades:
 
 - Updated the GitHub README as the project front page
+- Added PROJECT_CONTEXT.md as the reusable project handoff prompt
 - Added reports/report_index.md to link reports, tables, and figures
 - Added scripts/report_summary.py for a quick command-line project summary
 - Added .gitignore rules so generated raw and processed data stay local
+- Removed the UTF-8 BOM from requirements.txt
 
 Priority next upgrades:
 
-- Add one prompt/context file that contains the full project state
+- Keep PROJECT_CONTEXT.md updated after major project changes
 - Add a reliable one-command pipeline runner
 - Add stale-output handling for old generated predictions
 - Add a clean audit/update workflow after each rerun
