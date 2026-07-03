@@ -207,7 +207,7 @@ def main() -> None:
                                               test_size= 1,
                                               purge_size= PURGE_DAYS,
                                               step_size= 1)
-    print("Walk-forward windows from official sample:", len(windows))
+    print("Walk-forward windows:", len(windows))
 
 if __name__ == "__main__":
     main()

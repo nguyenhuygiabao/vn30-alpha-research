@@ -57,20 +57,3 @@ def load_ohlcv_csv(file_path: str) -> pd.DataFrame:
     )
 
     return data
-
-
-if __name__ == "__main__":
-    sample_path = "sample_data/sample_ohlcv.csv"
-
-    dataframe = load_ohlcv_csv(sample_path)
-
-    print(dataframe.head())
-    print()
-    dataframe.info()
-    print()
-    print(f"Rows loaded: {len(dataframe)}")
-    print(f"Tickers: {dataframe['ticker'].nunique()}")
-    print(
-        f"Date range: {dataframe['date'].min()} "
-        f"to {dataframe['date'].max()}"
-    )

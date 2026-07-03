@@ -9,5 +9,4 @@ venv/
 
 # Generated data outputs
 data/processed/
-data/raw/vnstock/
-data/raw/yahoo/
+data/raw/

@@ -1,11 +1,11 @@
 from __future__ import annotations
 import pandas as pd
-import matplotlib.pyplot as plt
 from src.data_loader import load_ohlcv_csv
 
 MOMENTUM_HORIZONS: tuple[int, ...] = (1,3,5,10,20,60)
 REVERSAL_WINDOW: int = 20
 OUTPUT_PATH: str = "data/processed/features_momentum.parquet"
+SOURCE_PATH: str = "data/raw/vnstock/vn30_ohlcv.csv"
 
 def add_momentum_features (df: pd.DataFrame) -> pd.DataFrame: 
     result = df.sort_values(["ticker", "date"]).copy()
@@ -59,41 +59,8 @@ def add_momentum_features (df: pd.DataFrame) -> pd.DataFrame:
 
     return result
 
-def plot_momentum_features(
-        features: pd.DataFrame,
-        ticker: str, 
-        output_path: str
-) -> None:
-    ticker_data = (
-        features.loc[features["ticker"] == ticker]
-        .sort_values("date")
-        .copy()
-    )
-
-    plot_columns = [
-        "return_1d",
-        "return_3d",
-        "return_5d",
-    ]
-
-    ticker_data.plot(
-        x = "date",
-        y = plot_columns,
-        figsize = (10, 6),
-        marker = "o"
-    )
-
-    plt.title(f"{ticker} Momentum Features")
-    plt.xlabel("Date")
-    plt.ylabel("Historical return")
-    plt.axhline(0, linewidth =1)
-    plt.tight_layout()
-    plt.savefig(output_path)
-    plt.close()
-    
-
 def main() -> None:
-    df = load_ohlcv_csv("sample_data/sample_ohlcv.csv")
+    df = load_ohlcv_csv(SOURCE_PATH)
     features = add_momentum_features(df)
 
     features.to_parquet(OUTPUT_PATH, index = False)
@@ -159,16 +126,6 @@ def main() -> None:
         .count()
     )
     
-    plot_path = "reports/figures/fpt_momentum_features.png"
-    plot_momentum_features(
-        features = features,
-        ticker= "FPT",
-        output_path = plot_path,
-    )
-
-    print("\nMomentum plot saved to:")
-    print(plot_path)
-
     print("\nValid shock values by ticker")
     print(shock_valid_counts)
 

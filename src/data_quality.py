@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 from .data_loader import load_ohlcv_csv
 
-SOURCE_PATH = "sample_data/sample_ohlcv.csv"
+SOURCE_PATH = "data/raw/vnstock/vn30_ohlcv.csv"
 REPORT_PATH = "reports/data_quality_report.md"
 PRICE_COLUMNS = [
     "open",
@@ -14,10 +14,11 @@ PRICE_COLUMNS = [
 
 JUMP_THRESHOLD = 0.1  # 10% price jump threshold
 STALE_RUN_LENGTH = 3
+MAX_DETAILED_ISSUES = 200
 
-#The function below receives a pandas dataframe as an input as well as the custom jump and stale price thresholds. This function will return another dataframe that contains the problems it found. 
+#The function below receives a pandas dataframe as an input as well as the custom jump and stale price thresholds. This function will return another dataframe that contains the problems it found.
 def collect_data_issues(data: pd.DataFrame, jump_threshold: float = JUMP_THRESHOLD, stale_run_length: int = STALE_RUN_LENGTH,
-) -> pd.DataFrame: 
+) -> pd.DataFrame:
     """Find suspicious or invalid observations in the OHLCV data."""
 
     working = (
@@ -26,7 +27,7 @@ def collect_data_issues(data: pd.DataFrame, jump_threshold: float = JUMP_THRESHO
         .reset_index(drop=True)
         .copy()
     )
-    issue_frames: list[pd.DataFrame] = [] 
+    issue_frames: list[pd.DataFrame] = []
     def add_issue(
             mask: pd.Series, issue_name: str, detail_columns: list[str],
     ) -> None:
@@ -44,18 +45,18 @@ def collect_data_issues(data: pd.DataFrame, jump_threshold: float = JUMP_THRESHO
         )
 
         issue_frames.append(
-            flagged[["date", 
-                     "ticker", 
-                     "issue", 
+            flagged[["date",
+                     "ticker",
+                     "issue",
                      "details"]]
         )
-    # Check whether any column in a row contains a missing value. 
+    # Check whether any column in a row contains a missing value.
     # For every row, check whether any column contains a missing value, working.isna() creates a table of True and False values, axis = 1 check horizontally across the columns
     missing_mask = working.isna().any(axis=1)
     if missing_mask.any():
         flagged = working.loc[
             missing_mask, ["date", "ticker"], ].copy()
-        
+
         flagged["issue"] = "missing_values"
 
         flagged["details"] = working.loc[missing_mask
@@ -67,9 +68,9 @@ def collect_data_issues(data: pd.DataFrame, jump_threshold: float = JUMP_THRESHO
         axis = 1,
         )
         issue_frames.append(
-            flagged[["date", 
-                     "ticker", 
-                     "issue", 
+            flagged[["date",
+                     "ticker",
+                     "issue",
                      "details"]]
         )
     #Check for more than one observation for the same ticker and date.
@@ -82,10 +83,10 @@ def collect_data_issues(data: pd.DataFrame, jump_threshold: float = JUMP_THRESHO
     add_issue(
         duplicate_mask,
         "duplicate_ticker_date",
-        ["open", 
-         "high", 
-         "low", 
-         "close"], 
+        ["open",
+         "high",
+         "low",
+         "close"],
     )
 
     #Check for non positive volume
@@ -108,14 +109,14 @@ def collect_data_issues(data: pd.DataFrame, jump_threshold: float = JUMP_THRESHO
         "non_positive_price",
         PRICE_COLUMNS,
     )
- 
+
     #Making sure that high price >= low price
     add_issue(
         working["high"] < working["low"],
         "high_below_low",
         ["high", "low"],
     )
- 
+
     # Flag opening prices outside the daily high-low range.
     add_issue(
         (working["open"] < working["low"]) | (working["open"] > working["high"]),
@@ -123,13 +124,13 @@ def collect_data_issues(data: pd.DataFrame, jump_threshold: float = JUMP_THRESHO
         ["open", "low", "high"],
     )
 
-    # Flag closing prices outside the daily high-low range. 
+    # Flag closing prices outside the daily high-low range.
     add_issue(
         (working["close"] < working["low"]) | (working["close"] > working["high"]),
         "close_outside_daily_range",
         ["close", "low", "high"],
     )
-    
+
     #Check for suspicious price jumps. This is done by calculating the percentage change in adjusted close price for each ticker and flagging any changes that exceed the jump threshold.
     working["adjusted_return_1d"] = (
         working
@@ -142,7 +143,7 @@ def collect_data_issues(data: pd.DataFrame, jump_threshold: float = JUMP_THRESHO
         ["adjusted_close", "adjusted_return_1d"],
     )
     #For each ticker, compare every adjusted close with the previous adjusted close, and assign an ID to each consecutive run of equal prices.
-    working["price_run_id"] = ( 
+    working["price_run_id"] = (
         working
         .groupby("ticker")["adjusted_close"]
         .transform(
@@ -164,29 +165,29 @@ def collect_data_issues(data: pd.DataFrame, jump_threshold: float = JUMP_THRESHO
         working["stale_run_length"] >= stale_run_length,
         "stale_adjusted_close",
         [
-            "adjusted_close", 
+            "adjusted_close",
             "stale_run_length"
         ]
     )
-    #If no problems were found, return an empty dataframe with the expected column structure. 
-    if not issue_frames: 
+    #If no problems were found, return an empty dataframe with the expected column structure.
+    if not issue_frames:
         return pd.DataFrame(
-            columns =[ "date", 
-                      "ticker", 
-                      "issue", 
+            columns =[ "date",
+                      "ticker",
+                      "issue",
                       "details"
                       ]
         )
-    #Combine all the issue DataFrames into a single table. 
+    #Combine all the issue DataFrames into a single table.
     issues = pd.concat(issue_frames, ignore_index=True)
 
-    #Put the issues into a predictable order. 
-    issues = issues.sort_values(["date", 
-                                 "ticker", 
+    #Put the issues into a predictable order.
+    issues = issues.sort_values(["date",
+                                 "ticker",
                                  "issue"]).reset_index(drop=True
     )
-    
-    return issues 
+
+    return issues
 
 
 def dataframe_to_markdown(data: pd.DataFrame) -> str:
@@ -194,10 +195,10 @@ def dataframe_to_markdown(data: pd.DataFrame) -> str:
 
     if data.empty:
         return "_No rows to display_"
-    
+
     display = data.copy()
 
-    for column in display.columns: 
+    for column in display.columns:
         if pd.api.types.is_datetime64_any_dtype(
             display[column]
         ):
@@ -217,11 +218,11 @@ def dataframe_to_markdown(data: pd.DataFrame) -> str:
         values = []
 
         for value in row:
-            if pd.isna(value): 
+            if pd.isna(value):
                 text = ""
-            else: 
+            else:
                 text = str(value)
-            
+
             text = (
                 text
                 .replace("|", "\\|")
@@ -230,7 +231,7 @@ def dataframe_to_markdown(data: pd.DataFrame) -> str:
             values.append(text)
         lines.append("| " + " | ".join(values) + " |")
     return "\n".join(lines)
-            
+
 
 
 
@@ -265,7 +266,7 @@ def write_data_quality_report(
         latest_date = data["date"].max().strftime(
             "%Y-%m-%d"
         )
-    if issues.empty: 
+    if issues.empty:
         status = "PASS"
 
 
@@ -280,11 +281,11 @@ def write_data_quality_report(
         date_counts = pd.DataFrame(
             columns = ["date", "flag_count"]
         )
-    else: 
+    else:
         status = "REVIEW REQUIRED"
 
         issue_counts = (
-            issues 
+            issues
             .groupby("issue")
             .size()
             .reset_index(name = "flag_count")
@@ -295,76 +296,105 @@ def write_data_quality_report(
         )
 
         ticker_counts = (
-            issues 
-            .groupby("date") #Group the issue records by issue name and count how many rows each group contains
+            issues
+            .groupby("ticker")
             .size()
-            .reset_index(name = "flag_count")
-            .sort_values("date")
+            .reset_index(name="flag_count")
+            .sort_values(
+                "flag_count",
+                ascending=False,
+            )
         )
 
-        date_counts = ( 
+        date_counts = (
             issues
             .groupby("date")
             .size()
             .reset_index(name = "flag_count")
             .sort_values("date")
+        )
 
-    )
+    detailed_issues = issues.head(MAX_DETAILED_ISSUES).copy()
+
+    if len(issues) > MAX_DETAILED_ISSUES:
+        detailed_issue_note = (
+            f"Showing first {MAX_DETAILED_ISSUES} issue rows "
+            f"out of {len(issues)} total flags."
+        )
+    else:
+        detailed_issue_note = (
+            f"Showing all {len(issues)} issue rows."
+        )
+        detailed_issues = issues.head(MAX_DETAILED_ISSUES).copy()
+
+    if len(issues) > MAX_DETAILED_ISSUES:
+        detailed_issue_note = (
+            f"Showing first {MAX_DETAILED_ISSUES} issue rows "
+            f"out of {len(issues)} total flags."
+        )
+    else:
+        detailed_issue_note = (
+            f"Showing all {len(issues)} issue rows."
+        )
+
     report_lines = [
-        "# VN30 Data Quality Report", 
-        "", 
-        "## Overall Status", 
-        "", 
-        f"**{status}**", 
-        "", 
-        "A flag identifies a row requiring review. " 
-        "A single source row may receive multiple flags.", 
-        "", 
-        "## Dataset Summary", 
-        "", 
-        f"- Source file: `{source_path}`", 
+        "# VN30 Data Quality Report",
+        "",
+        "## Overall Status",
+        "",
+        f"**{status}**",
+        "",
+        "A flag identifies a row requiring review. "
+        "A single source row may receive multiple flags.",
+        "",
+        "## Dataset Summary",
+        "",
+        f"- Source file: `{source_path}`",
         f"- Report generated: {generated_at}",
-        f"- Number of rows: {len(data)}", 
-        f"- Number of tickers: {data['ticker'].nunique()}", 
-        f"- Earliest date: {earliest_date}", 
+        f"- Number of rows: {len(data)}",
+        f"- Number of tickers: {data['ticker'].nunique()}",
+        f"- Earliest date: {earliest_date}",
         f"- Latest date: {latest_date}",
-        f"- Total issue flags: {len(issues)}", 
-        "", 
-        "## Issue Counts by Type", 
-        "", 
-        dataframe_to_markdown(issue_counts), 
-        "", 
-        "## Flag Counts by Ticker", 
-        "", 
-        dataframe_to_markdown(ticker_counts), 
-        "", 
+        f"- Total issue flags: {len(issues)}",
+        "",
+        "## Issue Counts by Type",
+        "",
+        dataframe_to_markdown(issue_counts),
+        "",
+        "## Flag Counts by Ticker",
+        "",
+        dataframe_to_markdown(ticker_counts),
+        "",
         "## Flag Counts by Date",
-        "", 
+        "",
         dataframe_to_markdown(date_counts),
-        "", 
-        "## Detailed Problem Rows", 
-        "", dataframe_to_markdown(issues), 
-        "", 
+        "",
+        "## Detailed Problem Rows",
+        "",
+        detailed_issue_note,
+        "",
+        dataframe_to_markdown(detailed_issues),
+        "",
         "## Treatment Policy", \
-        "", 
-        "- Missing date or ticker: drop the row.", 
-        "- Missing price: exclude until the source is verified.", 
-        "- Exact duplicate: retain one copy.", 
-        "- Conflicting duplicate: investigate manually.", 
-        "- Zero volume: retain but mark as non-tradable.", 
-        "- Negative volume: correct from source or drop.", 
-        "- Non-positive price: correct from source or drop.", 
-        "- Invalid OHLC relationship: correct or drop.", 
-        "- Suspicious jump: investigate corporate actions.", 
-        "- Stale price: investigate liquidity, suspension, " 
-        "or vendor errors.", 
-        "", 
-        "## Current Limitations", 
-        "", 
-        "- The current development data is synthetic.", 
-        "- Corporate actions are not independently verified.", 
-        "- Historical VN30 membership is not yet included.", 
-        "- Survivorship bias remains unresolved.", 
+        "",
+        "- Missing date or ticker: drop the row.",
+        "- Missing price: exclude until the source is verified.",
+        "- Exact duplicate: retain one copy.",
+        "- Conflicting duplicate: investigate manually.",
+        "- Zero volume: retain but mark as non-tradable.",
+        "- Negative volume: correct from source or drop.",
+        "- Non-positive price: correct from source or drop.",
+        "- Invalid OHLC relationship: correct or drop.",
+        "- Suspicious jump: investigate corporate actions.",
+        "- Stale price: investigate liquidity, suspension, "
+        "or vendor errors.",
+        "",
+        "## Current Limitations",
+        "",
+        "- The current data is vendor-sourced daily OHLCV data from vnstock and should still be checked against official exchange records when possible.",
+        "- Corporate actions are not independently verified.",
+        "- Historical VN30 membership is not yet included.",
+        "- Survivorship bias remains unresolved.",
         "- Official exchange-provided ceiling and floor prices are not included; estimated price-limit features are generated separately and should be checked against official data when available.",
         "",
     ]
@@ -374,7 +404,7 @@ def write_data_quality_report(
         encoding = "utf-8",
     )
 
-def main() -> None: 
+def main() -> None:
     """Run the data-quality pipeline"""
 
     data = load_ohlcv_csv(SOURCE_PATH)

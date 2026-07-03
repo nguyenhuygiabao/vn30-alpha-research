@@ -5,7 +5,7 @@ import numpy as np
 
 from .data_loader import load_ohlcv_csv
 
-SOURCE_PATH = "sample_data/sample_ohlcv.csv"
+SOURCE_PATH = "data/raw/vnstock/vn30_ohlcv.csv"
 OUTPUT_PATH = "data/processed/features_basic.parquet"
 
 RETURN_WINDOW_SHORT = 5

@@ -3,7 +3,6 @@ import pandas as pd
 from .data_loader import load_ohlcv_csv
 
 STOCK_SOURCE_PATH = "data/raw/vnstock/vn30_ohlcv.csv"
-BENCHMARK_SOURCE_PATH = "sample_data/sample_vn30.csv"
 OUTPUT_PATH = "data/processed/labels.parquet"
 
 MAIN_TARGET = "forward_relative_return_5d"
