@@ -8,10 +8,11 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 
 from src.baselines import load_baseline_dataset
-from src.linear_models import (
+from src.linear_models import summarize_model_performance
+from src.modeling_utils import (
     build_prediction_frame,
     get_model_feature_columns,
-    summarize_model_performance,
+    prepare_regression_window_data,
 )
 from src.walk_forward_split import (
     TARGET_COLUMN,
@@ -122,25 +123,15 @@ def extract_feature_importance(
     ).reset_index(drop=True)
 
 
-def predict_one_tree_window(
+def predict_prepared_tree_window(
     model,
     model_name: str,
-    historical_rows: pd.DataFrame,
-    window: dict[str, pd.DatetimeIndex],
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
+    x_test: pd.DataFrame,
+    test_rows: pd.DataFrame,
     feature_columns: list[str],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    train_rows = historical_rows[
-        historical_rows["date"].isin(window["train_dates"])
-    ].copy()
-
-    test_rows = historical_rows[
-        historical_rows["date"].isin(window["test_dates"])
-    ].copy()
-
-    x_train = train_rows[feature_columns].copy()
-    y_train = train_rows[TARGET_COLUMN].copy()
-    x_test = test_rows[feature_columns].copy()
-
     predictions, fitted_pipeline = fit_predict_tree_model(
         model=model,
         x_train=x_train,
@@ -163,6 +154,30 @@ def predict_one_tree_window(
     return prediction_frame, feature_importance
 
 
+def predict_one_tree_window(
+    model,
+    model_name: str,
+    historical_rows: pd.DataFrame,
+    window: dict[str, pd.DatetimeIndex],
+    feature_columns: list[str],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    x_train, y_train, x_test, test_rows = prepare_regression_window_data(
+        historical_rows=historical_rows,
+        window=window,
+        feature_columns=feature_columns,
+    )
+
+    return predict_prepared_tree_window(
+        model=model,
+        model_name=model_name,
+        x_train=x_train,
+        y_train=y_train,
+        x_test=x_test,
+        test_rows=test_rows,
+        feature_columns=feature_columns,
+    )
+
+
 def predict_tree_models_for_window(
     models: dict[str, object],
     historical_rows: pd.DataFrame,
@@ -172,12 +187,20 @@ def predict_tree_models_for_window(
     prediction_frames = []
     feature_importance_frames = []
 
+    x_train, y_train, x_test, test_rows = prepare_regression_window_data(
+        historical_rows=historical_rows,
+        window=window,
+        feature_columns=feature_columns,
+    )
+
     for model_name, model in models.items():
-        prediction_frame, feature_importance = predict_one_tree_window(
+        prediction_frame, feature_importance = predict_prepared_tree_window(
             model=model,
             model_name=model_name,
-            historical_rows=historical_rows,
-            window=window,
+            x_train=x_train,
+            y_train=y_train,
+            x_test=x_test,
+            test_rows=test_rows,
             feature_columns=feature_columns,
         )
 

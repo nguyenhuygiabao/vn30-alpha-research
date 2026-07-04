@@ -10,7 +10,10 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from src.baselines import load_baseline_dataset
-from src.linear_models import get_model_feature_columns
+from src.modeling_utils import (
+    get_model_feature_columns,
+    prepare_classification_window_data,
+)
 from src.walk_forward_split import (
     TARGET_COLUMN,
     build_walk_forward_date_windows,
@@ -196,25 +199,12 @@ def predict_one_classification_window(
     feature_columns: list[str],
     label_column: str = TOP_QUINTILE_LABEL_COLUMN,
 ) -> pd.DataFrame:
-    train_rows = historical_rows[
-        historical_rows["date"].isin(window["train_dates"])
-    ].copy()
-
-    test_rows = historical_rows[
-        historical_rows["date"].isin(window["test_dates"])
-    ].copy()
-
-    train_rows = train_rows[
-        train_rows[label_column].notna()
-    ].copy()
-
-    test_rows = test_rows[
-        test_rows[label_column].notna()
-    ].copy()
-
-    x_train = train_rows[feature_columns].copy()
-    y_train = train_rows[label_column].copy()
-    x_test = test_rows[feature_columns].copy()
+    x_train, y_train, x_test, test_rows = prepare_classification_window_data(
+        historical_rows=historical_rows,
+        window=window,
+        feature_columns=feature_columns,
+        label_column=label_column,
+    )
 
     predicted_probabilities = fit_predict_logistic_model(
         x_train=x_train,

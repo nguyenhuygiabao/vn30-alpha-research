@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.linear_models import get_model_feature_columns
+from src.modeling_utils import get_model_feature_columns
 from src.walk_forward_split import (
     FEATURES_PATH,
     KEY_COLUMNS,

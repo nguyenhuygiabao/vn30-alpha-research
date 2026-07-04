@@ -8,10 +8,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from src.baselines import load_baseline_dataset
+from src.modeling_utils import (
+    build_prediction_frame,
+    get_model_feature_columns,
+)
 from src.walk_forward_split import (
-    KEY_COLUMNS,
-    LABEL_COLUMNS,
-    TARGET_COLUMN,
     build_walk_forward_date_windows,
     get_sorted_dates,
     split_window_data,
@@ -19,40 +20,6 @@ from src.walk_forward_split import (
 
 
 PREDICTIONS_PATH: str = "data/processed/linear_model_predictions.parquet"
-
-RAW_MARKET_COLUMNS: list[str] = [
-    "open",
-    "high",
-    "low",
-    "close",
-    "adjusted_close",
-    "volume",
-    "value_traded",
-]
-
-
-def get_model_feature_columns(
-    data: pd.DataFrame,
-) -> list[str]:
-    forbidden_columns = set(
-        KEY_COLUMNS
-        + LABEL_COLUMNS
-        + RAW_MARKET_COLUMNS
-    )
-
-    candidate_columns = [
-        column
-        for column in data.columns
-        if column not in forbidden_columns
-    ]
-
-    feature_columns = [
-        column
-        for column in candidate_columns
-        if not data[column].isna().all()
-    ]
-
-    return feature_columns
 
 def fit_predict_linear_model(
     model,
@@ -88,39 +55,6 @@ def fit_predict_linear_model(
         index=x_test.index,
         name="predicted_return",
     )
-
-
-def build_prediction_frame(
-    test_rows: pd.DataFrame,
-    predictions: pd.Series,
-    model_name: str,
-) -> pd.DataFrame:
-    prediction_frame = test_rows[
-        [
-            "date",
-            "ticker",
-            TARGET_COLUMN,
-        ]
-    ].copy()
-
-    prediction_frame["predicted_return"] = predictions
-    prediction_frame["model_name"] = model_name
-
-    prediction_frame = prediction_frame.rename(
-        columns={
-            TARGET_COLUMN: "actual_return",
-        }
-    )
-
-    return prediction_frame[
-        [
-            "date",
-            "ticker",
-            "predicted_return",
-            "actual_return",
-            "model_name",
-        ]
-    ]
 
 
 def predict_one_window(

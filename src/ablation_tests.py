@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.baselines import load_baseline_dataset
-from src.linear_models import get_model_feature_columns
+from src.modeling_utils import get_model_feature_columns
 from src.tree_models import (
     create_tree_models,
     predict_tree_models_for_windows,
