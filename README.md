@@ -170,6 +170,36 @@ Open tables:
 explorer .\reports\tables
 ```
 
+## Pipeline runner workflows
+
+The main local runner is:
+
+```powershell
+py .\scripts\run_full_pipeline.py
+```
+
+This runner refreshes outputs from existing local raw data only. It does not download or update live market data yet.
+
+### Full local rebuild
+
+Use this when you want to rebuild generated outputs from existing raw data:
+
+```powershell
+py .\scripts\run_full_pipeline.py --clean-first --audit-after
+```
+
+### Faster local refresh
+
+Use this when you want to preserve expensive ML prediction caches and reuse them only when they are still fresh:
+
+```powershell
+py .\scripts\run_full_pipeline.py --clean-first --keep-expensive-ml --reuse-existing-ml --audit-after
+```
+
+Cache reuse is stale-aware. If features, labels, or relevant model source files change, the affected ML stages rerun automatically.
+
+A cleaner dry run may report missing generated files. This is normal when optional or older generated outputs are listed by the cleaner but are not currently present locally.
+
 ## Repository hygiene
 
 Generated data files are intentionally ignored by Git:
@@ -192,6 +222,9 @@ Completed usability upgrades:
 - Added scripts/report_summary.py for a quick command-line project summary
 - Added scripts/run_full_pipeline.py for controlled one-command pipeline refresh
 - Added --clean-first to the pipeline runner for optional stale-output cleanup
+- Added --keep-expensive-ml to preserve costly model prediction caches during cleanup
+- Added --reuse-existing-ml to skip expensive ML stages only when cached outputs are fresh
+- Refactored shared modeling helpers into src/modeling_utils.py
 - Added --summary-only to the pipeline runner for quick report checks
 - Added scripts/clean_generated_outputs.py for safe stale-output preview and cleanup
 - Added .gitignore rules so generated raw and processed data stay local
