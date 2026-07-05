@@ -20,6 +20,7 @@ Main report:
 
 Rebuild and open locally:
 
+    cd vn30-long-only-ml-framework
     py .\scripts\build_interactive_charts.py
     py .\scripts\build_html_report.py
     start .\reports\dashboard.html
