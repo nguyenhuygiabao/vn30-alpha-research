@@ -300,7 +300,7 @@ def summary_cards_html() -> str:
                         best_ml["diagnostic_sharpe"]
                         - best_baseline["diagnostic_sharpe"],
                     ),
-                    "diagnostic Sharpe gap, cost bases disclosed below",
+                    "diagnostic Sharpe gap (ML after-cost vs. baseline before-cost)",
                 )
             )
 
@@ -1404,6 +1404,12 @@ def polish_dashboard_html(html: str) -> str:
         'Overlapping forecast windows inflate the apparent sample count.</p>'
     )
 
+    equal_weight_note = (
+        '<p class="muted"><strong>Equal-weight baseline note:</strong> '
+        'Equal-weight active return is approximately zero by construction when compared with an equal-weight VN30-style reference. '
+        'This row confirms benchmark alignment, not a standalone alpha strategy result.</p>'
+    )
+
     issuer_guidance = (
         '<p class="muted">Hover over each bar to inspect tickers, weights, and concentration flags. '
         'The 40 percent reference line marks the issuer-group cap.</p>'
@@ -1414,6 +1420,80 @@ def polish_dashboard_html(html: str) -> str:
         'The 2026 drawdown is inside the walk-forward backtest window and should be interpreted '
         'as part of the out-of-sample diagnostic period, not live-trading evidence.</p>'
     )
+
+    model_comparison_note = (
+        '<p class="muted"><strong>Model-comparison note:</strong> '
+        'Hit rates here use a simpler equal-weight top-5 diagnostic by raw model score, not the optimizer backtest. '
+        'Use the forecast-horizon table for optimizer-based hit-rate results.</p>'
+    )
+
+    def format_cumulative_sum_tables(page_html: str) -> str:
+        def format_number_cell(cell_html: str) -> str:
+            raw_text = re.sub(r"<.*?>", "", cell_html).strip()
+
+            if not raw_text or raw_text.upper() in {"N/A", "NA", "NAN"}:
+                return cell_html
+
+            if "%" in raw_text:
+                return cell_html
+
+            try:
+                value = float(raw_text.replace(",", ""))
+            except ValueError:
+                return cell_html
+
+            return re.sub(
+                r"(<td[^>]*>).*?(</td>)",
+                rf"\g<1>{value:.2f}%\2",
+                cell_html,
+                count=1,
+                flags=re.DOTALL,
+            )
+
+        def process_table(match: re.Match) -> str:
+            table = match.group(0)
+
+            if "Cumulative active-return sum" not in table:
+                return table
+
+            header_match = re.search(r"<tr[^>]*>(.*?)</tr>", table, flags=re.DOTALL)
+            if not header_match:
+                return table
+
+            headers = re.findall(r"<th[^>]*>.*?</th>", header_match.group(1), flags=re.DOTALL)
+            header_names = [
+                re.sub(r"<.*?>", "", header).strip()
+                for header in headers
+            ]
+
+            if "Cumulative active-return sum" not in header_names:
+                return table
+
+            target_index = header_names.index("Cumulative active-return sum")
+
+            def process_row(row_match: re.Match) -> str:
+                row = row_match.group(0)
+
+                if "<th" in row:
+                    return row
+
+                cells = re.findall(r"<td[^>]*>.*?</td>", row, flags=re.DOTALL)
+
+                if target_index >= len(cells):
+                    return row
+
+                old_cell = cells[target_index]
+                new_cell = format_number_cell(old_cell)
+
+                if old_cell == new_cell:
+                    return row
+
+                return row.replace(old_cell, new_cell, 1)
+
+            return re.sub(r"<tr[^>]*>.*?</tr>", process_row, table, flags=re.DOTALL)
+
+        return re.sub(r"<table[^>]*>.*?</table>", process_table, page_html, flags=re.DOTALL)
+
 
     # Rename raw/internal cumulative-return headers wherever they leak into HTML.
     html = html.replace(
@@ -1428,6 +1508,8 @@ def polish_dashboard_html(html: str) -> str:
         "final_cumulative_active_return",
         "Cumulative active-return sum",
     )
+
+    html = format_cumulative_sum_tables(html)
 
     # Make Rank IC explicitly unitless.
     html = html.replace(
