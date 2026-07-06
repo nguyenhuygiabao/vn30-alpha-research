@@ -10,3 +10,9 @@ venv/
 # Generated data outputs
 data/processed/
 data/raw/
+
+# Redundant static report figures replaced by interactive dashboard charts.
+reports/figures/cumulative_after_cost_active_return.png
+reports/figures/active_drawdown.png
+reports/figures/portfolio_turnover.png
+reports/figures/rolling_diagnostic_sharpe.png
