@@ -1,0 +1,4 @@
+forecast_horizon_days,period_label,evaluated_dates,approx_non_overlapping_periods,overlap_disclosure,metric_period_note
+1,1d forecast period,1613,1613,"1,613 evaluated dates (~1,613 non-overlapping 1-day periods).","Average after-cost return is measured per forecast period, not annualized."
+5,5d forecast period,1609,321,"1,609 evaluated dates (~321 non-overlapping 5-day periods).","Average after-cost return is measured per forecast period, not annualized."
+10,10d forecast period,1604,160,"1,604 evaluated dates (~160 non-overlapping 10-day periods).","Average after-cost return is measured per forecast period, not annualized."

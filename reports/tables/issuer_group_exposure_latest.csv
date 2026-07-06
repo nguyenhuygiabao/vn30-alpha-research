@@ -1,0 +1,9 @@
+signal_date,optimization_mode,issuer_group,issuer_group_weight,position_count,tickers,max_single_name_weight_in_group,weighted_realized_forward_return
+2026-06-23,herding_aware,Vingroup,0.4,2,"VHM, VIC",0.2,-0.019722840291431197
+2026-06-23,herding_aware,Sabeco,0.2,1,SAB,0.2,0.010314455865244963
+2026-06-23,herding_aware,SeABank,0.2,1,SSB,0.2,0.0668619516190042
+2026-06-23,herding_aware,Vietcombank,0.2,1,VCB,0.2,0.010353291246301228
+2026-06-23,normal,Vingroup,0.4,2,"VHM, VIC",0.2,-0.019722840291431197
+2026-06-23,normal,Sabeco,0.2,1,SAB,0.2,0.010314455865244963
+2026-06-23,normal,SeABank,0.2,1,SSB,0.2,0.0668619516190042
+2026-06-23,normal,Vietcombank,0.2,1,VCB,0.2,0.010353291246301228

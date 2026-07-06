@@ -16,6 +16,12 @@ OUTPUT_PATH = REPORTS_DIR / "dashboard.html"
 
 HORIZON_RESULTS_PATH = TABLES_DIR / "horizon_results.csv"
 ABLATION_RESULTS_PATH = TABLES_DIR / "ablation_results.csv"
+BENCHMARK_RESULTS_PATH = TABLES_DIR / "benchmark_results.csv"
+CONCENTRATION_SUMMARY_PATH = TABLES_DIR / "concentration_summary.csv"
+ISSUER_GROUP_EXPOSURE_PATH = TABLES_DIR / "issuer_group_exposure_latest.csv"
+LATEST_RANK_DIAGNOSTIC_PATH = TABLES_DIR / "latest_rank_diagnostic.csv"
+HORIZON_DISCLOSURE_PATH = TABLES_DIR / "horizon_sample_disclosure.csv"
+
 TREE_PREDICTIONS_PATH = DATA_DIR / "tree_model_predictions.parquet"
 OPTIMIZED_WEIGHTS_PATH = DATA_DIR / "optimized_weights.parquet"
 
@@ -89,6 +95,10 @@ GLOSSARY_ROWS = [
     ("Turnover", "How much the portfolio changes between rebalancing dates."),
     ("Feature ablation", "Removing feature groups to test whether they help."),
     ("Forecast horizon", "How far ahead the model predicts, such as 1 day, 5 days, or 10 days."),
+    ("Overlapping windows", "Forecast periods that share trading days. This increases raw sample counts versus independent periods."),
+    ("HHI", "Sum of squared portfolio weights. Higher values mean more concentration."),
+    ("Effective position count", "Inverse of HHI. It translates concentration into an approximate number of equally weighted positions."),
+    ("Issuer-group exposure", "Total portfolio weight in tickers that belong to the same issuer group."),
     ("Top-5 hit rate", "How often top-ranked stocks are among better realized performers."),
     ("Model score", "The model's predicted relative return signal."),
 ]
@@ -196,6 +206,40 @@ def summary_cards_html() -> str:
                 "Best feature set",
                 str(best_ablation["ablation_name"]),
                 f'Sharpe {format_number(best_ablation["diagnostic_sharpe"])}',
+            )
+        )
+
+    benchmark = read_csv(BENCHMARK_RESULTS_PATH)
+    if not benchmark.empty:
+        ml_rows = benchmark[benchmark["comparison_type"].eq("ml_strategy")]
+        baseline_rows = benchmark[benchmark["comparison_type"].eq("naive_baseline")]
+
+        if not ml_rows.empty and not baseline_rows.empty:
+            best_ml = ml_rows.loc[ml_rows["diagnostic_sharpe"].idxmax()]
+            best_baseline = baseline_rows.loc[baseline_rows["diagnostic_sharpe"].idxmax()]
+
+            cards.append(
+                metric_card(
+                    "Best ML vs naive baseline",
+                    format_number(
+                        best_ml["diagnostic_sharpe"]
+                        - best_baseline["diagnostic_sharpe"],
+                    ),
+                    "diagnostic Sharpe gap, cost bases disclosed below",
+                )
+            )
+
+    concentration = read_csv(CONCENTRATION_SUMMARY_PATH)
+    if not concentration.empty:
+        top_concentration = concentration.loc[
+            concentration["top_issuer_group_weight"].astype(float).idxmax()
+        ]
+
+        cards.append(
+            metric_card(
+                "Top issuer-group exposure",
+                format_percent(top_concentration["top_issuer_group_weight"], 0),
+                str(top_concentration["top_issuer_group"]),
             )
         )
 
@@ -341,6 +385,154 @@ def ablation_table_html() -> str:
             "diagnostic_sharpe",
             "final_cumulative_after_cost_active_return",
         },
+    )
+
+
+def benchmark_table_html() -> str:
+    benchmark = read_csv(BENCHMARK_RESULTS_PATH)
+
+    columns = [
+        "comparison_type",
+        "display_name",
+        "forecast_horizon_days",
+        "evaluated_dates",
+        "average_period_active_return",
+        "return_volatility",
+        "diagnostic_sharpe",
+        "max_active_drawdown",
+        "final_cumulative_active_return",
+        "average_selected_count",
+        "cost_note",
+    ]
+
+    available = [column for column in columns if column in benchmark.columns]
+
+    return format_table(
+        benchmark[available],
+        max_rows=12,
+        percent_columns={
+            "average_period_active_return",
+            "return_volatility",
+            "max_active_drawdown",
+        },
+        decimal_columns={
+            "diagnostic_sharpe",
+            "final_cumulative_active_return",
+            "average_selected_count",
+        },
+    )
+
+
+def concentration_summary_table_html() -> str:
+    concentration = read_csv(CONCENTRATION_SUMMARY_PATH)
+
+    columns = [
+        "signal_date",
+        "optimization_mode",
+        "holding_count",
+        "total_weight",
+        "max_single_name_weight",
+        "positions_at_or_above_20pct",
+        "hhi",
+        "effective_position_count",
+        "top_issuer_group",
+        "top_issuer_group_weight",
+        "top_issuer_group_tickers",
+        "issuer_groups_at_or_above_40pct",
+        "portfolio_turnover",
+    ]
+
+    available = [column for column in columns if column in concentration.columns]
+
+    return format_table(
+        concentration[available],
+        max_rows=10,
+        percent_columns={
+            "total_weight",
+            "max_single_name_weight",
+            "top_issuer_group_weight",
+            "portfolio_turnover",
+        },
+        decimal_columns={
+            "hhi",
+            "effective_position_count",
+        },
+    )
+
+
+def issuer_group_exposure_table_html() -> str:
+    exposure = read_csv(ISSUER_GROUP_EXPOSURE_PATH)
+
+    columns = [
+        "signal_date",
+        "optimization_mode",
+        "issuer_group",
+        "issuer_group_weight",
+        "position_count",
+        "tickers",
+        "max_single_name_weight_in_group",
+        "weighted_realized_forward_return",
+    ]
+
+    available = [column for column in columns if column in exposure.columns]
+
+    return format_table(
+        exposure[available],
+        max_rows=12,
+        percent_columns={
+            "issuer_group_weight",
+            "max_single_name_weight_in_group",
+            "weighted_realized_forward_return",
+        },
+    )
+
+
+def latest_rank_diagnostic_table_html() -> str:
+    diagnostic = read_csv(LATEST_RANK_DIAGNOSTIC_PATH)
+
+    columns = [
+        "signal_date",
+        "ticker",
+        "predicted_rank",
+        "realized_rank",
+        "rank_gap_realized_minus_predicted",
+        "absolute_rank_gap",
+        "model_score",
+        "realized_forward_return",
+        "diagnostic_flag",
+        "in_normal_portfolio",
+        "in_herding_aware_portfolio",
+    ]
+
+    available = [column for column in columns if column in diagnostic.columns]
+
+    return format_table(
+        diagnostic[available],
+        max_rows=15,
+        percent_columns={
+            "model_score",
+            "realized_forward_return",
+        },
+    )
+
+
+def horizon_disclosure_table_html() -> str:
+    disclosure = read_csv(HORIZON_DISCLOSURE_PATH)
+
+    columns = [
+        "forecast_horizon_days",
+        "period_label",
+        "evaluated_dates",
+        "approx_non_overlapping_periods",
+        "overlap_disclosure",
+        "metric_period_note",
+    ]
+
+    available = [column for column in columns if column in disclosure.columns]
+
+    return format_table(
+        disclosure[available],
+        max_rows=10,
     )
 
 
@@ -867,6 +1059,48 @@ def page_html() -> str:
     {research_validity_html()}
 
     <section class="section-card">
+      <h2>Baseline comparison</h2>
+      <p class="muted">
+        Compares the ML strategy with equal-weight VN30-style exposure and simple rule-based baselines.
+        Cost bases are disclosed because the ML rows are after-cost while the naive baselines are before-cost.
+      </p>
+      <div class="table-wrap">
+        {benchmark_table_html()}
+      </div>
+    </section>
+
+    <section class="section-card">
+      <h2>Latest concentration risk</h2>
+      <p class="muted">
+        Shows single-name concentration, issuer-group concentration, HHI, and effective position count
+        for the latest optimized portfolio snapshot.
+      </p>
+      <div class="table-wrap">
+        {concentration_summary_table_html()}
+      </div>
+    </section>
+
+    <section class="section-card">
+      <h2>Latest issuer-group exposure</h2>
+      <p class="muted">
+        Surfaces issuer groups such as Vingroup where multiple tickers can create hidden concentration.
+      </p>
+      <div class="table-wrap">
+        {issuer_group_exposure_table_html()}
+      </div>
+    </section>
+
+    <section class="section-card">
+      <h2>Latest predicted rank vs realized rank</h2>
+      <p class="muted">
+        Compares the latest model ranking with realized forward-return rank so hits and misses are visible.
+      </p>
+      <div class="table-wrap">
+        {latest_rank_diagnostic_table_html()}
+      </div>
+    </section>
+
+    <section class="section-card">
       <h2>Latest stock ranking</h2>
       <p class="muted">Stocks ranked by the latest gradient boosting model score.</p>
       <div class="table-wrap">
@@ -892,9 +1126,20 @@ def page_html() -> str:
 
     <section class="section-card">
       <h2>Forecast horizon results</h2>
-      <p class="muted">Compares whether 1-day, 5-day, or 10-day prediction targets work better.</p>
+      <p class="muted">
+        Compares whether 1-day, 5-day, or 10-day prediction targets work better.
+        Average after-cost return is measured per forecast period, not annualized.
+      </p>
       <div class="table-wrap">
         {horizon_table_html()}
+      </div>
+      <h3 style="margin-top: 18px;">Overlapping-window disclosure</h3>
+      <p class="muted">
+        Multi-day forecast horizons use overlapping evaluated dates, so the raw count is larger than the
+        approximate number of independent non-overlapping periods.
+      </p>
+      <div class="table-wrap">
+        {horizon_disclosure_table_html()}
       </div>
     </section>
 

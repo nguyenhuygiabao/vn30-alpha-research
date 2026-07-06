@@ -21,12 +21,18 @@ KEY_FILES = [
     ROOT / "reports" / "interactive" / "interactive_rolling_diagnostic_sharpe.html",
     ROOT / "reports" / "tables" / "ablation_results.csv",
     ROOT / "reports" / "tables" / "horizon_results.csv",
+    ROOT / "reports" / "tables" / "benchmark_results.csv",
+    ROOT / "reports" / "tables" / "concentration_summary.csv",
+    ROOT / "reports" / "tables" / "issuer_group_exposure_latest.csv",
+    ROOT / "reports" / "tables" / "latest_rank_diagnostic.csv",
+    ROOT / "reports" / "tables" / "horizon_sample_disclosure.csv",
     ROOT / "scripts" / "run_full_pipeline.py",
     ROOT / "scripts" / "clean_generated_outputs.py",
     ROOT / "scripts" / "report_summary.py",
     ROOT / "scripts" / "audit_project_state.py",
     ROOT / "scripts" / "build_html_report.py",
     ROOT / "scripts" / "build_interactive_charts.py",
+    ROOT / "scripts" / "build_dashboard_tables.py",
     ROOT / "scripts" / "darken_static_figures.py",
 ]
 
