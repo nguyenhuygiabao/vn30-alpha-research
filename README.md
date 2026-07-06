@@ -176,10 +176,6 @@ reports/tables/horizon_results.csv
 ## Figures
 
 ```text
-reports/figures/cumulative_after_cost_active_return.png
-reports/figures/active_drawdown.png
-reports/figures/portfolio_turnover.png
-reports/figures/rolling_diagnostic_sharpe.png
 reports/figures/top_gradient_boosting_feature_importance.png
 reports/figures/ablation_diagnostic_sharpe.png
 reports/figures/horizon_diagnostic_sharpe.png

@@ -103,10 +103,6 @@ The final report figures are stored in:
 
 The key figures are:
 
-- `cumulative_after_cost_active_return.png`
-- `active_drawdown.png`
-- `portfolio_turnover.png`
-- `rolling_diagnostic_sharpe.png`
 - `top_gradient_boosting_feature_importance.png`
 - `ablation_diagnostic_sharpe.png`
 - `horizon_diagnostic_sharpe.png`

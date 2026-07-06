@@ -22,10 +22,6 @@ This page links the main outputs of the VN30 Alpha Research Framework.
 
 ## Main figures
 
-- [Cumulative After-Cost Active Return](figures/cumulative_after_cost_active_return.png)
-- [Active Drawdown](figures/active_drawdown.png)
-- [Portfolio Turnover](figures/portfolio_turnover.png)
-- [Rolling Diagnostic Sharpe](figures/rolling_diagnostic_sharpe.png)
 - [Top Gradient Boosting Feature Importance](figures/top_gradient_boosting_feature_importance.png)
 - [Ablation Diagnostic Sharpe](figures/ablation_diagnostic_sharpe.png)
 - [Horizon Diagnostic Sharpe](figures/horizon_diagnostic_sharpe.png)

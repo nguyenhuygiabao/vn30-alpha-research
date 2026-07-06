@@ -84,13 +84,9 @@ The check confirmed that all expected figures exist and are non-empty.
 
 The verified final figures are:
 
-- `cumulative_after_cost_active_return.png`
-- `active_drawdown.png`
-- `portfolio_turnover.png`
 - `top_gradient_boosting_feature_importance.png`
 - `ablation_diagnostic_sharpe.png`
 - `horizon_diagnostic_sharpe.png`
-- `rolling_diagnostic_sharpe.png`
 - `horizon_rank_ic.png`
 
 ## 7. Final Report Artifacts
