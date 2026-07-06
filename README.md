@@ -251,7 +251,6 @@ Generated data files are intentionally ignored by Git:
 ```text
 data/processed/
 data/raw/vnstock/
-data/raw/yahoo/
 ```
 
 These files are local reproducible outputs and should not be committed unless they are final report tables or figures.
