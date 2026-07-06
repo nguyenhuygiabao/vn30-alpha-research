@@ -32,6 +32,7 @@ INTERACTIVE_SECTIONS = [
     {
         "title": "Cumulative after-cost active return",
         "file": "interactive/interactive_cumulative_return.html",
+        "guidance": "Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.",
         "meaning": "Shows whether the strategy builds active value over time after estimated trading costs.",
         "read": "A rising line means the strategy is adding active return. Click legend items to hide, show, or isolate scenarios.",
         "watch": "Look for steady growth, long flat periods, and sharp drops.",
@@ -39,13 +40,15 @@ INTERACTIVE_SECTIONS = [
     {
         "title": "Active drawdown",
         "file": "interactive/interactive_active_drawdown.html",
+        "guidance": "Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.",
         "meaning": "Shows how far the strategy falls below its previous active-return peak.",
         "read": "Values closer to zero are better. Deep negative drops mean the strategy gave back previous gains.",
-        "watch": "Use the slider to inspect the large 2026 drawdown and compare execution assumptions.",
+        "watch": "The 2026 drawdown is inside the walk-forward backtest window and should be interpreted as part of the out-of-sample diagnostic period, not as live-trading evidence.",
     },
     {
         "title": "Portfolio turnover",
         "file": "interactive/interactive_portfolio_turnover.html",
+        "guidance": "Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.",
         "meaning": "Shows how much the portfolio changes between rebalancing dates.",
         "read": "Higher turnover means more trading. More trading can make live execution less realistic because costs rise.",
         "watch": "Look for long periods near the maximum turnover level.",
@@ -53,6 +56,7 @@ INTERACTIVE_SECTIONS = [
     {
         "title": "Rolling 60-day diagnostic Sharpe with approximate band",
         "file": "interactive/interactive_rolling_diagnostic_sharpe.html",
+        "guidance": "Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.",
         "meaning": "Shows short-term risk-adjusted performance over rolling 60-trading-day windows with an approximate visual uncertainty band.",
         "read": "Higher values mean better return per unit of volatility during the recent window. The shaded band is approximate and should not be read as formal statistical proof.",
         "watch": "Look for unstable periods where the rolling Sharpe drops sharply or the band is wide.",
@@ -60,6 +64,7 @@ INTERACTIVE_SECTIONS = [
     {
         "title": "Latest issuer-group exposure chart",
         "file": "interactive/interactive_latest_issuer_group_exposure.html",
+        "guidance": "Hover over each bar to inspect tickers, weights, and concentration flags.",
         "meaning": "Shows latest portfolio exposure by issuer group and flags the 40 percent issuer-group cap.",
         "read": "Longer bars mean more group-level concentration. The vertical reference line marks the 40 percent cap.",
         "watch": "Vingroup reaches the 40 percent group cap through VHM and VIC in the latest snapshot.",
@@ -67,6 +72,7 @@ INTERACTIVE_SECTIONS = [
     {
         "title": "Single-name cap-hit share",
         "file": "interactive/interactive_optimizer_cap_hits.html",
+        "guidance": "Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.",
         "meaning": "Shows how often holdings sit at the 20 percent single-name cap.",
         "read": "A value near 100 percent means nearly every holding is at the maximum allowed weight.",
         "watch": "Persistent high values mean portfolio construction is heavily shaped by the cap constraint.",
@@ -103,7 +109,7 @@ STATIC_SECTIONS = [
 
 
 GLOSSARY_ROWS = [
-    ("Rank IC", "Correlation between the model's stock ranking and realized future return ranking."),
+    ("Rank IC (unitless, -1 to +1)", "Correlation between the model's stock ranking and realized future return ranking."),
     ("Diagnostic Sharpe", "Return divided by volatility, annualized. Used here as a diagnostic comparison metric."),
     ("Active return", "Return relative to the reference portfolio or benchmark."),
     ("After-cost return", "Return after estimated commission, slippage, and liquidity penalties."),
@@ -121,6 +127,22 @@ GLOSSARY_ROWS = [
     ("Top-5 hit rate", "How often top-ranked stocks are among better realized performers."),
     ("Model score", "The model's predicted relative return signal."),
 ]
+
+
+DISPLAY_COLUMN_NAMES = {
+    "average_rank_ic": "Rank IC (unitless, -1 to +1)",
+    "final_cumulative_after_cost_active_return": "Cumulative active-return sum",
+    "final_cumulative_active_return": "Cumulative active-return sum",
+    "final_cumulative_active_return_sum": "Cumulative active-return sum",
+    "final_cumulative_top5_return_sum": "Cumulative top-5 return sum",
+    "final_cumulative_active_return_note": "Cumulative active-return note",
+    "max_active_drawdown": "Max active drawdown",
+    "max_drawdown_from_top5_return_sum": "Max drawdown from top-5 return sum",
+}
+
+CUMULATIVE_ACTIVE_RETURN_NOTE = (
+    "Sum of overlapping forecast-period active returns, not a compounded portfolio return."
+)
 
 
 def read_csv(path: Path) -> pd.DataFrame:
@@ -170,7 +192,13 @@ def format_table(
         elif column in decimal_columns:
             display[column] = display[column].map(lambda value: format_number(value, 4))
 
+    display = display.rename(columns=DISPLAY_COLUMN_NAMES)
+
     return display.to_html(index=False, classes="data-table", border=0, escape=True)
+
+
+def cumulative_active_return_note_html() -> str:
+    return f'<p class="muted table-note">{escape(CUMULATIVE_ACTIVE_RETURN_NOTE)}</p>'
 
 
 def latest_signal_date() -> str:
@@ -181,6 +209,42 @@ def latest_signal_date() -> str:
     predictions["date"] = pd.to_datetime(predictions["date"])
 
     return predictions["date"].max().strftime("%Y-%m-%d")
+
+
+def latest_vhm_vic_tie_note() -> str:
+    if not TREE_PREDICTIONS_PATH.exists():
+        return ""
+
+    predictions = pd.read_parquet(TREE_PREDICTIONS_PATH)
+    predictions["date"] = pd.to_datetime(predictions["date"])
+
+    latest_date = predictions["date"].max()
+    latest = predictions[
+        predictions["date"].eq(latest_date)
+        & predictions["model_name"].eq("gradient_boosting")
+        & predictions["ticker"].isin(["VHM", "VIC"])
+    ].copy()
+
+    if latest["ticker"].nunique() < 2:
+        return ""
+
+    scores = latest.set_index("ticker")["predicted_return"]
+    vhm_score = scores["VHM"]
+    vic_score = scores["VIC"]
+
+    if vhm_score == vic_score:
+        return (
+            "VHM and VIC have identical model scores in the latest snapshot; "
+            "rank ordering is tie-broken by ticker/order for display."
+        )
+
+    if format_percent(vhm_score) == format_percent(vic_score):
+        return (
+            "VHM and VIC round to the same displayed score; underlying full-precision "
+            "scores differ."
+        )
+
+    return ""
 
 
 def metric_card(title: str, value: str, subtext: str) -> str:
@@ -353,6 +417,8 @@ def horizon_table_html() -> str:
         "max_active_drawdown",
         "average_turnover",
         "final_cumulative_after_cost_active_return",
+        "final_cumulative_active_return",
+        "final_cumulative_active_return_sum",
     ]
 
     available = [column for column in columns if column in horizon.columns]
@@ -369,6 +435,8 @@ def horizon_table_html() -> str:
             "average_rank_ic",
             "diagnostic_sharpe",
             "final_cumulative_after_cost_active_return",
+            "final_cumulative_active_return",
+            "final_cumulative_active_return_sum",
         },
     )
 
@@ -387,6 +455,8 @@ def ablation_table_html() -> str:
         "max_active_drawdown",
         "average_turnover",
         "final_cumulative_after_cost_active_return",
+        "final_cumulative_active_return",
+        "final_cumulative_active_return_sum",
     ]
 
     available = [column for column in columns if column in ablation.columns]
@@ -403,6 +473,8 @@ def ablation_table_html() -> str:
             "average_rank_ic",
             "diagnostic_sharpe",
             "final_cumulative_after_cost_active_return",
+            "final_cumulative_active_return",
+            "final_cumulative_active_return_sum",
         },
     )
 
@@ -419,6 +491,8 @@ def benchmark_table_html() -> str:
         "return_volatility",
         "diagnostic_sharpe",
         "max_active_drawdown",
+        "final_cumulative_after_cost_active_return",
+        "final_cumulative_active_return",
         "final_cumulative_active_return_sum",
         "average_selected_count",
         "average_return_period_label",
@@ -438,6 +512,8 @@ def benchmark_table_html() -> str:
         },
         decimal_columns={
             "diagnostic_sharpe",
+            "final_cumulative_after_cost_active_return",
+            "final_cumulative_active_return",
             "final_cumulative_active_return_sum",
             "average_selected_count",
         },
@@ -640,13 +716,16 @@ def interactive_section_html(item: dict[str, str]) -> str:
         return ""
 
     versioned = f'{item["file"]}?v={int(path.stat().st_mtime)}'
+    guidance = item.get(
+        "guidance",
+        "Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.",
+    )
 
     return f"""
     <section class="interactive-card">
       <h2>{escape(item["title"])}</h2>
       <p class="helper">
-        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
-        Double-click a legend item to isolate it.
+        {escape(guidance)}
       </p>
       <iframe src="{escape(versioned)}" title="{escape(item["title"])}" loading="lazy"></iframe>
       <p><a href="{escape(item["file"])}" target="_blank" rel="noopener">Open chart in a full page</a></p>
@@ -755,6 +834,12 @@ def glossary_html() -> str:
 def page_html() -> str:
     ranking = latest_stock_ranking()
     weights = latest_portfolio_weights()
+    vhm_vic_note = latest_vhm_vic_tie_note()
+    vhm_vic_note_html = (
+        f'<p class="muted table-note">{escape(vhm_vic_note)}</p>'
+        if vhm_vic_note
+        else ""
+    )
 
     interactive_sections = "\n".join(
         interactive_section_html(item)
@@ -940,6 +1025,11 @@ def page_html() -> str:
       margin-top: -6px;
       margin-bottom: 14px;
       font-size: 14px;
+    }}
+
+    .table-note {{
+      margin: 10px 0 14px;
+      font-size: 13px;
     }}
 
     .table-wrap {{
@@ -1159,8 +1249,10 @@ def page_html() -> str:
       <h2>Baseline comparison</h2>
       <p class="muted">
         Compares the ML strategy with equal-weight VN30-style exposure and simple rule-based baselines.
-        Cost bases are disclosed because the ML rows are after-cost while the naive baselines are before-cost.
+        ML strategy rows use after-cost active returns. Naive baseline rows use before-cost active returns
+        versus the VN30-style reference. This is a diagnostic comparison, not live evidence.
       </p>
+      {cumulative_active_return_note_html()}
       <div class="table-wrap">
         {benchmark_table_html()}
       </div>
@@ -1204,6 +1296,7 @@ def page_html() -> str:
       <p class="muted">
         Compares the latest model ranking with realized forward-return rank so hits and misses are visible.
       </p>
+      {vhm_vic_note_html}
       <div class="table-wrap">
         {latest_rank_diagnostic_table_html()}
       </div>
@@ -1237,8 +1330,9 @@ def page_html() -> str:
       <h2>Forecast horizon results</h2>
       <p class="muted">
         Compares whether 1-day, 5-day, or 10-day prediction targets work better.
-        Average after-cost return is measured per forecast period, not annualized.
+        Average after-cost return is measured per forecast period, not annualized. Rank IC is unitless, from -1 to +1.
       </p>
+      {cumulative_active_return_note_html()}
       <div class="table-wrap">
         {horizon_table_html()}
       </div>
@@ -1246,6 +1340,10 @@ def page_html() -> str:
       <p class="muted">
         Multi-day forecast horizons use overlapping evaluated dates, so the raw count is larger than the
         approximate number of independent non-overlapping periods.
+      </p>
+      <p class="muted table-note">
+        10-day horizon: 1,604 evaluated dates (~160 non-overlapping 10-day periods).
+        Overlapping forecast windows inflate the apparent sample count.
       </p>
       <div class="table-wrap">
         {horizon_disclosure_table_html()}
@@ -1256,7 +1354,7 @@ def page_html() -> str:
       <h2>Model comparison diagnostic</h2>
       <p class="muted">
         Compares available linear, tree-based, and classification prediction files using an equal-weight top-5 diagnostic.
-        This is not the same as the optimized transaction-cost-aware backtest.
+        This is not the same as the optimized transaction-cost-aware backtest. Rank IC is unitless, from -1 to +1.
       </p>
       <div class="table-wrap">
         {model_comparison_table_html()}
@@ -1265,7 +1363,10 @@ def page_html() -> str:
 
     <section class="section-card">
       <h2>Feature ablation results</h2>
-      <p class="muted">Checks whether the full feature set beats reduced feature groups.</p>
+      <p class="muted">
+        Checks whether the full feature set beats reduced feature groups. Rank IC is unitless, from -1 to +1.
+      </p>
+      {cumulative_active_return_note_html()}
       <div class="table-wrap">
         {ablation_table_html()}
       </div>

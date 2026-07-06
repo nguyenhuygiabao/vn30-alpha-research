@@ -179,6 +179,11 @@
       font-size: 14px;
     }
 
+    .table-note {
+      margin: 10px 0 14px;
+      font-size: 13px;
+    }
+
     .table-wrap {
       overflow-x: auto;
       border: 1px solid rgba(148, 163, 184, 0.16);
@@ -463,8 +468,10 @@
       <h2>Baseline comparison</h2>
       <p class="muted">
         Compares the ML strategy with equal-weight VN30-style exposure and simple rule-based baselines.
-        Cost bases are disclosed because the ML rows are after-cost while the naive baselines are before-cost.
+        ML strategy rows use after-cost active returns. Naive baseline rows use before-cost active returns
+        versus the VN30-style reference. This is a diagnostic comparison, not live evidence.
       </p>
+      <p class="muted table-note">Sum of overlapping forecast-period active returns, not a compounded portfolio return.</p>
       <div class="table-wrap">
         <table class="dataframe data-table">
   <thead>
@@ -476,11 +483,11 @@
       <th>average_period_active_return</th>
       <th>return_volatility</th>
       <th>diagnostic_sharpe</th>
-      <th>max_active_drawdown</th>
-      <th>final_cumulative_active_return_sum</th>
+      <th>Max active drawdown</th>
+      <th>Cumulative active-return sum</th>
       <th>average_selected_count</th>
       <th>average_return_period_label</th>
-      <th>final_cumulative_active_return_note</th>
+      <th>Cumulative active-return note</th>
       <th>cost_note</th>
     </tr>
   </thead>
@@ -497,7 +504,7 @@
       <td>30.1672</td>
       <td>11.8080</td>
       <td>per 5-day forecast period</td>
-      <td>Sum of overlapping 5-day active returns, not a compounded portfolio return.</td>
+      <td>Sum of overlapping forecast-period active returns, not a compounded portfolio return.</td>
       <td>Includes estimated commission, slippage, and liquidity penalty.</td>
     </tr>
     <tr>
@@ -512,7 +519,7 @@
       <td>29.5002</td>
       <td>11.2704</td>
       <td>per 5-day forecast period</td>
-      <td>Sum of overlapping 5-day active returns, not a compounded portfolio return.</td>
+      <td>Sum of overlapping forecast-period active returns, not a compounded portfolio return.</td>
       <td>Includes estimated commission, slippage, and liquidity penalty.</td>
     </tr>
     <tr>
@@ -527,7 +534,7 @@
       <td>28.7179</td>
       <td>11.3294</td>
       <td>per 5-day forecast period</td>
-      <td>Sum of overlapping 5-day active returns, not a compounded portfolio return.</td>
+      <td>Sum of overlapping forecast-period active returns, not a compounded portfolio return.</td>
       <td>Includes estimated commission, slippage, and liquidity penalty.</td>
     </tr>
     <tr>
@@ -542,7 +549,7 @@
       <td>29.3603</td>
       <td>11.8682</td>
       <td>per 5-day forecast period</td>
-      <td>Sum of overlapping 5-day active returns, not a compounded portfolio return.</td>
+      <td>Sum of overlapping forecast-period active returns, not a compounded portfolio return.</td>
       <td>Includes estimated commission, slippage, and liquidity penalty.</td>
     </tr>
     <tr>
@@ -557,7 +564,7 @@
       <td>5.8073</td>
       <td>5.0000</td>
       <td>per 5-day forecast period</td>
-      <td>Sum of overlapping 5-day active returns, not a compounded portfolio return.</td>
+      <td>Sum of overlapping forecast-period active returns, not a compounded portfolio return.</td>
       <td>No transaction-cost adjustment applied to this naive baseline.</td>
     </tr>
     <tr>
@@ -572,7 +579,7 @@
       <td>-0.2095</td>
       <td>5.0000</td>
       <td>per 5-day forecast period</td>
-      <td>Sum of overlapping 5-day active returns, not a compounded portfolio return.</td>
+      <td>Sum of overlapping forecast-period active returns, not a compounded portfolio return.</td>
       <td>No transaction-cost adjustment applied to this naive baseline.</td>
     </tr>
     <tr>
@@ -587,7 +594,7 @@
       <td>-1.5491</td>
       <td>10.0000</td>
       <td>per 5-day forecast period</td>
-      <td>Sum of overlapping 5-day active returns, not a compounded portfolio return.</td>
+      <td>Sum of overlapping forecast-period active returns, not a compounded portfolio return.</td>
       <td>No transaction-cost adjustment applied to this naive baseline.</td>
     </tr>
     <tr>
@@ -602,7 +609,7 @@
       <td>-0.0000</td>
       <td>28.9627</td>
       <td>per 5-day forecast period</td>
-      <td>Sum of overlapping 5-day active returns, not a compounded portfolio return.</td>
+      <td>Sum of overlapping forecast-period active returns, not a compounded portfolio return.</td>
       <td>No transaction-cost adjustment applied to this naive baseline.</td>
     </tr>
   </tbody>
@@ -849,6 +856,7 @@
       <p class="muted">
         Compares the latest model ranking with realized forward-return rank so hits and misses are visible.
       </p>
+      <p class="muted table-note">VHM and VIC have identical model scores in the latest snapshot; rank ordering is tie-broken by ticker/order for display.</p>
       <div class="table-wrap">
         <table class="dataframe data-table">
   <thead>
@@ -1279,21 +1287,22 @@
       <h2>Forecast horizon results</h2>
       <p class="muted">
         Compares whether 1-day, 5-day, or 10-day prediction targets work better.
-        Average after-cost return is measured per forecast period, not annualized.
+        Average after-cost return is measured per forecast period, not annualized. Rank IC is unitless, from -1 to +1.
       </p>
+      <p class="muted table-note">Sum of overlapping forecast-period active returns, not a compounded portfolio return.</p>
       <div class="table-wrap">
         <table class="dataframe data-table">
   <thead>
     <tr style="text-align: right;">
       <th>forecast_horizon_days</th>
       <th>evaluated_dates</th>
-      <th>average_rank_ic</th>
+      <th>Rank IC (unitless, -1 to +1)</th>
       <th>average_top_5_hit_rate</th>
       <th>average_after_cost_return</th>
       <th>diagnostic_sharpe</th>
-      <th>max_active_drawdown</th>
+      <th>Max active drawdown</th>
       <th>average_turnover</th>
-      <th>final_cumulative_after_cost_active_return</th>
+      <th>Cumulative active-return sum</th>
     </tr>
   </thead>
   <tbody>
@@ -1337,6 +1346,10 @@
       <p class="muted">
         Multi-day forecast horizons use overlapping evaluated dates, so the raw count is larger than the
         approximate number of independent non-overlapping periods.
+      </p>
+      <p class="muted table-note">
+        10-day horizon: 1,604 evaluated dates (~160 non-overlapping 10-day periods).
+        Overlapping forecast windows inflate the apparent sample count.
       </p>
       <div class="table-wrap">
         <table class="dataframe data-table">
@@ -1388,7 +1401,7 @@
       <h2>Model comparison diagnostic</h2>
       <p class="muted">
         Compares available linear, tree-based, and classification prediction files using an equal-weight top-5 diagnostic.
-        This is not the same as the optimized transaction-cost-aware backtest.
+        This is not the same as the optimized transaction-cost-aware backtest. Rank IC is unitless, from -1 to +1.
       </p>
       <div class="table-wrap">
         <table class="dataframe data-table">
@@ -1397,13 +1410,13 @@
       <th>model_family</th>
       <th>model_name</th>
       <th>evaluated_dates</th>
-      <th>average_rank_ic</th>
+      <th>Rank IC (unitless, -1 to +1)</th>
       <th>average_top5_hit_rate</th>
       <th>average_top5_realized_return_per_5d_period</th>
       <th>return_volatility</th>
       <th>diagnostic_sharpe</th>
-      <th>max_drawdown_from_top5_return_sum</th>
-      <th>final_cumulative_top5_return_sum</th>
+      <th>Max drawdown from top-5 return sum</th>
+      <th>Cumulative top-5 return sum</th>
       <th>average_selected_count</th>
       <th>comparison_note</th>
     </tr>
@@ -1486,7 +1499,10 @@
 
     <section class="section-card">
       <h2>Feature ablation results</h2>
-      <p class="muted">Checks whether the full feature set beats reduced feature groups.</p>
+      <p class="muted">
+        Checks whether the full feature set beats reduced feature groups. Rank IC is unitless, from -1 to +1.
+      </p>
+      <p class="muted table-note">Sum of overlapping forecast-period active returns, not a compounded portfolio return.</p>
       <div class="table-wrap">
         <table class="dataframe data-table">
   <thead>
@@ -1494,13 +1510,13 @@
       <th>ablation_name</th>
       <th>evaluated_dates</th>
       <th>feature_count</th>
-      <th>average_rank_ic</th>
+      <th>Rank IC (unitless, -1 to +1)</th>
       <th>average_top_5_hit_rate</th>
       <th>average_after_cost_return</th>
       <th>diagnostic_sharpe</th>
-      <th>max_active_drawdown</th>
+      <th>Max active drawdown</th>
       <th>average_turnover</th>
-      <th>final_cumulative_after_cost_active_return</th>
+      <th>Cumulative active-return sum</th>
     </tr>
   </thead>
   <tbody>
@@ -1573,8 +1589,7 @@
     <section class="interactive-card">
       <h2>Cumulative after-cost active return</h2>
       <p class="helper">
-        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
-        Double-click a legend item to isolate it.
+        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
       <iframe src="interactive/interactive_cumulative_return.html?v=1783327161" title="Cumulative after-cost active return" loading="lazy"></iframe>
       <p><a href="interactive/interactive_cumulative_return.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
@@ -1589,15 +1604,14 @@
     <section class="interactive-card">
       <h2>Active drawdown</h2>
       <p class="helper">
-        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
-        Double-click a legend item to isolate it.
+        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
       <iframe src="interactive/interactive_active_drawdown.html?v=1783327161" title="Active drawdown" loading="lazy"></iframe>
       <p><a href="interactive/interactive_active_drawdown.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows how far the strategy falls below its previous active-return peak.</p>
         <p><strong>How to read it:</strong> Values closer to zero are better. Deep negative drops mean the strategy gave back previous gains.</p>
-        <p><strong>What to watch:</strong> Use the slider to inspect the large 2026 drawdown and compare execution assumptions.</p>
+        <p><strong>What to watch:</strong> The 2026 drawdown is inside the walk-forward backtest window and should be interpreted as part of the out-of-sample diagnostic period, not as live-trading evidence.</p>
       </div>
     </section>
 
@@ -1605,8 +1619,7 @@
     <section class="interactive-card">
       <h2>Portfolio turnover</h2>
       <p class="helper">
-        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
-        Double-click a legend item to isolate it.
+        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
       <iframe src="interactive/interactive_portfolio_turnover.html?v=1783327161" title="Portfolio turnover" loading="lazy"></iframe>
       <p><a href="interactive/interactive_portfolio_turnover.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
@@ -1621,8 +1634,7 @@
     <section class="interactive-card">
       <h2>Rolling 60-day diagnostic Sharpe with approximate band</h2>
       <p class="helper">
-        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
-        Double-click a legend item to isolate it.
+        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
       <iframe src="interactive/interactive_rolling_diagnostic_sharpe.html?v=1783327056" title="Rolling 60-day diagnostic Sharpe with approximate band" loading="lazy"></iframe>
       <p><a href="interactive/interactive_rolling_diagnostic_sharpe.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
@@ -1637,8 +1649,7 @@
     <section class="interactive-card">
       <h2>Latest issuer-group exposure chart</h2>
       <p class="helper">
-        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
-        Double-click a legend item to isolate it.
+        Hover over each bar to inspect tickers, weights, and concentration flags.
       </p>
       <iframe src="interactive/interactive_latest_issuer_group_exposure.html?v=1783327056" title="Latest issuer-group exposure chart" loading="lazy"></iframe>
       <p><a href="interactive/interactive_latest_issuer_group_exposure.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
@@ -1653,8 +1664,7 @@
     <section class="interactive-card">
       <h2>Single-name cap-hit share</h2>
       <p class="helper">
-        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
-        Double-click a legend item to isolate it.
+        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
       <iframe src="interactive/interactive_optimizer_cap_hits.html?v=1783327056" title="Single-name cap-hit share" loading="lazy"></iframe>
       <p><a href="interactive/interactive_optimizer_cap_hits.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
@@ -1728,7 +1738,7 @@
           <tbody>
 
         <tr>
-          <td>Rank IC</td>
+          <td>Rank IC (unitless, -1 to +1)</td>
           <td>Correlation between the model&#x27;s stock ranking and realized future return ranking.</td>
         </tr>
 

@@ -359,7 +359,7 @@ def build_enhanced_benchmark_results() -> pd.DataFrame:
                 "max_active_drawdown": max_drawdown_from_period_returns(period_returns),
                 "final_cumulative_active_return_sum": period_returns.cumsum().iloc[-1],
                 "final_cumulative_active_return_note": (
-                    "Sum of overlapping 5-day active returns, not a compounded portfolio return."
+                    "Sum of overlapping forecast-period active returns, not a compounded portfolio return."
                 ),
                 "average_selected_count": ordered["selected_count"].mean(),
                 "return_basis": "after-cost active return per 5-day forecast period",
@@ -385,7 +385,7 @@ def build_enhanced_benchmark_results() -> pd.DataFrame:
                 "max_active_drawdown": max_drawdown_from_period_returns(period_returns),
                 "final_cumulative_active_return_sum": period_returns.cumsum().iloc[-1],
                 "final_cumulative_active_return_note": (
-                    "Sum of overlapping 5-day active returns, not a compounded portfolio return."
+                    "Sum of overlapping forecast-period active returns, not a compounded portfolio return."
                 ),
                 "average_selected_count": ordered["selected_count"].mean(),
                 "return_basis": "before-cost active return versus VN30-style reference per 5-day forecast period",
