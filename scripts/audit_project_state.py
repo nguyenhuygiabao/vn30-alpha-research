@@ -19,6 +19,8 @@ KEY_FILES = [
     ROOT / "reports" / "interactive" / "interactive_active_drawdown.html",
     ROOT / "reports" / "interactive" / "interactive_portfolio_turnover.html",
     ROOT / "reports" / "interactive" / "interactive_rolling_diagnostic_sharpe.html",
+    ROOT / "reports" / "interactive" / "interactive_latest_issuer_group_exposure.html",
+    ROOT / "reports" / "interactive" / "interactive_optimizer_cap_hits.html",
     ROOT / "reports" / "tables" / "ablation_results.csv",
     ROOT / "reports" / "tables" / "horizon_results.csv",
     ROOT / "reports" / "tables" / "benchmark_results.csv",

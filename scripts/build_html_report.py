@@ -51,11 +51,25 @@ INTERACTIVE_SECTIONS = [
         "watch": "Look for long periods near the maximum turnover level.",
     },
     {
-        "title": "Rolling 60-day diagnostic Sharpe",
+        "title": "Rolling 60-day diagnostic Sharpe with approximate band",
         "file": "interactive/interactive_rolling_diagnostic_sharpe.html",
-        "meaning": "Shows short-term risk-adjusted performance over rolling 60-trading-day windows.",
-        "read": "Higher values mean better return per unit of volatility during the recent window.",
-        "watch": "Look for unstable periods where the rolling Sharpe drops sharply.",
+        "meaning": "Shows short-term risk-adjusted performance over rolling 60-trading-day windows with an approximate visual uncertainty band.",
+        "read": "Higher values mean better return per unit of volatility during the recent window. The shaded band is approximate and should not be read as formal statistical proof.",
+        "watch": "Look for unstable periods where the rolling Sharpe drops sharply or the band is wide.",
+    },
+    {
+        "title": "Latest issuer-group exposure chart",
+        "file": "interactive/interactive_latest_issuer_group_exposure.html",
+        "meaning": "Shows latest portfolio exposure by issuer group and flags the 40 percent issuer-group cap.",
+        "read": "Longer bars mean more group-level concentration. The vertical reference line marks the 40 percent cap.",
+        "watch": "Vingroup reaches the 40 percent group cap through VHM and VIC in the latest snapshot.",
+    },
+    {
+        "title": "Single-name cap-hit share",
+        "file": "interactive/interactive_optimizer_cap_hits.html",
+        "meaning": "Shows how often holdings sit at the 20 percent single-name cap.",
+        "read": "A value near 100 percent means nearly every holding is at the maximum allowed weight.",
+        "watch": "Persistent high values mean portfolio construction is heavily shaped by the cap constraint.",
     },
 ]
 

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -9,9 +9,12 @@ import plotly.graph_objects as go
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data" / "processed"
 REPORTS_DIR = ROOT / "reports"
+TABLES_DIR = REPORTS_DIR / "tables"
 OUTPUT_DIR = REPORTS_DIR / "interactive"
 
 BACKTEST_RETURNS_PATH = DATA_DIR / "backtest_returns.parquet"
+OPTIMIZED_WEIGHTS_PATH = DATA_DIR / "optimized_weights.parquet"
+ISSUER_GROUP_EXPOSURE_PATH = TABLES_DIR / "issuer_group_exposure_latest.csv"
 
 
 SCENARIO_ORDER = [
@@ -35,6 +38,28 @@ SCENARIO_COLORS = {
     ("normal", "price_limit_aware"): "#f472b6",
 }
 
+OPTIMIZATION_LABELS = {
+    "herding_aware": "Herding-aware",
+    "normal": "Normal",
+}
+
+OPTIMIZATION_COLORS = {
+    "herding_aware": "#60a5fa",
+    "normal": "#34d399",
+}
+
+MAX_SINGLE_NAME_WEIGHT = 0.20
+TOLERANCE = 1e-8
+
+
+def hex_to_rgba(hex_color: str, alpha: float) -> str:
+    color = hex_color.lstrip("#")
+    red = int(color[0:2], 16)
+    green = int(color[2:4], 16)
+    blue = int(color[4:6], 16)
+
+    return f"rgba({red}, {green}, {blue}, {alpha})"
+
 
 def read_backtest_returns() -> pd.DataFrame:
     if not BACKTEST_RETURNS_PATH.exists():
@@ -44,6 +69,26 @@ def read_backtest_returns() -> pd.DataFrame:
     data["date"] = pd.to_datetime(data["date"])
 
     return data.sort_values("date")
+
+
+def read_optimized_weights() -> pd.DataFrame:
+    if not OPTIMIZED_WEIGHTS_PATH.exists():
+        raise FileNotFoundError(f"Missing file: {OPTIMIZED_WEIGHTS_PATH}")
+
+    data = pd.read_parquet(OPTIMIZED_WEIGHTS_PATH)
+    data["date"] = pd.to_datetime(data["date"])
+
+    return data.sort_values("date")
+
+
+def read_issuer_group_exposure() -> pd.DataFrame:
+    if not ISSUER_GROUP_EXPOSURE_PATH.exists():
+        raise FileNotFoundError(f"Missing file: {ISSUER_GROUP_EXPOSURE_PATH}")
+
+    data = pd.read_csv(ISSUER_GROUP_EXPOSURE_PATH)
+    data["signal_date"] = pd.to_datetime(data["signal_date"])
+
+    return data
 
 
 def scenario_group(
@@ -427,11 +472,47 @@ def build_rolling_sharpe(data: pd.DataFrame) -> Path:
         rolling_mean = group["after_cost_return"].rolling(rolling_window).mean()
         rolling_std = group["after_cost_return"].rolling(rolling_window).std()
 
-        group["rolling_sharpe"] = (rolling_mean / rolling_std) * annualization
-        group = group.dropna(subset=["rolling_sharpe"])
+        nonannualized_sharpe = rolling_mean / rolling_std
+        rolling_sharpe = nonannualized_sharpe * annualization
+
+        se_nonannualized = (
+            (1.0 + 0.5 * nonannualized_sharpe.pow(2)) / rolling_window
+        ).pow(0.5)
+        band_width = se_nonannualized * annualization
+
+        group["rolling_sharpe"] = rolling_sharpe
+        group["rolling_sharpe_upper"] = rolling_sharpe + band_width
+        group["rolling_sharpe_lower"] = rolling_sharpe - band_width
+
+        group = group.dropna(
+            subset=[
+                "rolling_sharpe",
+                "rolling_sharpe_upper",
+                "rolling_sharpe_lower",
+            ]
+        )
 
         if group.empty:
             continue
+
+        label = SCENARIO_LABELS[scenario_key]
+        color = SCENARIO_COLORS[scenario_key]
+
+        fig.add_trace(
+            go.Scatter(
+                x=list(group["date"]) + list(group["date"])[::-1],
+                y=(
+                    list(group["rolling_sharpe_upper"])
+                    + list(group["rolling_sharpe_lower"])[::-1]
+                ),
+                fill="toself",
+                fillcolor=hex_to_rgba(color, 0.12),
+                line={"color": "rgba(255, 255, 255, 0)"},
+                hoverinfo="skip",
+                name=f"{label} approximate band",
+                showlegend=True,
+            )
+        )
 
         add_trace(
             fig,
@@ -444,25 +525,189 @@ def build_rolling_sharpe(data: pd.DataFrame) -> Path:
 
     fig.update_layout(
         **base_layout(
-            "Interactive Rolling 60-Day Diagnostic Sharpe",
+            "Interactive Rolling 60-Day Diagnostic Sharpe With Approximate Band",
             "Rolling 60-day diagnostic Sharpe",
             data,
         )
     )
 
+    fig.add_annotation(
+        text=(
+            "Approximate visual band only. It uses a simplified Sharpe standard-error formula; "
+            "overlapping forecast returns are not independent."
+        ),
+        xref="paper",
+        yref="paper",
+        x=0.01,
+        y=-0.18,
+        showarrow=False,
+        font={"size": 12, "color": "#94a3b8"},
+        align="left",
+    )
+
     return write_chart(fig, OUTPUT_DIR / "interactive_rolling_diagnostic_sharpe.html")
+
+
+def build_latest_issuer_group_exposure_chart(exposure: pd.DataFrame) -> Path:
+    fig = go.Figure()
+
+    for optimization_mode in sorted(exposure["optimization_mode"].dropna().unique()):
+        group = exposure[exposure["optimization_mode"].eq(optimization_mode)].copy()
+        group = group.sort_values("issuer_group_weight", ascending=True)
+
+        color = OPTIMIZATION_COLORS.get(optimization_mode, "#94a3b8")
+        label = OPTIMIZATION_LABELS.get(optimization_mode, optimization_mode)
+
+        fig.add_trace(
+            go.Bar(
+                x=group["issuer_group_weight"],
+                y=group["issuer_group"],
+                orientation="h",
+                name=label,
+                marker={"color": color},
+                customdata=group[["tickers", "exposure_flag"]],
+                hovertemplate=(
+                    "%{y}<br>"
+                    "Weight: %{x:.2%}<br>"
+                    "Tickers: %{customdata[0]}<br>"
+                    "Flag: %{customdata[1]}"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    fig.update_layout(
+        title={
+            "text": "Latest Issuer-Group Exposure",
+            "x": 0.02,
+            "xanchor": "left",
+            "font": {"color": "#eaf2ff", "size": 22},
+        },
+        template="plotly_dark",
+        paper_bgcolor="#050a14",
+        plot_bgcolor="#050a14",
+        font={"color": "#e5f2ff", "family": "Arial, Helvetica, sans-serif"},
+        height=570,
+        margin={"l": 160, "r": 260, "t": 58, "b": 42},
+        barmode="group",
+        xaxis={
+            "title": "Issuer-group portfolio weight",
+            "tickformat": ".0%",
+            "showgrid": True,
+            "gridcolor": "rgba(255, 255, 255, 0.14)",
+        },
+        yaxis={"title": "Issuer group"},
+        legend={
+            "orientation": "v",
+            "yanchor": "top",
+            "y": 0.95,
+            "xanchor": "left",
+            "x": 1.02,
+        },
+        shapes=[
+            {
+                "type": "line",
+                "xref": "x",
+                "yref": "paper",
+                "x0": 0.40,
+                "x1": 0.40,
+                "y0": 0,
+                "y1": 1,
+                "line": {
+                    "color": "rgba(251, 113, 133, 0.75)",
+                    "width": 2,
+                    "dash": "dash",
+                },
+            }
+        ],
+        annotations=[
+            {
+                "x": 0.405,
+                "y": 1.02,
+                "xref": "x",
+                "yref": "paper",
+                "text": "40% issuer-group cap",
+                "showarrow": False,
+                "font": {"color": "#fecdd3", "size": 12},
+            }
+        ],
+    )
+
+    return write_chart(fig, OUTPUT_DIR / "interactive_latest_issuer_group_exposure.html")
+
+
+def build_optimizer_cap_hit_chart(weights: pd.DataFrame) -> Path:
+    rows = []
+
+    for keys, group in weights.groupby(["optimization_mode", "date"]):
+        optimization_mode, date = keys
+        at_cap = group["weight"].ge(MAX_SINGLE_NAME_WEIGHT - TOLERANCE)
+
+        rows.append(
+            {
+                "optimization_mode": optimization_mode,
+                "date": date,
+                "cap_hit_share": at_cap.mean(),
+                "holding_count": len(group),
+                "positions_at_cap": int(at_cap.sum()),
+            }
+        )
+
+    diagnostic = pd.DataFrame(rows).sort_values("date")
+
+    fig = go.Figure()
+
+    for optimization_mode in sorted(diagnostic["optimization_mode"].dropna().unique()):
+        group = diagnostic[diagnostic["optimization_mode"].eq(optimization_mode)].copy()
+        label = OPTIMIZATION_LABELS.get(optimization_mode, optimization_mode)
+
+        fig.add_trace(
+            go.Scatter(
+                x=group["date"],
+                y=group["cap_hit_share"],
+                mode="lines",
+                name=label,
+                line={
+                    "color": OPTIMIZATION_COLORS.get(optimization_mode, "#94a3b8"),
+                    "width": 1.8,
+                },
+                customdata=group[["positions_at_cap", "holding_count"]],
+                hovertemplate=(
+                    "%{x|%Y-%m-%d}<br>"
+                    f"{label}<br>"
+                    "Positions at 20% cap: %{customdata[0]} / %{customdata[1]}<br>"
+                    "Cap-hit share: %{y:.0%}"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    fig.update_layout(
+        **base_layout(
+            "Interactive Single-Name Cap-Hit Share",
+            "Share of holdings at 20% single-name cap",
+            diagnostic,
+            tickformat=".0%",
+        )
+    )
+
+    return write_chart(fig, OUTPUT_DIR / "interactive_optimizer_cap_hits.html")
 
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     data = read_backtest_returns()
+    weights = read_optimized_weights()
+    exposure = read_issuer_group_exposure()
 
     output_paths = [
         build_cumulative_return(data),
         build_drawdown(data),
         build_turnover(data),
         build_rolling_sharpe(data),
+        build_latest_issuer_group_exposure_chart(exposure),
+        build_optimizer_cap_hit_chart(weights),
     ]
 
     print()

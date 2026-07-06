@@ -1576,7 +1576,7 @@
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
         Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/interactive_cumulative_return.html?v=1783326359" title="Cumulative after-cost active return" loading="lazy"></iframe>
+      <iframe src="interactive/interactive_cumulative_return.html?v=1783327161" title="Cumulative after-cost active return" loading="lazy"></iframe>
       <p><a href="interactive/interactive_cumulative_return.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows whether the strategy builds active value over time after estimated trading costs.</p>
@@ -1592,7 +1592,7 @@
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
         Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/interactive_active_drawdown.html?v=1783326359" title="Active drawdown" loading="lazy"></iframe>
+      <iframe src="interactive/interactive_active_drawdown.html?v=1783327161" title="Active drawdown" loading="lazy"></iframe>
       <p><a href="interactive/interactive_active_drawdown.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows how far the strategy falls below its previous active-return peak.</p>
@@ -1608,7 +1608,7 @@
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
         Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/interactive_portfolio_turnover.html?v=1783326359" title="Portfolio turnover" loading="lazy"></iframe>
+      <iframe src="interactive/interactive_portfolio_turnover.html?v=1783327161" title="Portfolio turnover" loading="lazy"></iframe>
       <p><a href="interactive/interactive_portfolio_turnover.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows how much the portfolio changes between rebalancing dates.</p>
@@ -1619,17 +1619,49 @@
 
 
     <section class="interactive-card">
-      <h2>Rolling 60-day diagnostic Sharpe</h2>
+      <h2>Rolling 60-day diagnostic Sharpe with approximate band</h2>
       <p class="helper">
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
         Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/interactive_rolling_diagnostic_sharpe.html?v=1783326359" title="Rolling 60-day diagnostic Sharpe" loading="lazy"></iframe>
+      <iframe src="interactive/interactive_rolling_diagnostic_sharpe.html?v=1783327056" title="Rolling 60-day diagnostic Sharpe with approximate band" loading="lazy"></iframe>
       <p><a href="interactive/interactive_rolling_diagnostic_sharpe.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
-        <p><strong>What this means:</strong> Shows short-term risk-adjusted performance over rolling 60-trading-day windows.</p>
-        <p><strong>How to read it:</strong> Higher values mean better return per unit of volatility during the recent window.</p>
-        <p><strong>What to watch:</strong> Look for unstable periods where the rolling Sharpe drops sharply.</p>
+        <p><strong>What this means:</strong> Shows short-term risk-adjusted performance over rolling 60-trading-day windows with an approximate visual uncertainty band.</p>
+        <p><strong>How to read it:</strong> Higher values mean better return per unit of volatility during the recent window. The shaded band is approximate and should not be read as formal statistical proof.</p>
+        <p><strong>What to watch:</strong> Look for unstable periods where the rolling Sharpe drops sharply or the band is wide.</p>
+      </div>
+    </section>
+
+
+    <section class="interactive-card">
+      <h2>Latest issuer-group exposure chart</h2>
+      <p class="helper">
+        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
+        Double-click a legend item to isolate it.
+      </p>
+      <iframe src="interactive/interactive_latest_issuer_group_exposure.html?v=1783327056" title="Latest issuer-group exposure chart" loading="lazy"></iframe>
+      <p><a href="interactive/interactive_latest_issuer_group_exposure.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
+      <div class="annotation">
+        <p><strong>What this means:</strong> Shows latest portfolio exposure by issuer group and flags the 40 percent issuer-group cap.</p>
+        <p><strong>How to read it:</strong> Longer bars mean more group-level concentration. The vertical reference line marks the 40 percent cap.</p>
+        <p><strong>What to watch:</strong> Vingroup reaches the 40 percent group cap through VHM and VIC in the latest snapshot.</p>
+      </div>
+    </section>
+
+
+    <section class="interactive-card">
+      <h2>Single-name cap-hit share</h2>
+      <p class="helper">
+        Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario.
+        Double-click a legend item to isolate it.
+      </p>
+      <iframe src="interactive/interactive_optimizer_cap_hits.html?v=1783327056" title="Single-name cap-hit share" loading="lazy"></iframe>
+      <p><a href="interactive/interactive_optimizer_cap_hits.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
+      <div class="annotation">
+        <p><strong>What this means:</strong> Shows how often holdings sit at the 20 percent single-name cap.</p>
+        <p><strong>How to read it:</strong> A value near 100 percent means nearly every holding is at the maximum allowed weight.</p>
+        <p><strong>What to watch:</strong> Persistent high values mean portfolio construction is heavily shaped by the cap constraint.</p>
       </div>
     </section>
 
