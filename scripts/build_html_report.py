@@ -1390,6 +1390,169 @@ def page_html() -> str:
 """
 
 
+def polish_dashboard_html(html: str) -> str:
+    import re
+
+    cumulative_note = (
+        '<p class="muted"><strong>Unit note:</strong> '
+        'Cumulative active-return sum is the sum of overlapping forecast-period active returns, '
+        'not a compounded portfolio return.</p>'
+    )
+
+    baseline_note = (
+        '<p class="muted"><strong>Baseline comparison is included:</strong> '
+        'ML strategy rows use after-cost active returns. Naive baseline rows use before-cost '
+        'active returns versus the VN30-style reference. This is a diagnostic comparison, '
+        'not live-trading evidence.</p>'
+    )
+
+    overlap_note = (
+        '<p class="muted"><strong>Overlapping-window note:</strong> '
+        '10-day horizon: 1,604 evaluated dates (~160 non-overlapping 10-day periods). '
+        'Overlapping forecast windows inflate the apparent sample count.</p>'
+    )
+
+    issuer_guidance = (
+        '<p class="muted">Hover over each bar to inspect tickers, weights, and concentration flags. '
+        'The 40 percent reference line marks the issuer-group cap.</p>'
+    )
+
+    drawdown_note = (
+        '<p class="muted"><strong>Drawdown window note:</strong> '
+        'The 2026 drawdown is inside the walk-forward backtest window and should be interpreted '
+        'as part of the out-of-sample diagnostic period, not live-trading evidence.</p>'
+    )
+
+    # Rename raw/internal cumulative-return headers wherever they leak into HTML.
+    html = html.replace(
+        "final_cumulative_after_cost_active_return",
+        "Cumulative active-return sum",
+    )
+    html = html.replace(
+        "final_cumulative_active_return_sum",
+        "Cumulative active-return sum",
+    )
+    html = html.replace(
+        "final_cumulative_active_return",
+        "Cumulative active-return sum",
+    )
+
+    # Make Rank IC explicitly unitless.
+    html = html.replace(
+        "<th>average_rank_ic</th>",
+        "<th>Rank IC (unitless, -1 to +1)</th>",
+    )
+    html = html.replace(
+        "<th>rank_ic</th>",
+        "<th>Rank IC (unitless, -1 to +1)</th>",
+    )
+
+    # Add a visible cumulative-return note near horizon/baseline tables.
+    if "Sum of overlapping forecast-period active returns, not a compounded portfolio return." not in html:
+        inserted = False
+        for pattern in [
+            r"(<h2>Forecast horizon[^<]*</h2>)",
+            r"(<h2>Horizon[^<]*</h2>)",
+            r"(<h2>Baseline comparison</h2>)",
+        ]:
+            new_html, count = re.subn(
+                pattern,
+                r"\1\n" + cumulative_note,
+                html,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+            if count:
+                html = new_html
+                inserted = True
+                break
+
+        if not inserted:
+            html = html.replace("</main>", cumulative_note + "\n</main>", 1)
+
+    # Make baseline section impossible to miss.
+    if "Baseline comparison is included:" not in html:
+        html = re.sub(
+            r"(<h2>Baseline comparison</h2>)",
+            r"\1\n" + baseline_note,
+            html,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+
+    # Make overlapping-window disclosure impossible to miss.
+    if "Overlapping-window note:" not in html:
+        inserted = False
+        for pattern in [
+            r"(<h2>Forecast horizon[^<]*</h2>)",
+            r"(<h2>Horizon[^<]*</h2>)",
+        ]:
+            new_html, count = re.subn(
+                pattern,
+                r"\1\n" + overlap_note,
+                html,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+            if count:
+                html = new_html
+                inserted = True
+                break
+
+        if not inserted:
+            html = html.replace("</main>", overlap_note + "\n</main>", 1)
+
+    # Replace misleading time-series zoom instruction on the cross-sectional issuer chart.
+    issuer_pattern = (
+        r"(<h2>Latest issuer-group exposure chart</h2>\s*)"
+        r"<p class=\"muted\">.*?</p>"
+    )
+    new_html, count = re.subn(
+        issuer_pattern,
+        r"\1" + issuer_guidance,
+        html,
+        count=1,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    html = new_html
+
+    if count == 0 and "Latest issuer-group exposure chart" in html and "Hover over each bar" not in html:
+        html = re.sub(
+            r"(<h2>Latest issuer-group exposure chart</h2>)",
+            r"\1\n" + issuer_guidance,
+            html,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+
+    # Add drawdown window clarification.
+    if "walk-forward backtest window" not in html:
+        new_html, count = re.subn(
+            r"(<h2>[^<]*drawdown[^<]*</h2>)",
+            r"\1\n" + drawdown_note,
+            html,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+        html = new_html
+
+        if count == 0:
+            html = html.replace("</main>", drawdown_note + "\n</main>", 1)
+
+    return html
+
+
+def postprocess_dashboard_file() -> None:
+    dashboard_path = ROOT / "reports" / "dashboard.html"
+
+    if not dashboard_path.exists():
+        return
+
+    html = dashboard_path.read_text(encoding="utf-8")
+    polished = polish_dashboard_html(html)
+    dashboard_path.write_text(polished, encoding="utf-8", newline="\n")
+
+
 def main() -> None:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1404,3 +1567,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    postprocess_dashboard_file()
