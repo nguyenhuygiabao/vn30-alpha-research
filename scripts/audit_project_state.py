@@ -33,7 +33,6 @@ KEY_FILES = [
 GENERATED_PATH_PREFIXES = [
     "data/processed/",
     "data/raw/vnstock/",
-    "data/raw/yahoo/",
 ]
 
 
