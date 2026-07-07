@@ -47,9 +47,9 @@ The forecast horizon test compares 1-day, 5-day, and 10-day forward relative-ret
 
 | Forecast Horizon | Average Rank IC | Top-5 Hit Rate | Top-5 Average Actual Return | Diagnostic Sharpe | Max Active Drawdown | Average Turnover | Final Cumulative After-Cost Active Return |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 1d | -0.003844 | 0.447861 | -0.000067 | -0.140805 | -1.525574 | 0.389600 | -1.508238 |
-| 5d | 0.338033 | 0.676072 | 0.023634 | 0.840073 | -0.355852 | 0.354637 | 29.360326 |
-| 10d | 0.546504 | 0.801122 | 0.052681 | 1.398924 | -0.219472 | 0.317395 | 77.915433 |
+| 1d | 0.021733 | 0.463687 | -0.000310 | -0.046746 | -0.499049% | 0.389600 | -1.508238 |
+| 5d | 0.018626 | 0.460913 | 0.000377 | 0.019013 | 0.603317% | 0.354637 | 29.360326 |
+| 10d | 0.036949 | 0.476389 | 0.001830 | 0.066134 | 2.898670% | 0.317395 | 77.915433 |
 
 The 10-day horizon is the strongest tested horizon. It produced the best rank IC, best hit rate, highest diagnostic Sharpe, lowest drawdown, lowest average turnover, and highest final cumulative after-cost active return.
 
@@ -63,7 +63,7 @@ Feature ablation removes one feature group at a time and compares the resulting 
 
 | Ablation Setting | Feature Count | Average Rank IC | Top-5 Hit Rate | Top-5 Average Actual Return | Diagnostic Sharpe | Max Active Drawdown | Average Turnover | Final Cumulative After-Cost Active Return |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| all_features | 51 | 0.338033 | 0.676072 | 0.023634 | 0.840073 | -0.355852 | 0.354637 | 29.360326 |
+| all_features | 51 | 0.018626 | 0.460913 | 0.019013 | 0.603317% | -0.355852 | 0.354637 | 29.360326 |
 | without_herding | 41 | 0.337983 | 0.676321 | 0.023677 | 0.827557 | -0.355852 | 0.356006 | 29.281588 |
 | without_price_limit | 36 | 0.316762 | 0.666128 | 0.022343 | 0.784717 | -0.359316 | 0.361541 | 27.268516 |
 | without_risk | 49 | 0.314453 | 0.657303 | 0.021847 | 0.749285 | -0.363631 | 0.365078 | 26.301430 |
@@ -185,6 +185,6 @@ In the latest snapshot, VIC is visible as a top-ranked negative-return miss: pre
 
 The horizon table now includes overlapping-window disclosure. For the 10-day horizon, the current output reports:
 
-`1,604 evaluated dates (~160 non-overlapping 10-day periods).`
+`1,584 evaluated dates (~158 non-overlapping 10-day periods).`
 
 Average after-cost return is measured per forecast period, not annualized.

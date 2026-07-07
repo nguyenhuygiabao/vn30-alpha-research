@@ -1,3 +1,3 @@
 signal_date,optimization_mode,holding_count,total_weight,max_single_name_weight,positions_at_or_above_20pct,single_name_cap_hit_share,hhi,effective_position_count,top_issuer_group,top_issuer_group_weight,top_issuer_group_tickers,issuer_groups_at_or_above_40pct,concentration_flag
-2026-06-23,herding_aware,5,1.0,0.2,5,1.0,0.20000000000000004,4.999999999999999,Vingroup,0.4,"VHM, VIC",1,all_positions_at_20pct_cap; issuer_group_at_40pct_cap; low_effective_position_count
-2026-06-23,normal,5,1.0,0.2,5,1.0,0.20000000000000004,4.999999999999999,Vingroup,0.4,"VHM, VIC",1,all_positions_at_20pct_cap; issuer_group_at_40pct_cap; low_effective_position_count
+2026-06-23,herding_aware,21,1.0000000000000002,0.15425278328776812,0,0.0,0.09990560104804276,10.009448814777846,Vingroup,0.156754581771707,"VPL, VRE",0,normal
+2026-06-23,normal,21,1.0000000000000002,0.15425278328776812,0,0.0,0.09990560104804276,10.009448814777846,Vingroup,0.156754581771707,"VPL, VRE",0,normal

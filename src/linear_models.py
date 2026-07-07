@@ -178,7 +178,7 @@ def build_linear_model_predictions(
     train_size: int = 3,
     validation_size: int = 1,
     test_size: int = 1,
-    purge_size: int = 0,
+    purge_size: int = 5,
     step_size: int = 1,
 ) -> pd.DataFrame:
     modeling_dataset, historical_rows, prediction_rows = load_baseline_dataset()

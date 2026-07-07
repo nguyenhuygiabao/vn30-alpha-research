@@ -120,7 +120,7 @@ def build_ablation_predictions(
         train_size=3,
         validation_size=1,
         test_size=1,
-        purge_size=0,
+        purge_size=5,
         step_size=1,
     )
 

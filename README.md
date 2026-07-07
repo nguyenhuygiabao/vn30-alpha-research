@@ -118,9 +118,9 @@ Forecast horizon results:
 
 | Horizon | Average Rank IC | Top-5 Hit Rate | Diagnostic Sharpe | Max Active Drawdown | Final After-Cost Active Return |
 |---|---:|---:|---:|---:|---:|
-| 1d | -0.003844 | 0.447861 | -0.140805 | -1.525574 | -1.508238 |
-| 5d | 0.338033 | 0.676072 | 0.840073 | -0.355852 | 29.360326 |
-| 10d | 0.546504 | 0.801122 | 1.398924 | -0.219472 | 77.915433 |
+| 1d | 0.021733 | 0.463687 | -0.046746 | -0.499049% | -1.508238 |
+| 5d | 0.018626 | 0.460913 | 0.019013 | 0.603317% | 29.360326 |
+| 10d | 0.036949 | 0.476389 | 0.066134 | 2.898670% | 77.915433 |
 
 Interpretation:
 
@@ -134,7 +134,7 @@ The full feature set performs best overall.
 
 | Feature Set | Feature Count | Average Rank IC | Diagnostic Sharpe | Final After-Cost Active Return |
 |---|---:|---:|---:|---:|
-| all_features | 51 | 0.338033 | 0.840073 | 29.360326 |
+| all_features | 51 | 0.018626 | 0.019013 | 0.603317% |
 | without_herding | 41 | 0.337983 | 0.827557 | 29.281588 |
 | without_price_limit | 36 | 0.316762 | 0.784717 | 27.268516 |
 | without_risk | 49 | 0.314453 | 0.749285 | 26.301430 |

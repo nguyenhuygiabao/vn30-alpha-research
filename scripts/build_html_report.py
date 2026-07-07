@@ -1334,7 +1334,7 @@ def page_html() -> str:
         approximate number of independent non-overlapping periods.
       </p>
       <p class="muted table-note">
-        10-day horizon: 1,604 evaluated dates (~160 non-overlapping 10-day periods).
+        10-day horizon: 1,584 evaluated dates (~158 non-overlapping 10-day periods).
         Overlapping forecast windows inflate the apparent sample count.
       </p>
       <div class="table-wrap">
@@ -1400,7 +1400,7 @@ def polish_dashboard_html(html: str) -> str:
 
     overlap_note = (
         '<p class="muted"><strong>Overlapping-window note:</strong> '
-        '10-day horizon: 1,604 evaluated dates (~160 non-overlapping 10-day periods). '
+        '10-day horizon: 1,584 evaluated dates (~158 non-overlapping 10-day periods). '
         'Overlapping forecast windows inflate the apparent sample count.</p>'
     )
 

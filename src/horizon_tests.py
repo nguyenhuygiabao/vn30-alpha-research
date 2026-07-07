@@ -95,7 +95,7 @@ def build_horizon_predictions() -> pd.DataFrame:
             train_size=3,
             validation_size=1,
             test_size=1,
-            purge_size=0,
+            purge_size=horizon,
             step_size=1,
         )
 
