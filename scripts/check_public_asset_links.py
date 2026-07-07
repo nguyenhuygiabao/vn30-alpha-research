@@ -58,7 +58,12 @@ def main():
             target = (html_path.parent / rel).resolve()
 
             if not target.exists():
-                missing.append((html_path.relative_to(ROOT), raw_link, target.relative_to(ROOT) if ROOT in target.parents else target))
+                try:
+                    shown_target = target.relative_to(ROOT)
+                except ValueError:
+                    shown_target = target
+
+                missing.append((html_path.relative_to(ROOT), raw_link, shown_target))
 
     if missing:
         print("Missing public assets found:")

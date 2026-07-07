@@ -1,13 +1,9 @@
 ﻿from pathlib import Path
-import pandas as pd
-import matplotlib.pyplot as plt
 
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS = ROOT / "reports"
-FIGURES = REPORTS / "figures"
-TABLES = REPORTS / "tables"
-
+INTERACTIVE = REPORTS / "interactive"
 
 DISPLAY_LABELS = {
     # Ablation labels
@@ -42,182 +38,194 @@ DISPLAY_LABELS = {
 }
 
 
-def pretty_label(value):
-    text = str(value)
-    return DISPLAY_LABELS.get(text, text.replace("_", " ").title())
+DARK_PATCH_START = "<!-- VN30_DARK_INTERACTIVE_PATCH_START -->"
+DARK_PATCH_END = "<!-- VN30_DARK_INTERACTIVE_PATCH_END -->"
+
+DARK_INTERACTIVE_PATCH = f"""
+{DARK_PATCH_START}
+<style>
+  html, body {{
+    background: #0b1020 !important;
+    color: #e5e7eb !important;
+    margin: 0 !important;
+  }}
+
+  .plotly-graph-div,
+  .js-plotly-plot,
+  .main-svg,
+  .svg-container {{
+    background: #0b1020 !important;
+  }}
+
+  .modebar {{
+    background: transparent !important;
+  }}
+
+  .modebar-btn svg path {{
+    fill: #cbd5e1 !important;
+  }}
+</style>
+
+<script>
+(function () {{
+  const axisGrid = "rgba(148, 163, 184, 0.22)";
+  const axisLine = "rgba(203, 213, 225, 0.55)";
+  const textColor = "#e5e7eb";
+  const mutedText = "#cbd5e1";
+  const bg = "#0b1020";
+  const panel = "#111827";
+  const border = "#334155";
+
+  function patchOnePlot(gd) {{
+    if (!window.Plotly || !gd) return;
+
+    const patch = {{
+      "paper_bgcolor": bg,
+      "plot_bgcolor": bg,
+      "font.color": textColor,
+      "title.font.color": textColor,
+      "legend.font.color": textColor,
+      "legend.bgcolor": "rgba(0,0,0,0)",
+      "hoverlabel.bgcolor": panel,
+      "hoverlabel.bordercolor": border,
+      "hoverlabel.font.color": "#f8fafc"
+    }};
+
+    const layout = gd.layout || {{}};
+    const axisNames = Object.keys(layout).filter(function (key) {{
+      return /^xaxis\\d*$/.test(key) || /^yaxis\\d*$/.test(key);
+    }});
+
+    if (!axisNames.includes("xaxis")) axisNames.push("xaxis");
+    if (!axisNames.includes("yaxis")) axisNames.push("yaxis");
+
+    axisNames.forEach(function (axis) {{
+      patch[axis + ".color"] = mutedText;
+      patch[axis + ".gridcolor"] = axisGrid;
+      patch[axis + ".zerolinecolor"] = axisLine;
+      patch[axis + ".linecolor"] = axisLine;
+      patch[axis + ".tickfont.color"] = mutedText;
+      patch[axis + ".title.font.color"] = textColor;
+
+      if (axis.startsWith("xaxis")) {{
+        patch[axis + ".rangeslider.bgcolor"] = "#0f172a";
+        patch[axis + ".rangeslider.bordercolor"] = border;
+        patch[axis + ".rangeslider.borderwidth"] = 1;
+        patch[axis + ".rangeselector.bgcolor"] = panel;
+        patch[axis + ".rangeselector.activecolor"] = border;
+        patch[axis + ".rangeselector.font.color"] = textColor;
+      }}
+    }});
+
+    if (Array.isArray(layout.updatemenus)) {{
+      patch["updatemenus"] = layout.updatemenus.map(function (menu) {{
+        return Object.assign({{}}, menu, {{
+          bgcolor: panel,
+          activecolor: border,
+          bordercolor: border,
+          font: Object.assign({{}}, menu.font || {{}}, {{ color: textColor }})
+        }});
+      }});
+    }}
+
+    window.Plotly.relayout(gd, patch).then(function () {{
+      window.Plotly.Plots.resize(gd);
+    }});
+  }}
+
+  function patchAllPlots() {{
+    if (!window.Plotly) return false;
+
+    const plots = document.querySelectorAll(".js-plotly-plot");
+    if (!plots.length) return false;
+
+    plots.forEach(patchOnePlot);
+    document.body.style.background = bg;
+    return true;
+  }}
+
+  let attempts = 0;
+  const timer = setInterval(function () {{
+    attempts += 1;
+    const done = patchAllPlots();
+
+    if (done || attempts > 80) {{
+      clearInterval(timer);
+    }}
+  }}, 100);
+
+  window.addEventListener("resize", function () {{
+    setTimeout(patchAllPlots, 100);
+  }});
+}})();
+</script>
+{DARK_PATCH_END}
+"""
 
 
-def replace_exact_public_labels():
-    """
-    Safe public-label cleanup.
-
-    Important:
-    - This only replaces exact known raw labels.
-    - It does NOT replace every snake_case string.
-    - Therefore it should not break img src, iframe src, href, or file paths.
-    """
-    paths = []
-    paths.extend(REPORTS.rglob("*.html"))
-    paths.extend(REPORTS.rglob("*.md"))
-
-    readme = ROOT / "README.md"
-    if readme.exists():
-        paths.append(readme)
-
-    changed = []
-
-    for path in sorted(set(paths)):
-        text = path.read_text(encoding="utf-8", errors="replace")
-        original = text
-
-        for raw, clean in DISPLAY_LABELS.items():
-            text = text.replace(raw, clean)
-
-        if text != original:
-            path.write_text(text, encoding="utf-8", newline="\n")
-            changed.append(path.relative_to(ROOT))
-
-    return changed
+def replace_exact_public_labels(text):
+    for raw, clean in DISPLAY_LABELS.items():
+        text = text.replace(raw, clean)
+    return text
 
 
-def set_plot_style():
-    plt.rcParams.update({
-        "figure.figsize": (9.5, 5.4),
-        "figure.dpi": 160,
-        "savefig.dpi": 180,
-        "axes.titlesize": 15,
-        "axes.labelsize": 11,
-        "xtick.labelsize": 10,
-        "ytick.labelsize": 10,
-        "font.size": 10,
-    })
+def remove_existing_dark_patch(text):
+    while DARK_PATCH_START in text and DARK_PATCH_END in text:
+        before, rest = text.split(DARK_PATCH_START, 1)
+        _, after = rest.split(DARK_PATCH_END, 1)
+        text = before + after
+    return text
 
 
-def save_horizon_figures():
-    path = TABLES / "horizon_results.csv"
-    if not path.exists():
-        return []
+def patch_interactive_html(text):
+    text = remove_existing_dark_patch(text)
 
-    df = pd.read_csv(path).sort_values("forecast_horizon_days").copy()
-    df["horizon_label"] = df["forecast_horizon_days"].astype(int).astype(str) + "d"
+    if "</body>" in text:
+        text = text.replace("</body>", DARK_INTERACTIVE_PATCH + "\n</body>", 1)
+    else:
+        text = text.rstrip() + "\n" + DARK_INTERACTIVE_PATCH + "\n"
 
-    written = []
-
-    fig, ax = plt.subplots()
-    ax.bar(df["horizon_label"], df["diagnostic_sharpe"])
-    ax.axhline(0, linewidth=1)
-    ax.set_title("Diagnostic Sharpe by forecast horizon")
-    ax.set_xlabel("Forecast horizon")
-    ax.set_ylabel("Diagnostic Sharpe")
-    ax.grid(axis="y", alpha=0.25)
-    fig.tight_layout()
-    out = FIGURES / "horizon_diagnostic_sharpe.png"
-    fig.savefig(out, bbox_inches="tight")
-    plt.close(fig)
-    written.append(out.relative_to(ROOT))
-
-    fig, ax = plt.subplots()
-    ax.bar(df["horizon_label"], df["average_rank_ic"])
-    ax.axhline(0, linewidth=1)
-    ax.set_title("Average Rank IC by forecast horizon")
-    ax.set_xlabel("Forecast horizon")
-    ax.set_ylabel("Average Rank IC")
-    ax.grid(axis="y", alpha=0.25)
-    fig.tight_layout()
-    out = FIGURES / "horizon_rank_ic.png"
-    fig.savefig(out, bbox_inches="tight")
-    plt.close(fig)
-    written.append(out.relative_to(ROOT))
-
-    return written
+    return text
 
 
-def save_ablation_figure():
-    path = TABLES / "ablation_results.csv"
-    if not path.exists():
-        return []
+def process_text_file(path, interactive=False):
+    text = path.read_text(encoding="utf-8", errors="replace")
+    original = text
 
-    df = pd.read_csv(path).copy()
-    df["label"] = df["ablation_name"].map(pretty_label)
-    df = df.sort_values("diagnostic_sharpe", ascending=True)
+    text = replace_exact_public_labels(text)
 
-    fig, ax = plt.subplots(figsize=(10, 5.8))
-    ax.barh(df["label"], df["diagnostic_sharpe"])
-    ax.axvline(0, linewidth=1)
-    ax.set_title("Diagnostic Sharpe by ablation variant")
-    ax.set_xlabel("Diagnostic Sharpe")
-    ax.set_ylabel("")
-    ax.grid(axis="x", alpha=0.25)
-    fig.tight_layout()
+    if interactive:
+        text = patch_interactive_html(text)
 
-    out = FIGURES / "ablation_diagnostic_sharpe.png"
-    fig.savefig(out, bbox_inches="tight")
-    plt.close(fig)
+    if text != original:
+        path.write_text(text, encoding="utf-8", newline="\n")
+        return True
 
-    return [out.relative_to(ROOT)]
-
-
-def save_feature_importance_figures():
-    written = []
-    candidates = sorted(TABLES.glob("*feature_importance*.csv"))
-
-    for path in candidates:
-        df = pd.read_csv(path).copy()
-
-        feature_col = "feature" if "feature" in df.columns else None
-        if feature_col is None and "feature_name" in df.columns:
-            feature_col = "feature_name"
-
-        importance_col = "importance" if "importance" in df.columns else None
-        if importance_col is None and "feature_importance" in df.columns:
-            importance_col = "feature_importance"
-
-        if feature_col is None or importance_col is None:
-            continue
-
-        df = df.sort_values(importance_col, ascending=False).head(15).copy()
-        df["label"] = df[feature_col].map(lambda x: str(x).replace("_", " ").title())
-        df = df.sort_values(importance_col, ascending=True)
-
-        fig, ax = plt.subplots(figsize=(10, 7))
-        ax.barh(df["label"], df[importance_col])
-        ax.set_title("Top feature importances")
-        ax.set_xlabel("Importance")
-        ax.set_ylabel("")
-        ax.grid(axis="x", alpha=0.25)
-        fig.tight_layout()
-
-        out_name = path.stem.replace("_feature_importance", "") + "_feature_importance.png"
-        out = FIGURES / out_name
-        fig.savefig(out, bbox_inches="tight")
-        plt.close(fig)
-        written.append(out.relative_to(ROOT))
-
-    return written
+    return False
 
 
 def main():
-    if not REPORTS.exists():
-        raise SystemExit(f"Missing reports directory: {REPORTS}")
+    changed = []
 
-    FIGURES.mkdir(parents=True, exist_ok=True)
+    public_text_paths = []
+    public_text_paths.extend(REPORTS.rglob("*.html"))
+    public_text_paths.extend(REPORTS.rglob("*.md"))
 
-    set_plot_style()
+    readme = ROOT / "README.md"
+    if readme.exists():
+        public_text_paths.append(readme)
 
-    changed = replace_exact_public_labels()
-    written = []
-    written.extend(save_horizon_figures())
-    written.extend(save_ablation_figure())
-    written.extend(save_feature_importance_figures())
+    interactive_paths = set(INTERACTIVE.rglob("*.html")) if INTERACTIVE.exists() else set()
 
-    print("Safe public label polish complete.")
-    print(f"Text files changed: {len(changed)}")
+    for path in sorted(set(public_text_paths)):
+        changed_file = process_text_file(path, interactive=path in interactive_paths)
+        if changed_file:
+            changed.append(path.relative_to(ROOT))
+
+    print("Public labels and interactive dark theme polished.")
+    print(f"Files changed: {len(changed)}")
     for path in changed:
         print(f"  changed: {path}")
-
-    print(f"Figures regenerated: {len(written)}")
-    for path in written:
-        print(f"  figure:  {path}")
 
 
 if __name__ == "__main__":

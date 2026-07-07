@@ -380,6 +380,30 @@
       }
     }
   </style>
+<!-- VN30_STATIC_FIGURE_POLISH_START -->
+<style>
+  .figure-card,
+  .static-card,
+  .diagnostic-card {
+    background: #0b1020 !important;
+  }
+
+  .figure-card img,
+  .static-card img,
+  .diagnostic-card img,
+  img[src*="figures/"] {
+    background: #0b1020 !important;
+    object-fit: contain !important;
+  }
+
+  .figure-card .figure-frame,
+  .static-card .figure-frame,
+  .diagnostic-card .figure-frame,
+  div:has(> img[src*="figures/"]) {
+    background: #0b1020 !important;
+  }
+</style>
+<!-- VN30_STATIC_FIGURE_POLISH_END -->
 </head>
 <body>
   <header>
@@ -1774,7 +1798,7 @@
       <p class="helper">
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/interactive_cumulative_return.html?v=1783408366" title="Cumulative after-cost active return" loading="lazy"></iframe>
+      <iframe src="interactive/interactive_cumulative_return.html?v=1783410060" title="Cumulative after-cost active return" loading="lazy"></iframe>
       <p><a href="interactive/interactive_cumulative_return.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows whether the strategy builds active value over time after estimated trading costs.</p>
@@ -1789,7 +1813,7 @@
       <p class="helper">
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/interactive_active_drawdown.html?v=1783408366" title="Active drawdown" loading="lazy"></iframe>
+      <iframe src="interactive/interactive_active_drawdown.html?v=1783410060" title="Active drawdown" loading="lazy"></iframe>
       <p><a href="interactive/interactive_active_drawdown.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows how far the strategy falls below its previous active-return peak.</p>
@@ -1804,7 +1828,7 @@
       <p class="helper">
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/interactive_portfolio_turnover.html?v=1783408366" title="Portfolio turnover" loading="lazy"></iframe>
+      <iframe src="interactive/interactive_portfolio_turnover.html?v=1783410060" title="Portfolio turnover" loading="lazy"></iframe>
       <p><a href="interactive/interactive_portfolio_turnover.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows how much the portfolio changes between rebalancing dates.</p>
@@ -1819,7 +1843,7 @@
       <p class="helper">
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/interactive_rolling_diagnostic_sharpe.html?v=1783408367" title="Rolling 60-day diagnostic Sharpe with approximate band" loading="lazy"></iframe>
+      <iframe src="interactive/interactive_rolling_diagnostic_sharpe.html?v=1783410060" title="Rolling 60-day diagnostic Sharpe with approximate band" loading="lazy"></iframe>
       <p><a href="interactive/interactive_rolling_diagnostic_sharpe.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows short-term risk-adjusted performance over rolling 60-trading-day windows with an approximate visual uncertainty band.</p>
@@ -1834,7 +1858,7 @@
       <p class="helper">
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/interactive_optimizer_cap_hits.html?v=1783408366" title="Single-name cap-hit share" loading="lazy"></iframe>
+      <iframe src="interactive/interactive_optimizer_cap_hits.html?v=1783410060" title="Single-name cap-hit share" loading="lazy"></iframe>
       <p><a href="interactive/interactive_optimizer_cap_hits.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows how often holdings sit at the 20 percent single-name cap.</p>
