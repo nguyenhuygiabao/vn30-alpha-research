@@ -409,7 +409,7 @@
 
       <div class="metric-card">
         <div class="metric-title">Best feature set</div>
-        <div class="metric-value">Excluding volume/liquidity</div>
+        <div class="metric-value">No volume/liquidity</div>
         <div class="metric-subtext">Sharpe 0.034</div>
       </div>
 
@@ -478,24 +478,24 @@
         <table class="dataframe data-table">
   <thead>
     <tr style="text-align: right;">
-      <th>Comparison Type</th>
-      <th>Display Name</th>
-      <th>Forecast Horizon Days</th>
-      <th>Evaluated Dates</th>
-      <th>Average Period Active Return</th>
-      <th>Return Volatility</th>
+      <th>comparison_type</th>
+      <th>display_name</th>
+      <th>forecast_horizon_days</th>
+      <th>evaluated_dates</th>
+      <th>average_period_active_return</th>
+      <th>return_volatility</th>
       <th>diagnostic_sharpe</th>
       <th>Max active drawdown</th>
       <th>Cumulative active-return sum</th>
-      <th>Average Selected Count</th>
-      <th>Average Return Period Label</th>
+      <th>average_selected_count</th>
+      <th>average_return_period_label</th>
       <th>Cumulative active-return note</th>
-      <th>Cost Note</th>
+      <th>cost_note</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td>ML Strategy</td>
+      <td>ml_strategy</td>
       <td>ML normal / normal</td>
       <td>5</td>
       <td>1599</td>
@@ -510,8 +510,8 @@
       <td>Includes estimated commission, slippage, and liquidity penalty.</td>
     </tr>
     <tr>
-      <td>ML Strategy</td>
-      <td>ML normal / Price Limit Aware</td>
+      <td>ml_strategy</td>
+      <td>ML normal / price_limit_aware</td>
       <td>5</td>
       <td>1599</td>
       <td>0.04%</td>
@@ -525,8 +525,8 @@
       <td>Includes estimated commission, slippage, and liquidity penalty.</td>
     </tr>
     <tr>
-      <td>ML Strategy</td>
-      <td>ML Herding Aware / normal</td>
+      <td>ml_strategy</td>
+      <td>ML herding_aware / normal</td>
       <td>5</td>
       <td>1598</td>
       <td>0.03%</td>
@@ -540,8 +540,8 @@
       <td>Includes estimated commission, slippage, and liquidity penalty.</td>
     </tr>
     <tr>
-      <td>ML Strategy</td>
-      <td>ML Herding Aware / Price Limit Aware</td>
+      <td>ml_strategy</td>
+      <td>ML herding_aware / price_limit_aware</td>
       <td>5</td>
       <td>1598</td>
       <td>0.03%</td>
@@ -555,7 +555,7 @@
       <td>Includes estimated commission, slippage, and liquidity penalty.</td>
     </tr>
     <tr>
-      <td>Naive Baseline</td>
+      <td>naive_baseline</td>
       <td>top5 momentum</td>
       <td>5</td>
       <td>1599</td>
@@ -570,7 +570,7 @@
       <td>No transaction-cost adjustment applied to this naive baseline.</td>
     </tr>
     <tr>
-      <td>Naive Baseline</td>
+      <td>naive_baseline</td>
       <td>top5 reversal</td>
       <td>5</td>
       <td>1594</td>
@@ -585,7 +585,7 @@
       <td>No transaction-cost adjustment applied to this naive baseline.</td>
     </tr>
     <tr>
-      <td>Naive Baseline</td>
+      <td>naive_baseline</td>
       <td>low volatility top10</td>
       <td>5</td>
       <td>1593</td>
@@ -600,7 +600,7 @@
       <td>No transaction-cost adjustment applied to this naive baseline.</td>
     </tr>
     <tr>
-      <td>Naive Baseline</td>
+      <td>naive_baseline</td>
       <td>equal weight all</td>
       <td>5</td>
       <td>1599</td>
@@ -629,26 +629,26 @@
         <table class="dataframe data-table">
   <thead>
     <tr style="text-align: right;">
-      <th>Signal Date</th>
-      <th>Optimization Mode</th>
-      <th>Holding Count</th>
-      <th>Total Weight</th>
-      <th>Max Single Name Weight</th>
-      <th>Positions At Or Above 20Pct</th>
-      <th>Single Name Cap Hit Share</th>
+      <th>signal_date</th>
+      <th>optimization_mode</th>
+      <th>holding_count</th>
+      <th>total_weight</th>
+      <th>max_single_name_weight</th>
+      <th>positions_at_or_above_20pct</th>
+      <th>single_name_cap_hit_share</th>
       <th>hhi</th>
-      <th>Effective Position Count</th>
-      <th>Top Issuer Group</th>
-      <th>Top Issuer Group Weight</th>
-      <th>Top Issuer Group Tickers</th>
-      <th>Issuer Groups At Or Above 40Pct</th>
-      <th>Concentration Flag</th>
+      <th>effective_position_count</th>
+      <th>top_issuer_group</th>
+      <th>top_issuer_group_weight</th>
+      <th>top_issuer_group_tickers</th>
+      <th>issuer_groups_at_or_above_40pct</th>
+      <th>concentration_flag</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>21</td>
       <td>100.00%</td>
       <td>15.43%</td>
@@ -693,21 +693,21 @@
         <table class="dataframe data-table">
   <thead>
     <tr style="text-align: right;">
-      <th>Signal Date</th>
-      <th>Optimization Mode</th>
-      <th>Issuer Group</th>
-      <th>Issuer Group Weight</th>
-      <th>Position Count</th>
+      <th>signal_date</th>
+      <th>optimization_mode</th>
+      <th>issuer_group</th>
+      <th>issuer_group_weight</th>
+      <th>position_count</th>
       <th>tickers</th>
-      <th>Max Single Name Weight In Group</th>
-      <th>Weighted Realized Forward Return</th>
-      <th>Exposure Flag</th>
+      <th>max_single_name_weight_in_group</th>
+      <th>weighted_realized_forward_return</th>
+      <th>exposure_flag</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>Vingroup</td>
       <td>15.68%</td>
       <td>2</td>
@@ -718,7 +718,7 @@
     </tr>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>Vietjet</td>
       <td>15.23%</td>
       <td>1</td>
@@ -729,7 +729,7 @@
     </tr>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>BIDV</td>
       <td>10.13%</td>
       <td>1</td>
@@ -740,7 +740,7 @@
     </tr>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>Sacombank</td>
       <td>10.13%</td>
       <td>1</td>
@@ -751,7 +751,7 @@
     </tr>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>Vinamilk</td>
       <td>10.13%</td>
       <td>1</td>
@@ -762,7 +762,7 @@
     </tr>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>SeABank</td>
       <td>9.62%</td>
       <td>1</td>
@@ -773,7 +773,7 @@
     </tr>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>TPBank</td>
       <td>5.71%</td>
       <td>1</td>
@@ -784,7 +784,7 @@
     </tr>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>Sabeco</td>
       <td>5.15%</td>
       <td>1</td>
@@ -795,7 +795,7 @@
     </tr>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>Vietcombank</td>
       <td>4.50%</td>
       <td>1</td>
@@ -806,7 +806,7 @@
     </tr>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>Mobile World</td>
       <td>4.25%</td>
       <td>1</td>
@@ -817,7 +817,7 @@
     </tr>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>BSR</td>
       <td>4.11%</td>
       <td>1</td>
@@ -828,7 +828,7 @@
     </tr>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>HDBank</td>
       <td>3.70%</td>
       <td>1</td>
@@ -852,23 +852,23 @@
         <table class="dataframe data-table">
   <thead>
     <tr style="text-align: right;">
-      <th>Signal Date</th>
-      <th>Optimization Mode</th>
-      <th>Latest Holding Count</th>
-      <th>Latest Positions At 20Pct Cap</th>
-      <th>Latest Single Name Cap Hit Share</th>
-      <th>Latest All Positions At Cap</th>
-      <th>Mean Single Name Cap Hit Share</th>
-      <th>Share Of Dates All Positions At Cap</th>
-      <th>Latest HHI</th>
-      <th>Latest Effective Position Count</th>
-      <th>Diagnostic Note</th>
+      <th>signal_date</th>
+      <th>optimization_mode</th>
+      <th>latest_holding_count</th>
+      <th>latest_positions_at_20pct_cap</th>
+      <th>latest_single_name_cap_hit_share</th>
+      <th>latest_all_positions_at_cap</th>
+      <th>mean_single_name_cap_hit_share</th>
+      <th>share_of_dates_all_positions_at_cap</th>
+      <th>latest_hhi</th>
+      <th>latest_effective_position_count</th>
+      <th>diagnostic_note</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td>2026-06-23</td>
-      <td>Herding Aware</td>
+      <td>herding_aware</td>
       <td>21</td>
       <td>0</td>
       <td>0.00%</td>
@@ -907,17 +907,17 @@
         <table class="dataframe data-table">
   <thead>
     <tr style="text-align: right;">
-      <th>Signal Date</th>
+      <th>signal_date</th>
       <th>ticker</th>
-      <th>Predicted Rank</th>
-      <th>Realized Rank</th>
-      <th>Rank Gap Realized Minus Predicted</th>
-      <th>Absolute Rank Gap</th>
-      <th>Model Score</th>
-      <th>Realized Forward Return</th>
-      <th>Diagnostic Flag</th>
-      <th>In Normal Portfolio</th>
-      <th>In Herding Aware Portfolio</th>
+      <th>predicted_rank</th>
+      <th>realized_rank</th>
+      <th>rank_gap_realized_minus_predicted</th>
+      <th>absolute_rank_gap</th>
+      <th>model_score</th>
+      <th>realized_forward_return</th>
+      <th>diagnostic_flag</th>
+      <th>in_normal_portfolio</th>
+      <th>in_herding_aware_portfolio</th>
     </tr>
   </thead>
   <tbody>
@@ -943,7 +943,7 @@
       <td>19</td>
       <td>2.59%</td>
       <td>-1.28%</td>
-      <td>Top Ranked Negative Return</td>
+      <td>top_ranked_negative_return</td>
       <td>True</td>
       <td>True</td>
     </tr>
@@ -956,7 +956,7 @@
       <td>0</td>
       <td>2.00%</td>
       <td>2.55%</td>
-      <td>Top Ranked Hit</td>
+      <td>top_ranked_hit</td>
       <td>True</td>
       <td>True</td>
     </tr>
@@ -969,7 +969,7 @@
       <td>24</td>
       <td>1.55%</td>
       <td>-3.77%</td>
-      <td>Top Ranked Negative Return</td>
+      <td>top_ranked_negative_return</td>
       <td>True</td>
       <td>True</td>
     </tr>
@@ -982,7 +982,7 @@
       <td>15</td>
       <td>1.53%</td>
       <td>-1.09%</td>
-      <td>Top Ranked Negative Return</td>
+      <td>top_ranked_negative_return</td>
       <td>True</td>
       <td>True</td>
     </tr>
@@ -1130,10 +1130,10 @@
     <tr style="text-align: right;">
       <th>rank</th>
       <th>ticker</th>
-      <th>Signal Date</th>
+      <th>signal_date</th>
       <th>model</th>
-      <th>Model Score</th>
-      <th>Realized Forward Return</th>
+      <th>model_score</th>
+      <th>realized_forward_return</th>
     </tr>
   </thead>
   <tbody>
@@ -1141,7 +1141,7 @@
       <td>1</td>
       <td>VJC</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>3.35%</td>
       <td>1.02%</td>
     </tr>
@@ -1149,7 +1149,7 @@
       <td>2</td>
       <td>VPL</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>2.59%</td>
       <td>-1.28%</td>
     </tr>
@@ -1157,7 +1157,7 @@
       <td>3</td>
       <td>STB</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>2.00%</td>
       <td>2.55%</td>
     </tr>
@@ -1165,7 +1165,7 @@
       <td>4</td>
       <td>VNM</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>1.55%</td>
       <td>-3.77%</td>
     </tr>
@@ -1173,7 +1173,7 @@
       <td>5</td>
       <td>BID</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>1.53%</td>
       <td>-1.09%</td>
     </tr>
@@ -1181,7 +1181,7 @@
       <td>6</td>
       <td>SSB</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>1.36%</td>
       <td>6.69%</td>
     </tr>
@@ -1189,7 +1189,7 @@
       <td>7</td>
       <td>SAB</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>1.31%</td>
       <td>1.03%</td>
     </tr>
@@ -1197,7 +1197,7 @@
       <td>8</td>
       <td>HDB</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>1.03%</td>
       <td>0.32%</td>
     </tr>
@@ -1205,7 +1205,7 @@
       <td>9</td>
       <td>ACB</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>1.02%</td>
       <td>0.91%</td>
     </tr>
@@ -1213,7 +1213,7 @@
       <td>10</td>
       <td>GVR</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>0.97%</td>
       <td>-2.80%</td>
     </tr>
@@ -1221,7 +1221,7 @@
       <td>11</td>
       <td>VIB</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>0.90%</td>
       <td>2.09%</td>
     </tr>
@@ -1229,7 +1229,7 @@
       <td>12</td>
       <td>CTG</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>0.78%</td>
       <td>-0.64%</td>
     </tr>
@@ -1237,7 +1237,7 @@
       <td>13</td>
       <td>GAS</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>0.74%</td>
       <td>-2.45%</td>
     </tr>
@@ -1245,7 +1245,7 @@
       <td>14</td>
       <td>PLX</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>0.71%</td>
       <td>-2.54%</td>
     </tr>
@@ -1253,7 +1253,7 @@
       <td>15</td>
       <td>VRE</td>
       <td>2026-06-23</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>0.48%</td>
       <td>-1.49%</td>
     </tr>
@@ -1269,13 +1269,13 @@
         <table class="dataframe data-table">
   <thead>
     <tr style="text-align: right;">
-      <th>Signal Date</th>
+      <th>signal_date</th>
       <th>ticker</th>
-      <th>Issuer Group</th>
-      <th>Optimization Mode</th>
+      <th>issuer_group</th>
+      <th>optimization_mode</th>
       <th>weight</th>
-      <th>Model Score</th>
-      <th>Realized Forward Return</th>
+      <th>model_score</th>
+      <th>realized_forward_return</th>
     </tr>
   </thead>
   <tbody>
@@ -1476,14 +1476,14 @@
         <table class="dataframe data-table">
   <thead>
     <tr style="text-align: right;">
-      <th>Forecast Horizon Days</th>
-      <th>Evaluated Dates</th>
+      <th>forecast_horizon_days</th>
+      <th>evaluated_dates</th>
       <th>Rank IC (unitless, -1 to +1)</th>
       <th>average_top_5_hit_rate</th>
-      <th>Average After Cost Return</th>
+      <th>average_after_cost_return</th>
       <th>diagnostic_sharpe</th>
       <th>Max active drawdown</th>
-      <th>Average Turnover</th>
+      <th>average_turnover</th>
       <th>Cumulative active-return sum</th>
     </tr>
   </thead>
@@ -1537,13 +1537,13 @@
         <table class="dataframe data-table">
   <thead>
     <tr style="text-align: right;">
-      <th>Forecast Horizon Days</th>
-      <th>Period Label</th>
-      <th>Evaluated Dates</th>
-      <th>Approx Non Overlapping Periods</th>
-      <th>Overlap Share Estimate</th>
-      <th>Overlap Disclosure</th>
-      <th>Metric Period Note</th>
+      <th>forecast_horizon_days</th>
+      <th>period_label</th>
+      <th>evaluated_dates</th>
+      <th>approx_non_overlapping_periods</th>
+      <th>overlap_share_estimate</th>
+      <th>overlap_disclosure</th>
+      <th>metric_period_note</th>
     </tr>
   </thead>
   <tbody>
@@ -1590,18 +1590,18 @@
         <table class="dataframe data-table">
   <thead>
     <tr style="text-align: right;">
-      <th>Model Family</th>
-      <th>Model Name</th>
-      <th>Evaluated Dates</th>
+      <th>model_family</th>
+      <th>model_name</th>
+      <th>evaluated_dates</th>
       <th>Rank IC (unitless, -1 to +1)</th>
-      <th>Average Top5 Hit Rate</th>
-      <th>Average Top5 Realized Return Per 5D Period</th>
-      <th>Return Volatility</th>
+      <th>average_top5_hit_rate</th>
+      <th>average_top5_realized_return_per_5d_period</th>
+      <th>return_volatility</th>
       <th>diagnostic_sharpe</th>
       <th>Max drawdown from top-5 return sum</th>
       <th>Cumulative top-5 return sum</th>
-      <th>Average Selected Count</th>
-      <th>Comparison Note</th>
+      <th>average_selected_count</th>
+      <th>comparison_note</th>
     </tr>
   </thead>
   <tbody>
@@ -1621,7 +1621,7 @@
     </tr>
     <tr>
       <td>tree</td>
-      <td>Random Forest</td>
+      <td>random_forest</td>
       <td>1599</td>
       <td>0.0188</td>
       <td>20.41%</td>
@@ -1649,7 +1649,7 @@
     </tr>
     <tr>
       <td>tree</td>
-      <td>Gradient Boosting</td>
+      <td>gradient_boosting</td>
       <td>1599</td>
       <td>0.0186</td>
       <td>19.81%</td>
@@ -1663,7 +1663,7 @@
     </tr>
     <tr>
       <td>linear</td>
-      <td>Elastic Net</td>
+      <td>elastic_net</td>
       <td>1599</td>
       <td>0.0164</td>
       <td>19.42%</td>
@@ -1690,21 +1690,21 @@
         <table class="dataframe data-table">
   <thead>
     <tr style="text-align: right;">
-      <th>Ablation Name</th>
-      <th>Evaluated Dates</th>
-      <th>Feature Count</th>
+      <th>ablation_name</th>
+      <th>evaluated_dates</th>
+      <th>feature_count</th>
       <th>Rank IC (unitless, -1 to +1)</th>
       <th>average_top_5_hit_rate</th>
-      <th>Average After Cost Return</th>
+      <th>average_after_cost_return</th>
       <th>diagnostic_sharpe</th>
       <th>Max active drawdown</th>
-      <th>Average Turnover</th>
+      <th>average_turnover</th>
       <th>Cumulative active-return sum</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td>Excluding volume/liquidity</td>
+      <td>No volume/liquidity</td>
       <td>1599</td>
       <td>40</td>
       <td>0.0220</td>
@@ -1728,7 +1728,7 @@
       <td>0.60%</td>
     </tr>
     <tr>
-      <td>Excluding risk features</td>
+      <td>No risk features</td>
       <td>1599</td>
       <td>49</td>
       <td>0.0184</td>
@@ -1740,7 +1740,7 @@
       <td>0.46%</td>
     </tr>
     <tr>
-      <td>Excluding herding features</td>
+      <td>No herding features</td>
       <td>1599</td>
       <td>41</td>
       <td>0.0176</td>
@@ -1752,7 +1752,7 @@
       <td>0.58%</td>
     </tr>
     <tr>
-      <td>Excluding price-limit features</td>
+      <td>No price-limit features</td>
       <td>1599</td>
       <td>36</td>
       <td>0.0113</td>
@@ -1774,8 +1774,8 @@
       <p class="helper">
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/Interactive Cumulative Return.html?v=1783392640" title="Cumulative after-cost active return" loading="lazy"></iframe>
-      <p><a href="interactive/Interactive Cumulative Return.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
+      <iframe src="interactive/interactive_cumulative_return.html?v=1783408366" title="Cumulative after-cost active return" loading="lazy"></iframe>
+      <p><a href="interactive/interactive_cumulative_return.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows whether the strategy builds active value over time after estimated trading costs.</p>
         <p><strong>How to read it:</strong> A rising line means the strategy is adding active return. Click legend items to hide, show, or isolate scenarios.</p>
@@ -1789,8 +1789,8 @@
       <p class="helper">
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/Interactive Active Drawdown.html?v=1783392640" title="Active drawdown" loading="lazy"></iframe>
-      <p><a href="interactive/Interactive Active Drawdown.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
+      <iframe src="interactive/interactive_active_drawdown.html?v=1783408366" title="Active drawdown" loading="lazy"></iframe>
+      <p><a href="interactive/interactive_active_drawdown.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows how far the strategy falls below its previous active-return peak.</p>
         <p><strong>How to read it:</strong> Values closer to zero are better. Deep negative drops mean the strategy gave back previous gains.</p>
@@ -1804,8 +1804,8 @@
       <p class="helper">
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/Interactive Portfolio Turnover.html?v=1783392640" title="Portfolio turnover" loading="lazy"></iframe>
-      <p><a href="interactive/Interactive Portfolio Turnover.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
+      <iframe src="interactive/interactive_portfolio_turnover.html?v=1783408366" title="Portfolio turnover" loading="lazy"></iframe>
+      <p><a href="interactive/interactive_portfolio_turnover.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows how much the portfolio changes between rebalancing dates.</p>
         <p><strong>How to read it:</strong> Higher turnover means more trading. More trading can make live execution less realistic because costs rise.</p>
@@ -1819,8 +1819,8 @@
       <p class="helper">
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/Interactive Rolling Diagnostic Sharpe.html?v=1783392641" title="Rolling 60-day diagnostic Sharpe with approximate band" loading="lazy"></iframe>
-      <p><a href="interactive/Interactive Rolling Diagnostic Sharpe.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
+      <iframe src="interactive/interactive_rolling_diagnostic_sharpe.html?v=1783408367" title="Rolling 60-day diagnostic Sharpe with approximate band" loading="lazy"></iframe>
+      <p><a href="interactive/interactive_rolling_diagnostic_sharpe.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows short-term risk-adjusted performance over rolling 60-trading-day windows with an approximate visual uncertainty band.</p>
         <p><strong>How to read it:</strong> Higher values mean better return per unit of volatility during the recent window. The shaded band is approximate and should not be read as formal statistical proof.</p>
@@ -1834,8 +1834,8 @@
       <p class="helper">
         Use the date buttons or bottom slider to zoom. Click a legend item to hide/show a scenario. Double-click a legend item to isolate it.
       </p>
-      <iframe src="interactive/Interactive Optimizer Cap Hits.html?v=1783392641" title="Single-name cap-hit share" loading="lazy"></iframe>
-      <p><a href="interactive/Interactive Optimizer Cap Hits.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
+      <iframe src="interactive/interactive_optimizer_cap_hits.html?v=1783408366" title="Single-name cap-hit share" loading="lazy"></iframe>
+      <p><a href="interactive/interactive_optimizer_cap_hits.html" target="_blank" rel="noopener">Open chart in a full page</a></p>
       <div class="annotation">
         <p><strong>What this means:</strong> Shows how often holdings sit at the 20 percent single-name cap.</p>
         <p><strong>How to read it:</strong> A value near 100 percent means nearly every holding is at the maximum allowed weight.</p>
@@ -1851,7 +1851,7 @@
 
       <article class="static-card">
         <h3>Top gradient boosting feature importance</h3>
-        <img src="figures/Top Gradient Boosting Feature Importance.png" alt="Top gradient boosting feature importance">
+        <img src="figures/top_gradient_boosting_feature_importance.png" alt="Top gradient boosting feature importance">
         <div class="small-note">
           <p><strong>Meaning:</strong> Shows which inputs the gradient boosting model relied on most.</p>
           <p><strong>Read:</strong> Larger bars mean higher model importance.</p>
@@ -1861,7 +1861,7 @@
 
       <article class="static-card">
         <h3>Horizon diagnostic Sharpe</h3>
-        <img src="figures/Horizon Diagnostic Sharpe.png" alt="Horizon diagnostic Sharpe">
+        <img src="figures/horizon_diagnostic_sharpe.png" alt="Horizon diagnostic Sharpe">
         <div class="small-note">
           <p><strong>Meaning:</strong> Compares risk-adjusted behavior across prediction horizons.</p>
           <p><strong>Read:</strong> Higher is better for this diagnostic metric.</p>
@@ -1871,7 +1871,7 @@
 
       <article class="static-card">
         <h3>Horizon Rank IC</h3>
-        <img src="figures/Horizon Rank Ic.png" alt="Horizon Rank IC">
+        <img src="figures/horizon_rank_ic.png" alt="Horizon Rank IC">
         <div class="small-note">
           <p><strong>Meaning:</strong> Compares how well the model ranks stocks across forecast horizons.</p>
           <p><strong>Read:</strong> Higher means the ranking aligns better with realized future relative returns.</p>
@@ -1881,7 +1881,7 @@
 
       <article class="static-card">
         <h3>Ablation diagnostic Sharpe</h3>
-        <img src="figures/Ablation Diagnostic Sharpe.png" alt="Ablation diagnostic Sharpe">
+        <img src="figures/ablation_diagnostic_sharpe.png" alt="Ablation diagnostic Sharpe">
         <div class="small-note">
           <p><strong>Meaning:</strong> Shows what happens when feature groups are removed.</p>
           <p><strong>Read:</strong> If performance falls after removing a group, that group likely adds useful information.</p>
