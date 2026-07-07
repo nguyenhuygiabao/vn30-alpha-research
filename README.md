@@ -6,11 +6,9 @@ The framework uses daily OHLCV data, walk-forward validation, transaction costs,
 
 ## Key result
 
-**The 10-day horizon is the strongest tested setup so far.**
+After enforcing horizon-aware purged walk-forward gaps, the earlier strong 5d/10d headline metrics collapse toward near-zero diagnostic Sharpe and low Rank IC.
 
-In the current historical backtest, the 10-day label has the best Rank IC, top-5 hit rate, diagnostic Sharpe, and final after-cost active return among the tested horizons.
-
-Known limitations remain: the VN30 universe is static, results are point estimates, and multiple tested configurations create selection risk.
+The current project should be read as a reproducible VN30 research framework and leakage-control case study, not evidence of a deployable alpha strategy. The 10-day horizon remains the best of the tested horizons, but the absolute signal strength is weak after purging.
 
 ## Dashboard
 
@@ -112,39 +110,39 @@ The project includes:
 
 ## Main research finding
 
-The strongest tested forecast horizon is currently the 10-day forward relative-return label.
+The post-purge results no longer support a strong alpha claim. The framework remains useful because it exposes how sensitive the earlier 5d/10d performance was to overlapping-label boundary leakage.
 
 Forecast horizon results:
 
-| Horizon | Average Rank IC | Top-5 Hit Rate | Diagnostic Sharpe | Max Active Drawdown | Final After-Cost Active Return |
-|---|---:|---:|---:|---:|---:|
-| 1d | 0.021733 | 0.463687 | -0.046746 | -0.499049% | -1.508238 |
-| 5d | 0.018626 | 0.460913 | 0.019013 | 0.603317% | 29.360326 |
-| 10d | 0.036949 | 0.476389 | 0.066134 | 2.898670% | 77.915433 |
+| Horizon | Average Rank IC | Top-5 Hit Rate | Average After-Cost Return / Period | Diagnostic Sharpe | Final Cumulative After-Cost Active Return | Evaluated Dates |
+|---|---:|---:|---:|---:|---:|---:|
+| 1d | 0.021733 | 0.463687 | -0.000310 | -0.046746 | -0.499% | 1611 |
+| 5d | 0.018626 | 0.460913 | 0.000377 | 0.019013 | 0.603% | 1599 |
+| 10d | 0.036949 | 0.476389 | 0.001830 | 0.066134 | 2.899% | 1584 |
 
 Interpretation:
 
-- 1-day prediction is weak and noisy.
-- 5-day prediction is a strong baseline.
-- 10-day prediction is the strongest tested research horizon so far.
+- 1-day prediction remains weak and noisy.
+- 5-day and 10-day prediction no longer show strong diagnostic Sharpe after purging.
+- The old headline 5d/10d results should be treated as leakage-inflated and superseded by the current purged results.
 
 ## Feature ablation summary
 
-The full feature set performs best overall.
+After purging, feature ablation differences are small and should be treated as diagnostics rather than stable feature-selection evidence.
 
-| Feature Set | Feature Count | Average Rank IC | Diagnostic Sharpe | Final After-Cost Active Return |
-|---|---:|---:|---:|---:|
-| all_features | 51 | 0.018626 | 0.019013 | 0.603317% |
-| without_herding | 41 | 0.337983 | 0.827557 | 29.281588 |
-| without_price_limit | 36 | 0.316762 | 0.784717 | 27.268516 |
-| without_risk | 49 | 0.314453 | 0.749285 | 26.301430 |
-| without_volume_liquidity | 40 | 0.307164 | 0.742006 | 26.341446 |
+| Feature Set | Feature Count | Average Rank IC | Top-5 Hit Rate | Diagnostic Sharpe | Final Cumulative After-Cost Active Return | Evaluated Dates |
+|---|---:|---:|---:|---:|---:|---:|
+| without_volume_liquidity | 40 | 0.021964 | 0.473546 | 0.033764 | 1.065% | 1599 |
+| all_features | 51 | 0.018626 | 0.460913 | 0.019013 | 0.603% | 1599 |
+| without_herding | 41 | 0.017576 | 0.459287 | 0.018505 | 0.584% | 1599 |
+| without_risk | 49 | 0.018399 | 0.461288 | 0.015306 | 0.463% | 1599 |
+| without_price_limit | 36 | 0.011299 | 0.453158 | -0.011933 | -0.352% | 1599 |
 
 Interpretation:
 
-- Volume/liquidity, price-limit, and risk features matter more for raw predictive performance.
-- Herding features add limited standalone alpha.
-- Herding remains useful as a portfolio-level risk-control mechanism.
+- The feature groups no longer show strong standalone alpha after purged evaluation.
+- Feature ablation remains useful for auditing model sensitivity.
+- Herding and concentration controls are still useful as portfolio-risk diagnostics, not proven alpha sources.
 
 ## Important reports
 
@@ -298,10 +296,11 @@ Current methodological limitations:
 The public dashboard now includes additional robustness diagnostics intended to make the backtest easier to audit and harder to overread:
 
 - **Baseline comparison:** compares the ML strategy against equal-weight VN30-style exposure and simple rule-based baselines, including top-5 momentum, top-5 reversal, and low-volatility selection.
-- **Cost-basis disclosure:** ML strategy rows use after-cost active return, while naive baseline rows are shown before transaction-cost adjustment. The dashboard labels this difference directly.
+- **Cost-basis disclosure:** ML strategy rows use after-cost active return, while naive baseline rows are shown before transaction-cost adjustment.
 - **Concentration risk:** surfaces latest max single-name weight, HHI, effective position count, and top issuer-group exposure.
 - **Issuer-group exposure:** highlights cases where multiple tickers from the same issuer group create hidden concentration, such as VHM and VIC under Vingroup.
 - **Latest rank diagnostic:** compares the latest predicted rank with realized forward-return rank so model hits and misses are visible.
-- **Overlapping-window disclosure:** reports both raw evaluated dates and approximate non-overlapping effective sample size. For the 10-day horizon, the current output shows 1,604 evaluated dates, approximately 160 non-overlapping 10-day periods.
+- **Overlapping-window disclosure:** reports both raw evaluated dates and approximate non-overlapping effective sample size. For the 10-day horizon, the current output shows 1,584 evaluated dates, approximately 158 non-overlapping 10-day periods.
+- **Purged walk-forward disclosure:** train, validation, and test windows now use purge gaps to reduce overlapping-label boundary leakage.
 
 These diagnostics are still research checks. They do not turn the framework into live-trading evidence.
