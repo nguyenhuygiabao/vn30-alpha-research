@@ -37,6 +37,10 @@ KEY_FILES = [
     ROOT / "scripts" / "build_interactive_charts.py",
     ROOT / "scripts" / "build_dashboard_tables.py",
     ROOT / "scripts" / "darken_static_figures.py",
+    ROOT / "scripts" / "initialize_paper_account.py",
+    ROOT / "scripts" / "reconcile_paper_account.py",
+    ROOT / "scripts" / "validate_paper_trading_timing.py",
+    ROOT / "config" / "paper_trading_config.yaml",
 ]
 
 GENERATED_PATH_PREFIXES = [

@@ -13,6 +13,10 @@ timing:
   rebalance_frequency_trading_days: 5
   execution_delay_trading_days: 1
   execution_price_source: next_open
+  execution_submission_cutoff_time: "08:45"
+
+market_calendar:
+  holiday_dates: []
 
 portfolio:
   target_holdings: 7

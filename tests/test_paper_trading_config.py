@@ -41,3 +41,22 @@ def test_unsettled_cash_reuse_is_rejected() -> None:
 
     with pytest.raises(ValueError, match="unsettled sale proceeds"):
         validate_paper_trading_config(config)
+
+
+def test_invalid_market_time_is_rejected() -> None:
+    config = deepcopy(load_paper_trading_config())
+    config["timing"]["execution_submission_cutoff_time"] = "8:75"
+
+    with pytest.raises(ValueError, match="HH:MM"):
+        validate_paper_trading_config(config)
+
+
+def test_duplicate_market_holidays_are_rejected() -> None:
+    config = deepcopy(load_paper_trading_config())
+    config["market_calendar"]["holiday_dates"] = [
+        "2026-09-02",
+        "2026-09-02",
+    ]
+
+    with pytest.raises(ValueError, match="cannot contain duplicates"):
+        validate_paper_trading_config(config)

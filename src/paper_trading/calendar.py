@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Iterable
@@ -89,6 +89,24 @@ class TradingCalendar:
 
     def next_trading_day(self, value: DateLike) -> date:
         return self.add_trading_days(value, 1)
+
+    def latest_on_or_before(self, value: DateLike) -> date:
+        target = normalize_date(value)
+        index = bisect_right(self.trading_days, target) - 1
+
+        if index < 0:
+            raise ValueError(f"Trading calendar has no date on or before {target}")
+
+        return self.trading_days[index]
+
+    def earliest_on_or_after(self, value: DateLike) -> date:
+        target = normalize_date(value)
+        index = bisect_left(self.trading_days, target)
+
+        if index >= len(self.trading_days):
+            raise ValueError(f"Trading calendar has no date on or after {target}")
+
+        return self.trading_days[index]
 
     def settlement_date(self, trade_date: DateLike, lag_trading_days: int = 2) -> date:
         if lag_trading_days < 0:

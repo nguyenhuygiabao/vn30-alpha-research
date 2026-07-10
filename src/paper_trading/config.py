@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,7 @@ def validate_paper_trading_config(config: dict[str, Any]) -> None:
 
     account = _require_mapping(config, "account")
     timing = _require_mapping(config, "timing")
+    market_calendar = _require_mapping(config, "market_calendar")
     portfolio = _require_mapping(config, "portfolio")
     execution = _require_mapping(config, "execution")
     settlement = _require_mapping(config, "settlement")
@@ -49,8 +51,10 @@ def validate_paper_trading_config(config: dict[str, Any]) -> None:
             "rebalance_frequency_trading_days",
             "execution_delay_trading_days",
             "execution_price_source",
+            "execution_submission_cutoff_time",
         },
     )
+    _require_keys(market_calendar, "market_calendar", {"holiday_dates"})
     _require_keys(
         portfolio,
         "portfolio",
@@ -111,6 +115,28 @@ def validate_paper_trading_config(config: dict[str, Any]) -> None:
 
     if timing["execution_price_source"] != "next_open":
         raise ValueError("execution_price_source must be next_open in config version 1")
+
+    for name in ("earliest_data_update_time", "execution_submission_cutoff_time"):
+        try:
+            datetime.strptime(str(timing[name]), "%H:%M")
+        except ValueError as error:
+            raise ValueError(f"{name} must use HH:MM format") from error
+
+    holiday_dates = market_calendar["holiday_dates"]
+
+    if not isinstance(holiday_dates, list):
+        raise ValueError("holiday_dates must be a list")
+
+    normalized_holidays = []
+
+    for holiday in holiday_dates:
+        try:
+            normalized_holidays.append(date.fromisoformat(str(holiday)))
+        except ValueError as error:
+            raise ValueError(f"Invalid market holiday date: {holiday}") from error
+
+    if len(normalized_holidays) != len(set(normalized_holidays)):
+        raise ValueError("holiday_dates cannot contain duplicates")
 
     target_holdings = portfolio["target_holdings"]
     invested_weight = portfolio["target_invested_weight"]

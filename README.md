@@ -14,7 +14,7 @@ The current project should be read as a reproducible VN30 research framework and
 
 Public dashboard:
 
-    https://nguyenhuygiabao.github.io/vn30-alpha-research/reports/dashboard.htmlreports/dashboard.html
+    https://nguyenhuygiabao.github.io/vn30-alpha-research/reports/dashboard.html
 
 Repository copy:
 
@@ -239,6 +239,44 @@ py .\scripts\run_full_pipeline.py --clean-first --keep-expensive-ml --reuse-exis
 Cache reuse is stale-aware. If features, labels, or relevant model source files change, the affected ML stages rerun automatically.
 
 A cleaner dry run may report missing generated files. This is normal when optional or older generated outputs are listed by the cleaner but are not currently present locally.
+
+## Paper-trading foundation
+
+The repository now includes a settlement-aware paper-trading foundation. It is
+still an implementation and validation layer, not a live trading system.
+
+Current components include:
+
+- explicit signal-date and next-trading-day execution timing
+- completed-market-day and full-universe data validation
+- configurable T+2 settlement assumptions
+- settled and unsettled cash and share balances
+- executable order sizing with concentration, turnover, liquidity, lot-size,
+  price-limit, and minimum-trade constraints
+- persistent local paper-account ledgers with reconciliation checks
+
+Validate that the latest OHLCV file represents a completed market day:
+
+```powershell
+py .\scripts\validate_paper_trading_timing.py
+```
+
+After the paper configuration and opening capital are finalized, initialize the
+local paper account once:
+
+```powershell
+py .\scripts\initialize_paper_account.py --asof-date YYYY-MM-DD
+```
+
+Reconcile an initialized account:
+
+```powershell
+py .\scripts\reconcile_paper_account.py
+```
+
+Generated paper-account CSV ledgers are local mutable state and are ignored by
+Git. No real orders are placed by these scripts. The automated daily data update,
+latest-model scoring, daily runner, and monitoring dashboard remain future work.
 
 ## Repository hygiene
 
