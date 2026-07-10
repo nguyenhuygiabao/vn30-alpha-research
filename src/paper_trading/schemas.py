@@ -11,8 +11,16 @@ class Side(StrEnum):
     SELL = "SELL"
 
 
+class OrderAction(StrEnum):
+    BUY = "BUY"
+    SELL = "SELL"
+    HOLD = "HOLD"
+    SKIP = "SKIP"
+
+
 class OrderStatus(StrEnum):
     PENDING = "PENDING"
+    HOLD = "HOLD"
     EXECUTED = "EXECUTED"
     PARTIALLY_EXECUTED = "PARTIALLY_EXECUTED"
     SKIPPED = "SKIPPED"
