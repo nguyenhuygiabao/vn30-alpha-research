@@ -256,21 +256,23 @@ def summary_cards_html() -> str:
     cards = []
 
     if not horizon.empty:
-        best_sharpe = horizon.loc[horizon["diagnostic_sharpe"].idxmax()]
-        best_rank_ic = horizon.loc[horizon["average_rank_ic"].idxmax()]
+        selected_rows = horizon.loc[
+            horizon["forecast_horizon_days"].eq(10)
+        ]
+        selected = (
+            selected_rows.iloc[0]
+            if not selected_rows.empty
+            else horizon.loc[horizon["average_rank_ic"].idxmax()]
+        )
 
         cards.append(
             metric_card(
-                "Best horizon by Sharpe",
-                f'{int(best_sharpe["forecast_horizon_days"])}d',
-                f'Sharpe {format_number(best_sharpe["diagnostic_sharpe"])}',
-            )
-        )
-        cards.append(
-            metric_card(
-                "Best horizon by Rank IC",
-                f'{int(best_rank_ic["forecast_horizon_days"])}d',
-                f'Rank IC {format_number(best_rank_ic["average_rank_ic"])}',
+                "Selected research horizon",
+                f'{int(selected["forecast_horizon_days"])} trading days',
+                (
+                    f'Rank IC {format_number(selected["average_rank_ic"])} · '
+                    f'diagnostic Sharpe {format_number(selected["diagnostic_sharpe"])}'
+                ),
             )
         )
 
@@ -284,45 +286,18 @@ def summary_cards_html() -> str:
             )
         )
 
-    benchmark = read_csv(BENCHMARK_RESULTS_PATH)
-    if not benchmark.empty:
-        ml_rows = benchmark[benchmark["comparison_type"].eq("ml_strategy")]
-        baseline_rows = benchmark[benchmark["comparison_type"].eq("naive_baseline")]
-
-        if not ml_rows.empty and not baseline_rows.empty:
-            best_ml = ml_rows.loc[ml_rows["diagnostic_sharpe"].idxmax()]
-            best_baseline = baseline_rows.loc[baseline_rows["diagnostic_sharpe"].idxmax()]
-
-            cards.append(
-                metric_card(
-                    "Best ML vs naive baseline",
-                    format_number(
-                        best_ml["diagnostic_sharpe"]
-                        - best_baseline["diagnostic_sharpe"],
-                    ),
-                    "diagnostic Sharpe gap (ML after-cost vs. baseline before-cost)",
-                )
-            )
-
-    concentration = read_csv(CONCENTRATION_SUMMARY_PATH)
-    if not concentration.empty:
-        top_concentration = concentration.loc[
-            concentration["top_issuer_group_weight"].astype(float).idxmax()
-        ]
-
-        cards.append(
-            metric_card(
-                "Top issuer-group exposure",
-                format_percent(top_concentration["top_issuer_group_weight"], 0),
-                str(top_concentration["top_issuer_group"]),
-            )
-        )
-
     cards.append(
         metric_card(
-            "Latest signal date",
+            "Latest backtest signal",
             latest_signal_date(),
-            "latest processed model ranking",
+            "historical walk-forward snapshot, not a live signal",
+        )
+    )
+    cards.append(
+        metric_card(
+            "Evidence status",
+            "Research only",
+            "paper validation in progress · no real-money execution",
         )
     )
 
@@ -764,7 +739,8 @@ def static_grid_html() -> str:
 
 def research_validity_html() -> str:
     return """
-    <section class="section-card">
+    <section class="section-card" id="validity">
+      <div class="section-kicker">Read before interpreting results</div>
       <h2>Research validity notes</h2>
       <p class="muted">
         This dashboard reports historical diagnostics from a research backtest. The results should not be read as
@@ -804,7 +780,8 @@ def glossary_html() -> str:
     )
 
     return f"""
-    <section class="section-card">
+    <section class="section-card" id="glossary">
+      <div class="section-kicker">Reference</div>
       <h2>Glossary: what the metrics mean</h2>
       <div class="table-wrap">
         <table class="data-table">
@@ -844,6 +821,8 @@ def page_html() -> str:
   <meta charset="utf-8">
   <title>VN30 Alpha Research Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interactive VN30 machine-learning research dashboard covering signals, portfolio risk, and historical validation evidence.">
+  <meta name="theme-color" content="#050814">
   <style>
     :root {{
       --bg: #050814;
@@ -865,6 +844,10 @@ def page_html() -> str:
       box-sizing: border-box;
     }}
 
+    html {{
+      scroll-behavior: smooth;
+    }}
+
     body {{
       margin: 0;
       background:
@@ -876,12 +859,109 @@ def page_html() -> str:
       line-height: 1.5;
     }}
 
-    header {{
+    a {{
+      color: #7dd3fc;
+    }}
+
+    a:focus-visible,
+    button:focus-visible {{
+      outline: 3px solid rgba(34, 211, 238, 0.72);
+      outline-offset: 3px;
+    }}
+
+    .skip-link {{
+      position: fixed;
+      left: 16px;
+      top: -80px;
+      z-index: 100;
+      padding: 10px 14px;
+      border-radius: 10px;
+      color: #001018;
+      background: #67e8f9;
+      font-weight: 800;
+      transition: top 0.2s ease;
+    }}
+
+    .skip-link:focus {{
+      top: 12px;
+    }}
+
+    .topbar {{
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+      background: rgba(3, 7, 18, 0.84);
+      backdrop-filter: blur(18px);
+    }}
+
+    .topbar-inner {{
+      width: min(1500px, calc(100% - 64px));
+      min-height: 68px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }}
+
+    .brand {{
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }}
+
+    .brand-mark {{
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border: 1px solid rgba(103, 232, 249, 0.34);
+      border-radius: 11px;
+      color: #a5f3fc;
+      background: linear-gradient(145deg, rgba(8, 145, 178, 0.26), rgba(16, 185, 129, 0.16));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }}
+
+    .topnav {{
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }}
+
+    .topnav::-webkit-scrollbar {{
+      display: none;
+    }}
+
+    .topnav a {{
+      padding: 8px 11px;
+      border-radius: 9px;
+      color: #a8b6cc;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }}
+
+    .topnav a:hover {{
+      color: var(--text);
+      background: rgba(148, 163, 184, 0.10);
+    }}
+
+    .hero {{
       width: min(1500px, calc(100% - 64px));
       margin: 24px auto 20px;
-      padding: 28px 30px;
+      padding: 42px;
       border: 1px solid var(--line);
-      border-radius: 18px;
+      border-radius: 24px;
       background:
         linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(8, 13, 28, 0.98)),
         radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.18), transparent 22rem);
@@ -890,23 +970,54 @@ def page_html() -> str:
         inset 0 1px 0 rgba(255, 255, 255, 0.04);
       position: relative;
       overflow: hidden;
+      scroll-margin-top: 88px;
     }}
 
-    header::after {{
+    .hero::after {{
       content: "";
-      display: none;
       position: absolute;
-      top: 26px;
-      right: 28px;
-      padding: 7px 12px;
-      border: 1px solid rgba(52, 211, 153, 0.32);
-      border-radius: 999px;
-      color: #86efac;
-      background: rgba(22, 163, 74, 0.10);
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.06em;
-      box-shadow: 0 0 22px rgba(34, 197, 94, 0.16);
+      width: 420px;
+      height: 420px;
+      right: -170px;
+      bottom: -250px;
+      border-radius: 50%;
+      background: rgba(34, 211, 238, 0.10);
+      filter: blur(12px);
+      pointer-events: none;
+    }}
+
+    .hero-grid {{
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
+      gap: 42px;
+      align-items: center;
+    }}
+
+    .eyebrow,
+    .section-kicker {{
+      color: #67e8f9;
+      text-transform: uppercase;
+      letter-spacing: 0.13em;
+      font-size: 11px;
+      font-weight: 900;
+    }}
+
+    .eyebrow {{
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 16px;
+    }}
+
+    .eyebrow::before {{
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 16px rgba(52, 211, 153, 0.8);
     }}
 
     h1 {{
@@ -937,14 +1048,103 @@ def page_html() -> str:
     }}
 
     .subtitle {{
-      max-width: 980px;
+      max-width: 760px;
       color: var(--muted);
-      font-size: 17px;
+      font-size: 18px;
+      line-height: 1.7;
+    }}
+
+    .hero-actions {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 11px;
+      margin-top: 24px;
+    }}
+
+    .button {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 10px 16px;
+      border: 1px solid rgba(125, 211, 252, 0.34);
+      border-radius: 11px;
+      color: #02131d;
+      background: linear-gradient(135deg, #67e8f9, #34d399);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 900;
+      box-shadow: 0 10px 28px rgba(34, 211, 238, 0.16);
+    }}
+
+    .button.secondary {{
+      color: #dbeafe;
+      background: rgba(15, 23, 42, 0.72);
+      box-shadow: none;
+    }}
+
+    .hero-status {{
+      padding: 20px;
+      border: 1px solid rgba(125, 211, 252, 0.20);
+      border-radius: 18px;
+      background: rgba(2, 6, 23, 0.48);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }}
+
+    .status-label {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+      color: #dbeafe;
+      font-size: 13px;
+      font-weight: 850;
+    }}
+
+    .status-badge {{
+      padding: 5px 9px;
+      border: 1px solid rgba(251, 191, 36, 0.26);
+      border-radius: 999px;
+      color: #fde68a;
+      background: rgba(161, 98, 7, 0.14);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }}
+
+    .status-list {{
+      display: grid;
+      gap: 12px;
+      margin: 16px 0 0;
+    }}
+
+    .status-list div {{
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 12px;
+    }}
+
+    .status-list dt {{
+      color: var(--muted);
+      font-size: 12px;
+    }}
+
+    .status-list dd {{
+      margin: 0;
+      color: #e2e8f0;
+      font-size: 12px;
+      font-weight: 750;
     }}
 
     main {{
       width: min(1500px, calc(100% - 64px));
       margin: 0 auto 60px;
+    }}
+
+    main section[id] {{
+      scroll-margin-top: 88px;
     }}
 
     .metric-grid {{
@@ -1010,6 +1210,24 @@ def page_html() -> str:
     .section-card,
     .interactive-card {{
       padding: 24px;
+    }}
+
+    .section-kicker {{
+      margin-bottom: 8px;
+    }}
+
+    .section-intro {{
+      margin: 48px 0 18px;
+      padding: 0 4px;
+    }}
+
+    .section-intro h2 {{
+      margin-bottom: 7px;
+    }}
+
+    .section-intro p {{
+      max-width: 780px;
+      color: var(--muted);
     }}
 
     .section-card > .muted,
@@ -1178,19 +1396,19 @@ def page_html() -> str:
     }}
 
     @media (max-width: 1100px) {{
-      header,
+      .topbar-inner,
+      .hero,
       main {{
         width: min(100% - 28px, 1500px);
       }}
 
-      header {{
+      .hero {{
         padding: 28px 22px;
       }}
 
-      header::after {{
-        position: static;
-        display: inline-block;
-        margin-top: 16px;
+      .hero-grid {{
+        grid-template-columns: 1fr;
+        gap: 26px;
       }}
 
       .metric-grid {{
@@ -1207,6 +1425,27 @@ def page_html() -> str:
     }}
 
     @media (max-width: 700px) {{
+      .topbar-inner {{
+        min-height: 62px;
+      }}
+
+      .brand span:last-child {{
+        display: none;
+      }}
+
+      .topnav a {{
+        padding-inline: 8px;
+        font-size: 12px;
+      }}
+
+      .hero {{
+        margin-top: 14px;
+      }}
+
+      .hero-status {{
+        padding: 16px;
+      }}
+
       .metric-grid {{
         grid-template-columns: 1fr;
       }}
@@ -1222,22 +1461,65 @@ def page_html() -> str:
   </style>
 </head>
 <body>
-  <header>
-    <h1>VN30 Alpha Research Dashboard</h1>
-    <p class="subtitle">
-      Interactive dashboard generated from the VN30 machine-learning framework.
-      This page is a research summary, not an investment recommendation.
-    </p>
+  <a class="skip-link" href="#main-content">Skip to dashboard content</a>
+
+  <div class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#overview" aria-label="VN30 Alpha Research home">
+        <span class="brand-mark" aria-hidden="true">V30</span>
+        <span>VN30 Alpha Research</span>
+      </a>
+      <nav class="topnav" aria-label="Dashboard sections">
+        <a href="#overview">Overview</a>
+        <a href="#rankings">Signals</a>
+        <a href="#portfolio">Portfolio</a>
+        <a href="#horizons">Evidence</a>
+        <a href="#charts">Charts</a>
+        <a href="#validity">Methodology</a>
+      </nav>
+    </div>
+  </div>
+
+  <header class="hero" id="overview">
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow">Machine-learning research · VN30 universe</div>
+        <h1>Signals, portfolio risk, and evidence in one view.</h1>
+        <p class="subtitle">
+          Explore how a Vietnam-aware ranking model behaves across forecast horizons,
+          portfolio constraints, and execution assumptions. Results are historical
+          diagnostics, not an investment recommendation.
+        </p>
+        <div class="hero-actions">
+          <a class="button" href="#rankings">Explore latest ranking</a>
+          <a class="button secondary" href="#validity">Read research limitations</a>
+        </div>
+      </div>
+      <aside class="hero-status" aria-label="Research configuration">
+        <div class="status-label">
+          Research configuration
+          <span class="status-badge">Validation mode</span>
+        </div>
+        <dl class="status-list">
+          <div><dt>Selected model</dt><dd>Gradient Boosting</dd></div>
+          <div><dt>Forecast horizon</dt><dd>10 trading days</dd></div>
+          <div><dt>Universe</dt><dd>Current VN30 constituents</dd></div>
+          <div><dt>Publication</dt><dd>Static historical snapshot</dd></div>
+          <div><dt>Execution</dt><dd>No real-money orders</dd></div>
+        </dl>
+      </aside>
+    </div>
   </header>
 
-  <main>
+  <main id="main-content">
     <section class="metric-grid">
       {summary_cards_html()}
     </section>
 
     {research_validity_html()}
 
-    <section class="section-card">
+    <section class="section-card" id="benchmarks">
+      <div class="section-kicker">Context</div>
       <h2>Baseline comparison</h2>
       <p class="muted">
         Compares the ML strategy with equal-weight VN30-style exposure and simple rule-based baselines.
@@ -1250,7 +1532,8 @@ def page_html() -> str:
       </div>
     </section>
 
-    <section class="section-card">
+    <section class="section-card" id="portfolio">
+      <div class="section-kicker">Portfolio risk</div>
       <h2>Latest concentration risk</h2>
       <p class="muted">
         Shows single-name concentration, issuer-group concentration, HHI, and effective position count
@@ -1261,7 +1544,7 @@ def page_html() -> str:
       </div>
     </section>
 
-    <section class="section-card">
+    <section class="section-card" id="issuer-risk">
       <h2>Latest issuer-group exposure</h2>
       <p class="muted">
         Surfaces issuer groups such as Vingroup where multiple tickers can create hidden concentration.
@@ -1272,7 +1555,7 @@ def page_html() -> str:
       </div>
     </section>
 
-    <section class="section-card">
+    <section class="section-card" id="optimizer-diagnostic">
       <h2>Optimizer bound diagnostic</h2>
       <p class="muted">
         Shows whether the optimizer is genuinely diversifying or mainly hitting the 20 percent single-name cap.
@@ -1283,7 +1566,8 @@ def page_html() -> str:
       </div>
     </section>
 
-    <section class="section-card">
+    <section class="section-card" id="rankings">
+      <div class="section-kicker">Signal diagnostics</div>
       <h2>Latest predicted rank vs realized rank</h2>
       <p class="muted">
         Compares the latest model ranking with realized forward-return rank so hits and misses are visible.
@@ -1294,7 +1578,7 @@ def page_html() -> str:
       </div>
     </section>
 
-    <section class="section-card">
+    <section class="section-card" id="stock-ranking">
       <h2>Latest stock ranking</h2>
       <p class="muted">Stocks ranked by the latest gradient boosting model score.</p>
       <div class="table-wrap">
@@ -1306,7 +1590,7 @@ def page_html() -> str:
       </div>
     </section>
 
-    <section class="section-card">
+    <section class="section-card" id="portfolio-weights">
       <h2>Latest optimized portfolio weights</h2>
       <p class="muted">Latest generated long-only optimized weights from the framework.</p>
       <div class="table-wrap">
@@ -1318,7 +1602,8 @@ def page_html() -> str:
       </div>
     </section>
 
-    <section class="section-card">
+    <section class="section-card" id="horizons">
+      <div class="section-kicker">Model evidence</div>
       <h2>Forecast horizon results</h2>
       <p class="muted">
         Compares whether 1-day, 5-day, or 10-day prediction targets work better.
@@ -1362,6 +1647,12 @@ def page_html() -> str:
       <div class="table-wrap">
         {ablation_table_html()}
       </div>
+    </section>
+
+    <section class="section-intro" id="charts">
+      <div class="section-kicker">Interactive exploration</div>
+      <h2>Performance and risk charts</h2>
+      <p>Zoom into the walk-forward history, compare scenarios, and inspect where the model's behavior changes.</p>
     </section>
 
     {interactive_sections}
