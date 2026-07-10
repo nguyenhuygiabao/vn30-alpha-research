@@ -311,6 +311,19 @@ at the signal cutoff, then scores all 30 tickers on the latest completed date.
 It does not reuse historical backtest predictions. This command is a preview and
 does not write ledgers, construct target weights, or place orders.
 
+Preview constrained target weights after signal scoring passes:
+
+```powershell
+py .\scripts\preview_daily_targets.py
+```
+
+The target builder selects seven names and allocates 97 percent invested weight
+subject to the 15 percent single-name cap and 25 percent issuer-family cap. If a
+cluster of highly ranked names from one family makes the requested exposure
+infeasible, lower-ranked names from other families are substituted in rank order.
+The current Vingroup family is explicitly verified as VHM, VIC, VPL, and VRE.
+This command remains a preview and writes no ledgers or orders.
+
 After the paper configuration and opening capital are finalized, initialize the
 local paper account once:
 
