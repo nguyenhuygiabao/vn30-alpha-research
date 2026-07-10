@@ -38,7 +38,8 @@ class VnstockDailyProvider:
             from vnstock import Quote
         except ImportError as error:
             raise RuntimeError(
-                "vnstock is required. Run: py -m pip install -r requirements.txt"
+                "vnstock Quote is required. See the Python setup instructions "
+                "in README.md."
             ) from error
 
         quote = Quote(symbol=provider_symbol, source=self.source)

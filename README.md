@@ -268,6 +268,16 @@ current raw file:
 py .\scripts\update_daily_data.py --dry-run
 ```
 
+On Python 3.14, Vnstock's optional chart dependency currently selects a NumPy
+release without a compatible Windows wheel. Install the core Quote dependencies
+without that optional chart package:
+
+```powershell
+py -m pip install pydantic openpyxl importlib-metadata tenacity "vnai>=2.4.8"
+py -m pip install --no-deps "vnstock==4.0.4"
+py -c "from vnstock import Quote; print('VNSTOCK QUOTE IMPORT PASSED')"
+```
+
 After the dry run passes, replace the local raw file with the validated update:
 
 ```powershell
@@ -278,6 +288,16 @@ The updater must run after the configured market-data cutoff. It downloads an
 overlapping window, verifies provider continuity, requires full latest-date
 universe coverage, rejects future or malformed rows, and stages the output before
 replacing the existing CSV.
+
+After setup, double-click `run_daily_data_update.cmd` in the repository root for
+the guarded daily update. The window stays open and reports success or failure.
+It validates the Vnstock Quote import before downloading, stops on any failed
+validation, and does not run ML models or place orders. The same launcher can be
+checked without replacing data from PowerShell:
+
+```powershell
+py .\scripts\run_daily_data_update.py --dry-run
+```
 
 After the paper configuration and opening capital are finalized, initialize the
 local paper account once:
