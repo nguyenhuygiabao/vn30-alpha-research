@@ -14,6 +14,7 @@ data/raw/
 # Mutable paper-trading account state
 paper_trading/*.csv
 paper_trading/logs/
+paper_trading/.account.lock
 
 # Redundant static report figures replaced by interactive dashboard charts.
 reports/figures/cumulative_after_cost_active_return.png
