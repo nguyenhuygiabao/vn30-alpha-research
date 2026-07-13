@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import datetime
+from collections.abc import Sequence
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -21,7 +22,7 @@ from src.paper_trading.market_data import (
 from src.paper_trading.scoring import score_completed_market_data
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Fit the selected model and preview latest VN30 signal ranks.",
     )
@@ -30,7 +31,14 @@ def parse_args() -> argparse.Namespace:
         default="config/paper_trading_config.yaml",
         help="Path to the paper-trading YAML configuration.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--model",
+        help=(
+            "Temporary scoring-model override, for example gradient_boosting, "
+            "random_forest, or rank_ensemble. Does not modify configuration."
+        ),
+    )
+    return parser.parse_args(argv)
 
 
 def main() -> None:
@@ -51,11 +59,12 @@ def main() -> None:
         ],
         holiday_dates=config["market_calendar"]["holiday_dates"],
     )
+    selected_model = args.model or config["model"]["model_name"]
     result = score_completed_market_data(
         market_data=market_data,
         expected_tickers=expected_tickers,
         horizon_days=config["timing"]["signal_horizon_trading_days"],
-        model_name=config["model"]["model_name"],
+        model_name=selected_model,
     )
 
     if result.signal_date != validation.timing.signal_date:
@@ -73,7 +82,7 @@ def main() -> None:
         "Intended execution date: "
         f"{validation.timing.intended_execution_date}"
     )
-    print(f"Model: {config['model']['model_name']}")
+    print(f"Model: {selected_model}")
     print(
         "Forecast horizon: "
         f"{config['timing']['signal_horizon_trading_days']} trading days"
