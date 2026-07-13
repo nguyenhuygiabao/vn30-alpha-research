@@ -4,6 +4,7 @@ import pandas as pd
 
 from src.optimizer import (
     ISSUER_GROUP_COLUMN,
+    MAX_SECTOR_WEIGHT,
     KEY_COLUMNS,
     MAX_ISSUER_GROUP_WEIGHT,
     MAX_TURNOVER,
@@ -14,6 +15,7 @@ from src.optimizer import (
     TREE_MODEL_PREDICTIONS_PATH,
     calculate_turnover,
     HERDING_SCORE_COLUMN,
+    SECTOR_COLUMN,
 )
 
 TOLERANCE: float = 1e-8
@@ -28,6 +30,7 @@ REQUIRED_COLUMNS: list[str] = [
     "optimization_mode",
     "portfolio_turnover",
     "issuer_group",
+    "sector",
     HERDING_SCORE_COLUMN,
     "high_herding_day",
 ]
@@ -76,12 +79,28 @@ def main() -> None:
         ISSUER_GROUP_COLUMN,
     ]
     )["weight"].sum()
+    daily_sector_weight = weights.groupby(
+    [
+        "optimization_mode",
+        "date",
+        SECTOR_COLUMN,
+    ]
+    )["weight"].sum()
     issuer_group_cap_respected = (
         daily_issuer_group_weight.max()
         <= MAX_ISSUER_GROUP_WEIGHT + TOLERANCE
     )
 
     issuer_group_complete = weights[ISSUER_GROUP_COLUMN].notna().all()
+    sector_complete = weights[SECTOR_COLUMN].notna().all()
+
+    sector_aware_weights = daily_sector_weight.loc[
+        daily_sector_weight.index.get_level_values("optimization_mode")
+        == "sector_aware"
+    ]
+    sector_cap_respected = (
+        sector_aware_weights.max() <= MAX_SECTOR_WEIGHT + TOLERANCE
+    )
 
     weight_sum_respected = daily_weight_sum.max() <= 1.0 + TOLERANCE
 
@@ -147,6 +166,7 @@ def main() -> None:
     expected_optimization_modes_present = optimization_modes == {
         "normal",
         "herding_aware",
+        "sector_aware",
     }
 
     daily_mode_summary = (
@@ -209,6 +229,7 @@ def main() -> None:
     print("Maximum weight:", weights["weight"].max())
     print("Maximum daily weight sum:", daily_weight_sum.max())
     print("Maximum issuer group weight:", daily_issuer_group_weight.max())
+    print("Maximum sector weight:", daily_sector_weight.max())
     print("Maximum stored turnover:", weights.groupby(
     [
         "optimization_mode",
@@ -232,7 +253,9 @@ def main() -> None:
     print("Dates match model predictions:", dates_match_model_predictions)
     print("Only expected model:", only_expected_model)
     print("Issuer group complete:", issuer_group_complete)
+    print("Sector complete:", sector_complete)
     print("Issuer group cap respected:", issuer_group_cap_respected)
+    print("Sector-aware cap respected:", sector_cap_respected)
     print("Expected optimization modes present:", expected_optimization_modes_present)
     print("Herding-aware reduces exposure:", herding_aware_reduces_exposure)
     print("Herding-aware reduces max weight:", herding_aware_reduces_max_weight)

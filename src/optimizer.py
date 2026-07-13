@@ -19,6 +19,8 @@ MIN_WEIGHT: float = 1e-8
 TURNOVER_BUFFER: float = 1e-6
 MAX_ISSUER_GROUP_WEIGHT: float = 0.40
 ISSUER_GROUP_COLUMN: str = "issuer_group"
+SECTOR_COLUMN: str = "sector"
+MAX_SECTOR_WEIGHT: float = 0.35
 HERDING_SCORE_COLUMN: str = "herding_corr_score"
 HIGH_HERDING_THRESHOLD: float = 0.80
 HERDING_AWARE_TOP_N: int = 5
@@ -48,10 +50,16 @@ def load_model_predictions(
     )
 
     missing_issuer_group = predictions[ISSUER_GROUP_COLUMN].isna().sum()
+    missing_sector = predictions[SECTOR_COLUMN].isna().sum()
 
     if missing_issuer_group > 0:
         raise ValueError(
             f"Missing issuer group for {missing_issuer_group} prediction rows"
+        )
+
+    if missing_sector > 0:
+        raise ValueError(
+            f"Missing sector for {missing_sector} prediction rows"
         )
 
     return predictions
@@ -64,6 +72,7 @@ def load_universe_metadata(
     required_columns = [
         "ticker",
         ISSUER_GROUP_COLUMN,
+        SECTOR_COLUMN,
     ]
 
     missing_columns = [
@@ -116,6 +125,7 @@ def build_target_weights_for_date(
     max_weight: float = MAX_WEIGHT,
     target_exposure: float = 1.0,
     min_predicted_return: float | None = None,
+    max_sector_weight: float | None = None,
 ) -> pd.DataFrame:
 
     eligible_predictions = date_predictions.copy()
@@ -131,6 +141,7 @@ def build_target_weights_for_date(
                 "date",
                 "ticker",
                 ISSUER_GROUP_COLUMN,
+                SECTOR_COLUMN,
                 "predicted_return",
                 "target_weight",
             ]
@@ -159,12 +170,19 @@ def build_target_weights_for_date(
             "date",
             "ticker",
             ISSUER_GROUP_COLUMN,
+            SECTOR_COLUMN,
             "predicted_return",
         ]
     ].copy()
 
     target_weights["target_weight"] = weight
     target_weights = apply_issuer_group_cap(target_weights)
+
+    if max_sector_weight is not None:
+        target_weights = apply_sector_cap(
+            target_weights,
+            max_sector_weight=max_sector_weight,
+        )
 
     return target_weights
 
@@ -180,6 +198,24 @@ def apply_issuer_group_cap(
 
     scale = (max_issuer_group_weight / group_weight).clip(upper=1.0)
 
+    capped["target_weight"] = capped["target_weight"] * scale
+
+    return capped
+
+
+def apply_sector_cap(
+    target_weights: pd.DataFrame,
+    max_sector_weight: float = MAX_SECTOR_WEIGHT,
+) -> pd.DataFrame:
+    if not 0 < max_sector_weight <= 1:
+        raise ValueError("max_sector_weight must be in (0, 1]")
+
+    if SECTOR_COLUMN not in target_weights.columns:
+        raise ValueError(f"Target weights are missing {SECTOR_COLUMN}")
+
+    capped = target_weights.copy()
+    sector_weight = capped.groupby(SECTOR_COLUMN)["target_weight"].transform("sum")
+    scale = (max_sector_weight / sector_weight).clip(upper=1.0)
     capped["target_weight"] = capped["target_weight"] * scale
 
     return capped
@@ -247,6 +283,7 @@ def build_optimized_weights(
     max_weight: float = MAX_WEIGHT,
     max_turnover: float = MAX_TURNOVER,
     optimization_mode: str = "normal",
+    max_sector_weight: float | None = None,
 ) -> pd.DataFrame:
     model_predictions = predictions[
         predictions["model_name"] == model_name
@@ -254,6 +291,9 @@ def build_optimized_weights(
 
     if model_predictions.empty:
         raise ValueError(f"No predictions found for model_name={model_name}")
+
+    if optimization_mode == "sector_aware" and max_sector_weight is None:
+        max_sector_weight = MAX_SECTOR_WEIGHT
 
     optimized_frames = []
     previous_weights = pd.Series(dtype=float)
@@ -286,6 +326,7 @@ def build_optimized_weights(
             max_weight=date_max_weight,
             target_exposure=date_target_exposure,
             min_predicted_return=date_min_predicted_return,
+            max_sector_weight=max_sector_weight,
         )
 
         target_weights = target_frame.set_index("ticker")["target_weight"]
@@ -402,10 +443,16 @@ def main() -> None:
         optimization_mode="herding_aware",
     )
 
+    sector_aware_weights = build_optimized_weights(
+        predictions=predictions,
+        optimization_mode="sector_aware",
+    )
+
     weights = pd.concat(
         [
             normal_weights,
             herding_aware_weights,
+            sector_aware_weights,
         ],
         ignore_index=True,
     )
@@ -433,6 +480,9 @@ def main() -> None:
             ISSUER_GROUP_COLUMN,
         ]
     )["weight"].sum()
+    daily_sector_weight = weights.groupby(
+        ["optimization_mode", "date", SECTOR_COLUMN]
+    )["weight"].sum()
 
     print("Optimized weights path:", output_path)
     print("Optimized weight rows:", len(weights))
@@ -443,6 +493,7 @@ def main() -> None:
     print("Maximum daily weight sum:", daily_weight_sum.max())
     print("Maximum daily turnover:", daily_turnover.max())
     print("Maximum issuer group weight:", daily_issuer_group_weight.max())
+    print("Maximum sector weight:", daily_sector_weight.max())
     duplicate_keys = weights.duplicated(
     [
         "optimization_mode",

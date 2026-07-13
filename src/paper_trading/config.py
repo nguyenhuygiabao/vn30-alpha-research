@@ -80,6 +80,7 @@ def validate_paper_trading_config(config: dict[str, Any]) -> None:
             "cash_buffer_weight",
             "max_single_name_weight",
             "max_issuer_group_weight",
+            "max_sector_weight",
             "max_daily_turnover",
         },
     )
@@ -181,6 +182,7 @@ def validate_paper_trading_config(config: dict[str, Any]) -> None:
     cash_buffer = portfolio["cash_buffer_weight"]
     max_single_name = portfolio["max_single_name_weight"]
     max_issuer_group = portfolio["max_issuer_group_weight"]
+    max_sector = portfolio["max_sector_weight"]
 
     if target_holdings <= 0:
         raise ValueError("target_holdings must be positive")
@@ -190,6 +192,7 @@ def validate_paper_trading_config(config: dict[str, Any]) -> None:
         "cash_buffer_weight",
         "max_single_name_weight",
         "max_issuer_group_weight",
+        "max_sector_weight",
         "max_daily_turnover",
     ):
         if not 0 <= portfolio[name] <= 1:
@@ -203,6 +206,9 @@ def validate_paper_trading_config(config: dict[str, Any]) -> None:
 
     if max_issuer_group < max_single_name:
         raise ValueError("issuer-group cap cannot be below the single-name cap")
+
+    if max_sector < max_single_name:
+        raise ValueError("sector cap cannot be below the single-name cap")
 
     if execution["round_lot_size"] <= 0:
         raise ValueError("round_lot_size must be positive")

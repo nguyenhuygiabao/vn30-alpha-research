@@ -124,11 +124,34 @@ def test_issuer_group_cap_scales_related_tickers() -> None:
     ) == 500
 
 
+def test_sector_cap_scales_bank_targets_even_with_distinct_issuers() -> None:
+    plan = build_order_plan(
+        broker=build_cash_broker(),
+        targets=[
+            TargetWeight("ACB", "ACB", "0.15", "signal-acb", 1, "Banks"),
+            TargetWeight("MBB", "MB", "0.15", "signal-mbb", 2, "Banks"),
+            TargetWeight("TCB", "Techcombank", "0.15", "signal-tcb", 3, "Banks"),
+        ],
+        snapshots={ticker: snapshot(ticker) for ticker in ("ACB", "MBB", "TCB")},
+        constraints=constraints(),
+        signal_date=DATA_DATE,
+        intended_execution_date=EXECUTION_DATE,
+        expected_data_date=DATA_DATE,
+    )
+
+    assert sum(plan.constrained_target_weights.values()) == Decimal("0.35")
+    assert any(
+        trade.reason_code == SkipReason.MAX_SECTOR_WEIGHT_REACHED
+        for trade in plan.skipped_trades
+    )
+
+
 def test_turnover_cap_defers_part_of_rebalance() -> None:
     custom = replace(
         constraints(),
         max_single_name_weight=Decimal("1"),
         max_issuer_group_weight=Decimal("1"),
+        max_sector_weight=Decimal("1"),
         max_daily_turnover=Decimal("0.10"),
     )
     plan = build_order_plan(
@@ -155,6 +178,7 @@ def test_adv_limit_creates_partial_order_and_skip_record() -> None:
         constraints(),
         max_single_name_weight=Decimal("1"),
         max_issuer_group_weight=Decimal("1"),
+        max_sector_weight=Decimal("1"),
     )
     plan = build_order_plan(
         broker=build_cash_broker(),
@@ -184,6 +208,7 @@ def test_cash_buffer_and_costs_prevent_overspending() -> None:
         constraints(),
         max_single_name_weight=Decimal("1"),
         max_issuer_group_weight=Decimal("1"),
+        max_sector_weight=Decimal("1"),
         max_daily_turnover=Decimal("1"),
     )
     plan = build_order_plan(
@@ -322,6 +347,7 @@ def test_round_lot_rule_records_odd_lot_remainder() -> None:
         allow_odd_lots=False,
         max_single_name_weight=Decimal("1"),
         max_issuer_group_weight=Decimal("1"),
+        max_sector_weight=Decimal("1"),
     )
     plan = build_order_plan(
         broker=build_cash_broker(),

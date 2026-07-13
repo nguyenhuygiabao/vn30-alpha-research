@@ -31,11 +31,12 @@ data_update:
   audit_path: data/raw/vnstock/daily_update_audit.csv
 
 portfolio:
-  target_holdings: 7
+  target_holdings: 8
   target_invested_weight: 0.97
   cash_buffer_weight: 0.03
   max_single_name_weight: 0.15
   max_issuer_group_weight: 0.25
+  max_sector_weight: 0.35
   max_daily_turnover: 0.25
 
 execution:

@@ -39,6 +39,7 @@ class SkipReason(StrEnum):
     MAX_TURNOVER_REACHED = "max_turnover_reached"
     MAX_SINGLE_NAME_WEIGHT_REACHED = "max_single_name_weight_reached"
     MAX_ISSUER_GROUP_WEIGHT_REACHED = "max_issuer_group_weight_reached"
+    MAX_SECTOR_WEIGHT_REACHED = "max_sector_weight_reached"
     ADV_CAPACITY_LIMIT = "adv_capacity_limit"
     PRICE_CEILING_BUY_BLOCK = "price_ceiling_buy_block"
     PRICE_FLOOR_SELL_BLOCK = "price_floor_sell_block"

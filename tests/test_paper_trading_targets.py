@@ -5,10 +5,12 @@ from decimal import Decimal
 import pandas as pd
 import pytest
 
-from src.paper_trading.targets import build_constrained_target_weights
+from src.paper_trading.targets import TOLERANCE, build_constrained_target_weights
 
 
-def predictions(groups: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
+def predictions(
+    groups: list[str], sectors: list[str] | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     tickers = [f"T{index:02d}" for index in range(1, len(groups) + 1)]
     prediction_frame = pd.DataFrame(
         {
@@ -24,13 +26,14 @@ def predictions(groups: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
         {
             "ticker": tickers,
             "issuer_group": groups,
+            "sector": sectors or groups,
         }
     )
     return prediction_frame, universe
 
 
-def build(groups: list[str]):
-    prediction_frame, universe = predictions(groups)
+def build(groups: list[str], sectors: list[str] | None = None):
+    prediction_frame, universe = predictions(groups, sectors)
     return build_constrained_target_weights(
         predictions=prediction_frame,
         universe=universe,
@@ -38,6 +41,7 @@ def build(groups: list[str]):
         target_invested_weight="0.97",
         max_single_name_weight="0.15",
         max_issuer_group_weight="0.25",
+        max_sector_weight="1",
     )
 
 
@@ -46,7 +50,7 @@ def test_seven_distinct_groups_receive_full_capped_allocation() -> None:
     targets = result.target_weights
 
     assert len(targets) == 7
-    assert result.invested_weight == Decimal("0.97")
+    assert abs(result.invested_weight - Decimal("0.97")) <= TOLERANCE
     assert max(targets["target_weight"]) <= Decimal("0.15")
     assert result.capacity_replacements == ()
     assert targets["predicted_rank"].tolist() == list(range(1, 8))
@@ -96,6 +100,7 @@ def test_rank_mismatch_is_rejected() -> None:
             target_invested_weight="0.97",
             max_single_name_weight="0.15",
             max_issuer_group_weight="0.25",
+            max_sector_weight="1",
         )
 
 
@@ -106,3 +111,36 @@ def test_current_vingroup_family_contains_all_four_members() -> None:
     )
 
     assert vingroup_tickers == {"VHM", "VIC", "VPL", "VRE"}
+
+
+def test_bank_heavy_top_ranks_are_replaced_until_sector_cap_is_feasible() -> None:
+    groups = [f"Issuer {index}" for index in range(12)]
+    sectors = ["Banks"] * 6 + [
+        "Consumer Staples", "Energy", "Technology", "Materials", "Real Estate", "Industrials"
+    ]
+    prediction_frame, universe = predictions(groups, sectors)
+
+    result = build_constrained_target_weights(
+        predictions=prediction_frame,
+        universe=universe,
+        target_holdings=8,
+        target_invested_weight="0.97",
+        max_single_name_weight="0.15",
+        max_issuer_group_weight="0.25",
+        max_sector_weight="0.35",
+    )
+    sector_weights = result.target_weights.groupby("sector")["target_weight"].sum()
+
+    assert abs(result.invested_weight - Decimal("0.97")) <= TOLERANCE
+    assert abs(sector_weights["Banks"] - Decimal("0.35")) <= TOLERANCE
+    assert max(sector_weights) <= Decimal("0.35") + TOLERANCE
+    assert len(result.capacity_replacements) == 3
+
+
+def test_current_universe_identifies_all_bank_members_for_risk_control() -> None:
+    universe = pd.read_csv("config/vn30_universe.csv")
+
+    assert set(universe.loc[universe["sector"] == "Banks", "ticker"]) == {
+        "ACB", "BID", "CTG", "HDB", "LPB", "MBB", "SHB", "SSB", "STB",
+        "TCB", "TPB", "VCB", "VIB", "VPB",
+    }

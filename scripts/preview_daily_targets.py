@@ -69,6 +69,7 @@ def main() -> None:
         target_invested_weight=portfolio["target_invested_weight"],
         max_single_name_weight=portfolio["max_single_name_weight"],
         max_issuer_group_weight=portfolio["max_issuer_group_weight"],
+        max_sector_weight=portfolio["max_sector_weight"],
     )
 
     if targets.signal_date.date() != validation.timing.signal_date:
@@ -77,6 +78,7 @@ def main() -> None:
     display = targets.target_weights.copy()
     display["target_weight"] = display["target_weight"].map(float)
     group_weights = display.groupby("issuer_group")["target_weight"].sum()
+    sector_weights = display.groupby("sector")["target_weight"].sum()
 
     print()
     print("DAILY CONSTRAINED TARGET PREVIEW PASSED")
@@ -91,6 +93,7 @@ def main() -> None:
     print(f"Cash buffer: {1.0 - display['target_weight'].sum():.6f}")
     print(f"Maximum single-name weight: {display['target_weight'].max():.6f}")
     print(f"Maximum issuer-family weight: {group_weights.max():.6f}")
+    print(f"Maximum risk-sector weight: {sector_weights.max():.6f}")
 
     if targets.capacity_replacements:
         print("Capacity-driven ranking replacements:")
@@ -106,6 +109,7 @@ def main() -> None:
                 "predicted_rank",
                 "ticker",
                 "issuer_group",
+                "sector",
                 "score",
                 "target_weight",
             ]

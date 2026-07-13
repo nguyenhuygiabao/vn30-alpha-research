@@ -17,6 +17,7 @@ def test_default_paper_trading_config_is_valid() -> None:
     assert config["timing"]["execution_delay_trading_days"] == 1
     assert config["settlement"]["cycle"] == "T+2"
     assert config["portfolio"]["max_single_name_weight"] == 0.15
+    assert config["portfolio"]["max_sector_weight"] == 0.35
 
 
 def test_same_day_execution_is_rejected() -> None:
@@ -32,6 +33,14 @@ def test_infeasible_single_name_cap_is_rejected() -> None:
     config["portfolio"]["target_holdings"] = 5
 
     with pytest.raises(ValueError, match="cannot reach invested weight"):
+        validate_paper_trading_config(config)
+
+
+def test_sector_cap_below_single_name_cap_is_rejected() -> None:
+    config = deepcopy(load_paper_trading_config())
+    config["portfolio"]["max_sector_weight"] = 0.10
+
+    with pytest.raises(ValueError, match="sector cap"):
         validate_paper_trading_config(config)
 
 

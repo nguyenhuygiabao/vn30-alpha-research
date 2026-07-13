@@ -67,7 +67,7 @@ def _prepare_ranked_predictions(
             f"Predictions are missing columns: {missing_prediction_columns}"
         )
 
-    required_universe_columns = {"ticker", "issuer_group"}
+    required_universe_columns = {"ticker", "issuer_group", "sector"}
     missing_universe_columns = sorted(
         required_universe_columns.difference(universe.columns)
     )
@@ -106,9 +106,10 @@ def _prepare_ranked_predictions(
     if ranked["predicted_rank"].tolist() != expected_ranks:
         raise ValueError("Prediction ranks do not match score and ticker ordering")
 
-    metadata = universe[["ticker", "issuer_group"]].copy()
+    metadata = universe[["ticker", "issuer_group", "sector"]].copy()
     metadata["ticker"] = metadata["ticker"].astype(str).str.strip().str.upper()
     metadata["issuer_group"] = metadata["issuer_group"].astype(str).str.strip()
+    metadata["sector"] = metadata["sector"].astype(str).str.strip()
 
     if metadata["ticker"].duplicated().any():
         raise ValueError("Universe contains duplicate tickers")
@@ -128,6 +129,13 @@ def _prepare_ranked_predictions(
     if missing_groups:
         raise ValueError(f"Missing issuer groups for tickers: {missing_groups}")
 
+    missing_sectors = ranked.loc[
+        ranked["sector"].isna() | ranked["sector"].eq(""), "ticker"
+    ].tolist()
+
+    if missing_sectors:
+        raise ValueError(f"Missing sectors for tickers: {missing_sectors}")
+
     return ranked
 
 
@@ -135,10 +143,12 @@ def _selection_capacity(
     selected: pd.DataFrame,
     max_single_name_weight: Decimal,
     max_issuer_group_weight: Decimal,
+    max_sector_weight: Decimal,
 ) -> Decimal:
     group_counts = selected.groupby("issuer_group")["ticker"].count()
+    sector_counts = selected.groupby("sector")["ticker"].count()
 
-    return sum(
+    issuer_capacity = sum(
         (
             min(
                 _to_decimal(count) * max_single_name_weight,
@@ -148,6 +158,15 @@ def _selection_capacity(
         ),
         start=ZERO,
     )
+    sector_capacity = sum(
+        (
+            min(_to_decimal(count) * max_single_name_weight, max_sector_weight)
+            for count in sector_counts
+        ),
+        start=ZERO,
+    )
+
+    return min(issuer_capacity, sector_capacity)
 
 
 def _select_capacity_feasible_names(
@@ -156,6 +175,7 @@ def _select_capacity_feasible_names(
     target_invested_weight: Decimal,
     max_single_name_weight: Decimal,
     max_issuer_group_weight: Decimal,
+    max_sector_weight: Decimal,
 ) -> tuple[pd.DataFrame, tuple[tuple[str, str], ...]]:
     if target_holdings > len(ranked):
         raise ValueError(
@@ -170,6 +190,7 @@ def _select_capacity_feasible_names(
             selected,
             max_single_name_weight,
             max_issuer_group_weight,
+            max_sector_weight,
         )
         + TOLERANCE
         < target_invested_weight
@@ -179,6 +200,7 @@ def _select_capacity_feasible_names(
             selected,
             max_single_name_weight,
             max_issuer_group_weight,
+            max_sector_weight,
         )
         replacement_found = False
 
@@ -196,6 +218,7 @@ def _select_capacity_feasible_names(
                     trial,
                     max_single_name_weight,
                     max_issuer_group_weight,
+                    max_sector_weight,
                 )
 
                 if trial_capacity <= current_capacity + TOLERANCE:
@@ -212,7 +235,7 @@ def _select_capacity_feasible_names(
         if not replacement_found:
             raise ValueError(
                 "Cannot construct the requested invested weight under the "
-                "single-name and issuer-group caps"
+                "single-name, issuer-group, and sector caps"
             )
 
     return (
@@ -226,8 +249,10 @@ def _allocate_capped_weights(
     target_invested_weight: Decimal,
     max_single_name_weight: Decimal,
     max_issuer_group_weight: Decimal,
+    max_sector_weight: Decimal,
 ) -> dict[str, Decimal]:
     groups = selected.set_index("ticker")["issuer_group"].to_dict()
+    sectors = selected.set_index("ticker")["sector"].to_dict()
     weights = {ticker: ZERO for ticker in selected["ticker"]}
     remaining = target_invested_weight
 
@@ -243,12 +268,24 @@ def _allocate_capped_weights(
             )
             for group in set(groups.values())
         }
+        sector_weights = {
+            sector: sum(
+                (
+                    weights[ticker]
+                    for ticker, ticker_sector in sectors.items()
+                    if ticker_sector == sector
+                ),
+                start=ZERO,
+            )
+            for sector in set(sectors.values())
+        }
         active = [
             ticker
             for ticker in weights
             if weights[ticker] + TOLERANCE < max_single_name_weight
             and group_weights[groups[ticker]] + TOLERANCE
             < max_issuer_group_weight
+            and sector_weights[sectors[ticker]] + TOLERANCE < max_sector_weight
         ]
 
         if not active:
@@ -259,6 +296,10 @@ def _allocate_capped_weights(
             group: sum(groups[ticker] == group for ticker in active)
             for group in set(groups[ticker] for ticker in active)
         }
+        active_sector_counts = {
+            sector: sum(sectors[ticker] == sector for ticker in active)
+            for sector in set(sectors[ticker] for ticker in active)
+        }
         increments: dict[str, Decimal] = {}
 
         for ticker in active:
@@ -267,10 +308,15 @@ def _allocate_capped_weights(
             group_capacity_per_name = (
                 max_issuer_group_weight - group_weights[group]
             ) / active_group_counts[group]
+            sector = sectors[ticker]
+            sector_capacity_per_name = (
+                max_sector_weight - sector_weights[sector]
+            ) / active_sector_counts[sector]
             increments[ticker] = min(
                 equal_increment,
                 single_capacity,
                 group_capacity_per_name,
+                sector_capacity_per_name,
             )
 
         allocated = sum(increments.values(), start=ZERO)
@@ -301,9 +347,19 @@ def _allocate_capped_weights(
                 ),
                 start=ZERO,
             )
+            sector = sectors[ticker]
+            sector_weight = sum(
+                (
+                    weight
+                    for member, weight in weights.items()
+                    if sectors[member] == sector
+                ),
+                start=ZERO,
+            )
             capacity = min(
                 max_single_name_weight - weights[ticker],
                 max_issuer_group_weight - group_weight,
+                max_sector_weight - sector_weight,
             )
             increment = min(residual, capacity)
             weights[ticker] += increment
@@ -325,6 +381,7 @@ def build_constrained_target_weights(
     target_invested_weight: Decimal | int | float | str,
     max_single_name_weight: Decimal | int | float | str,
     max_issuer_group_weight: Decimal | int | float | str,
+    max_sector_weight: Decimal | int | float | str,
 ) -> TargetConstructionResult:
     if target_holdings <= 0:
         raise ValueError("target_holdings must be positive")
@@ -341,6 +398,7 @@ def build_constrained_target_weights(
         max_issuer_group_weight,
         "max_issuer_group_weight",
     )
+    sector_cap = _validate_limit(max_sector_weight, "max_sector_weight")
 
     if target_holdings * single_name_cap < invested_weight:
         raise ValueError("Single-name capacity cannot reach target invested weight")
@@ -352,18 +410,21 @@ def build_constrained_target_weights(
         target_invested_weight=invested_weight,
         max_single_name_weight=single_name_cap,
         max_issuer_group_weight=issuer_group_cap,
+        max_sector_weight=sector_cap,
     )
     allocated_weights = _allocate_capped_weights(
         selected=selected,
         target_invested_weight=invested_weight,
         max_single_name_weight=single_name_cap,
         max_issuer_group_weight=issuer_group_cap,
+        max_sector_weight=sector_cap,
     )
     targets = selected[
         [
             "date",
             "ticker",
             "issuer_group",
+            "sector",
             "model_name",
             "horizon_days",
             "score",

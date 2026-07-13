@@ -14,6 +14,7 @@ class ExecutionConstraints:
     cash_buffer_weight: Decimal
     max_single_name_weight: Decimal
     max_issuer_group_weight: Decimal
+    max_sector_weight: Decimal
     max_daily_turnover: Decimal
     round_lot_size: int
     allow_odd_lots: bool
@@ -38,6 +39,7 @@ class ExecutionConstraints:
             max_issuer_group_weight=to_decimal(
                 portfolio["max_issuer_group_weight"]
             ),
+            max_sector_weight=to_decimal(portfolio["max_sector_weight"]),
             max_daily_turnover=to_decimal(portfolio["max_daily_turnover"]),
             round_lot_size=int(execution["round_lot_size"]),
             allow_odd_lots=bool(execution["allow_odd_lots"]),

@@ -23,6 +23,7 @@ class TargetWeight:
     target_weight: Decimal | int | float | str
     signal_id: str = ""
     predicted_rank: int | None = None
+    sector: str = ""
 
     def __post_init__(self) -> None:
         ticker = self.ticker.strip().upper()
@@ -39,6 +40,7 @@ class TargetWeight:
 
         object.__setattr__(self, "ticker", ticker)
         object.__setattr__(self, "target_weight", target_weight)
+        object.__setattr__(self, "sector", self.sector.strip())
 
 
 @dataclass(frozen=True)
@@ -161,6 +163,10 @@ def _issuer_group(target: TargetWeight) -> str:
     return target.issuer_group.strip() or target.ticker
 
 
+def _sector(target: TargetWeight) -> str:
+    return target.sector.strip() or _issuer_group(target)
+
+
 def _cap_target_weights(
     targets: dict[str, TargetWeight],
     constraints: ExecutionConstraints,
@@ -216,6 +222,36 @@ def _cap_target_weights(
                     previous_weight - constrained[ticker],
                 )
             )
+
+    sector_members: dict[str, list[str]] = {}
+
+    for ticker, target in targets.items():
+        sector_members.setdefault(_sector(target), []).append(ticker)
+
+    for tickers in sector_members.values():
+        sector_total = sum((constrained[ticker] for ticker in tickers), start=ZERO)
+
+        if sector_total <= constraints.max_sector_weight or sector_total == ZERO:
+            continue
+
+        scale = constraints.max_sector_weight / sector_total
+
+        for ticker in tickers:
+            previous_weight = constrained[ticker]
+            constrained[ticker] = previous_weight * scale
+            rejected_weights.setdefault(ticker, []).append(
+                (
+                    SkipReason.MAX_SECTOR_WEIGHT_REACHED,
+                    previous_weight - constrained[ticker],
+                )
+            )
+
+        rounding_excess = (
+            sum((constrained[ticker] for ticker in tickers), start=ZERO)
+            - constraints.max_sector_weight
+        )
+        if rounding_excess > ZERO:
+            constrained[tickers[-1]] -= rounding_excess
 
     return constrained, rejected_weights
 
