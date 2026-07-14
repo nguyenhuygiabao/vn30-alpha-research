@@ -6,6 +6,7 @@ from src.model_candidates import (
     RANK_ENSEMBLE_MODEL_NAME,
     build_rank_ensemble_history,
     summarize_model_candidates,
+    summarize_paired_candidate_stability,
 )
 
 
@@ -53,3 +54,18 @@ def test_rank_ensemble_and_candidate_summary_are_out_of_sample_only() -> None:
         RANK_ENSEMBLE_MODEL_NAME,
     }
     assert (summary["evaluated_dates"] == 2).all()
+
+
+def test_paired_stability_reports_matched_dates_and_confidence_interval() -> None:
+    stability = summarize_paired_candidate_stability(
+        predictions(),
+        top_n=2,
+        rolling_window=2,
+    )
+
+    assert set(stability["baseline_model"]) == {
+        "gradient_boosting",
+        "random_forest",
+    }
+    assert (stability["paired_dates"] == 2).all()
+    assert (stability["bootstrap_95pct_lower"] <= stability["bootstrap_95pct_upper"]).all()
