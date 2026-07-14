@@ -16,6 +16,7 @@ REQUIRED_COLUMNS = {
     "predicted_return",
     "actual_return",
 }
+REQUIRED_MARKET_COLUMNS = {"date", "ticker", "adjusted_close"}
 
 
 def build_rank_ensemble_history(
@@ -198,3 +199,96 @@ def summarize_paired_candidate_stability(
         )
 
     return pd.DataFrame(rows)
+
+
+def build_historical_market_regimes(
+    market_data: pd.DataFrame,
+    return_window: int = 20,
+    volatility_baseline_window: int = 126,
+) -> pd.DataFrame:
+    """Classify each date using only the market history available that day.
+
+    The proxy is the equal-weight return of the stocks present in the supplied
+    universe.  High-volatility dates take precedence; remaining dates are split
+    by the sign of their trailing return.  The volatility threshold is a rolling
+    median, so it never uses future observations.
+    """
+    missing = sorted(REQUIRED_MARKET_COLUMNS.difference(market_data.columns))
+    if missing:
+        raise ValueError(f"Market data are missing columns: {missing}")
+    if return_window <= 1 or volatility_baseline_window <= 1:
+        raise ValueError("Regime windows must be greater than one")
+
+    prices = market_data[["date", "ticker", "adjusted_close"]].copy()
+    prices["date"] = pd.to_datetime(prices["date"], errors="raise")
+    prices = prices.sort_values(["ticker", "date"])
+    prices["stock_return"] = prices.groupby("ticker")["adjusted_close"].pct_change()
+    market_returns = (
+        prices.groupby("date", as_index=False)["stock_return"]
+        .mean()
+        .rename(columns={"stock_return": "market_return"})
+    )
+    market_returns["trailing_return"] = (
+        (1.0 + market_returns["market_return"])
+        .rolling(return_window, min_periods=return_window)
+        .apply(np.prod, raw=True)
+        - 1.0
+    )
+    market_returns["trailing_volatility"] = market_returns["market_return"].rolling(
+        return_window,
+        min_periods=return_window,
+    ).std()
+    market_returns["volatility_baseline"] = market_returns[
+        "trailing_volatility"
+    ].rolling(
+        volatility_baseline_window,
+        min_periods=volatility_baseline_window,
+    ).median()
+    ready = market_returns.dropna(
+        subset=["trailing_return", "trailing_volatility", "volatility_baseline"]
+    ).copy()
+    ready["market_regime"] = np.where(
+        ready["trailing_volatility"] > ready["volatility_baseline"],
+        "high_volatility",
+        np.where(ready["trailing_return"] >= 0.0, "trend_up", "trend_down"),
+    )
+    return ready[
+        [
+            "date",
+            "market_regime",
+            "trailing_return",
+            "trailing_volatility",
+            "volatility_baseline",
+        ]
+    ].reset_index(drop=True)
+
+
+def summarize_candidates_by_market_regime(
+    predictions: pd.DataFrame,
+    market_data: pd.DataFrame,
+    top_n: int = 8,
+    return_window: int = 20,
+    volatility_baseline_window: int = 126,
+) -> pd.DataFrame:
+    """Summarize historical candidates separately across observable regimes."""
+    daily = build_daily_candidate_metrics(predictions, top_n=top_n)
+    regimes = build_historical_market_regimes(
+        market_data,
+        return_window=return_window,
+        volatility_baseline_window=volatility_baseline_window,
+    )
+    combined = daily.merge(regimes[["date", "market_regime"]], on="date", how="inner")
+    if combined.empty:
+        raise ValueError("No prediction dates overlap the available market regimes")
+
+    summary = (
+        combined.groupby(["market_regime", "model_name"], as_index=False)
+        .agg(
+            evaluated_dates=("date", "nunique"),
+            average_rank_ic=("rank_ic", "mean"),
+            average_top_n_actual_return=("top_n_actual_return", "mean"),
+        )
+        .sort_values(["market_regime", "average_rank_ic"], ascending=[True, False])
+        .reset_index(drop=True)
+    )
+    return summary
