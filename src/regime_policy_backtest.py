@@ -9,8 +9,12 @@ from src.model_candidates import (
     DEFAULT_REGIME_POLICY,
     build_historical_market_regimes,
     build_rank_ensemble_history,
+    build_rolling_rank_ensemble_history,
     paired_block_bootstrap_mean_difference,
 )
+
+
+HISTORICAL_TREE_PREDICTION_HORIZON_DAYS = 5
 
 
 def _turnover(previous: pd.Series, target: pd.Series) -> tuple[float, float, float]:
@@ -77,7 +81,7 @@ def build_non_overlapping_policy_returns(
     market_data: pd.DataFrame,
     policy: Mapping[str, str] | None = None,
     top_n: int = 8,
-    holding_period_days: int = 10,
+    holding_period_days: int = HISTORICAL_TREE_PREDICTION_HORIZON_DAYS,
     settlement_lag_days: int = 2,
     target_exposure: float = 0.97,
     max_turnover: float = 0.25,
@@ -85,6 +89,10 @@ def build_non_overlapping_policy_returns(
     slippage_rate: float = 0.001,
     sell_tax_rate: float = 0.001,
     target_exposure_by_date: pd.Series | None = None,
+    signals_are_pre_spaced: bool = False,
+    rolling_performance_window: int = 126,
+    rolling_label_availability_lag: int = 10,
+    realized_return_column: str = "actual_return",
 ) -> pd.DataFrame:
     """Backtest a fixed regime policy on non-overlapping forward-return labels.
 
@@ -97,6 +105,10 @@ def build_non_overlapping_policy_returns(
         raise ValueError("top_n and holding_period_days must be positive")
     if not 0.0 <= target_exposure <= 1.0 or not 0.0 < max_turnover <= 1.0:
         raise ValueError("Exposure and turnover inputs are outside valid bounds")
+    if realized_return_column not in predictions.columns:
+        raise ValueError(
+            f"Predictions lack realized return column: {realized_return_column}"
+        )
     if target_exposure_by_date is not None:
         target_exposure_by_date = target_exposure_by_date.copy()
         target_exposure_by_date.index = pd.to_datetime(
@@ -115,7 +127,14 @@ def build_non_overlapping_policy_returns(
         raise ValueError(f"Regime policy is missing selections: {missing}")
 
     ensemble = build_rank_ensemble_history(predictions)
-    combined = pd.concat([predictions.copy(), ensemble], ignore_index=True)
+    rolling_ensemble = build_rolling_rank_ensemble_history(
+        predictions,
+        performance_window=rolling_performance_window,
+        label_availability_lag=rolling_label_availability_lag,
+    )
+    combined = pd.concat(
+        [predictions.copy(), ensemble, rolling_ensemble], ignore_index=True
+    )
     combined["date"] = pd.to_datetime(combined["date"], errors="raise")
     combined["ticker"] = combined["ticker"].astype(str).str.strip().str.upper()
     available_models = set(combined["model_name"])
@@ -129,8 +148,11 @@ def build_non_overlapping_policy_returns(
         raise ValueError(f"Regime policy selects unavailable models: {invalid}")
 
     regimes = build_historical_market_regimes(market_data)
+    realized_returns = predictions[["date", "ticker", realized_return_column]].copy()
+    realized_returns["date"] = pd.to_datetime(realized_returns["date"], errors="raise")
+    realized_returns = realized_returns.drop_duplicates(["date", "ticker"])
     complete_actuals = (
-        combined.groupby(["date", "ticker"])["actual_return"]
+        realized_returns.groupby(["date", "ticker"])[realized_return_column]
         .agg(lambda values: values.notna().all())
         .groupby(level="date")
         .all()
@@ -144,7 +166,19 @@ def build_non_overlapping_policy_returns(
     ).sort_values("date")
     if schedule.empty:
         raise ValueError("No regime dates overlap available predictions")
-    schedule = schedule.iloc[::holding_period_days].copy()
+    if signals_are_pre_spaced:
+        market_dates = pd.DatetimeIndex(regimes["date"].drop_duplicates()).sort_values()
+        market_positions = pd.Series(range(len(market_dates)), index=market_dates)
+        schedule_positions = market_positions.reindex(schedule["date"]).to_numpy()
+        if len(schedule_positions) > 1 and (
+            np.diff(schedule_positions) < holding_period_days
+        ).any():
+            raise ValueError(
+                "Pre-spaced prediction dates overlap the requested holding period"
+            )
+        schedule = schedule.copy()
+    else:
+        schedule = schedule.iloc[::holding_period_days].copy()
     schedule["selected_model"] = schedule["market_regime"].map(policy_map)
 
     previous = pd.Series(dtype=float)
@@ -159,9 +193,8 @@ def build_non_overlapping_policy_returns(
                 raise ValueError(f"Exposure overlay lacks date {date}")
             date_target_exposure = float(target_exposure_by_date.loc[date])
         daily_actual_returns = (
-            combined.loc[combined["date"] == date]
-            .groupby("ticker")["actual_return"]
-            .first()
+            realized_returns.loc[realized_returns["date"] == date]
+            .set_index("ticker")[realized_return_column]
             .dropna()
         )
         unavailable_previous = previous.index.difference(daily_actual_returns.index)
@@ -237,11 +270,10 @@ def summarize_non_overlapping_policy_returns(history: pd.DataFrame) -> pd.DataFr
     ordered = history.sort_values("date").reset_index(drop=True)
     returns = ordered["after_cost_return"]
     volatility = returns.std()
-    cumulative = (1.0 + returns).cumprod() - 1.0
-    drawdown = (1.0 + cumulative) / (1.0 + cumulative).cummax() - 1.0
-    return pd.DataFrame(
-        [
-            {
+    portfolio_nav = (1.0 + returns).cumprod()
+    cumulative = portfolio_nav - 1.0
+    drawdown = portfolio_nav / portfolio_nav.cummax().clip(lower=1.0) - 1.0
+    summary = {
                 "rebalance_dates": ordered["date"].nunique(),
                 "average_after_cost_return": returns.mean(),
                 "return_volatility": volatility,
@@ -255,9 +287,19 @@ def summarize_non_overlapping_policy_returns(history: pd.DataFrame) -> pd.DataFr
                 "final_cumulative_after_cost_return": cumulative.iloc[-1],
                 "max_after_cost_drawdown": drawdown.min(),
                 "settlement_compatible": bool(ordered["settlement_compatible"].all()),
+    }
+    if "benchmark_return" in ordered.columns:
+        benchmark_nav = (1.0 + ordered["benchmark_return"]).cumprod()
+        active_nav = portfolio_nav / benchmark_nav
+        active_drawdown = active_nav / active_nav.cummax().clip(lower=1.0) - 1.0
+        summary.update(
+            {
+                "final_cumulative_benchmark_return": benchmark_nav.iloc[-1] - 1.0,
+                "final_cumulative_active_return": active_nav.iloc[-1] - 1.0,
+                "max_active_drawdown": active_drawdown.min(),
             }
-        ]
-    )
+        )
+    return pd.DataFrame([summary])
 
 
 def build_paired_overlay_returns(

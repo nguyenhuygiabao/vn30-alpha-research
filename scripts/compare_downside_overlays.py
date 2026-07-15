@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.regime_policy_backtest import (
+    HISTORICAL_TREE_PREDICTION_HORIZON_DAYS,
     build_market_drawdown_overlay,
     build_non_overlapping_policy_returns,
     summarize_non_overlapping_policy_returns,
@@ -64,8 +65,13 @@ def main() -> None:
     print("\nDOWNSIDE-OVERLAY COST-AWARE COMPARISON")
     print("=" * 80)
     print(f"Base model: {args.model}")
+    print(
+        "Historical prediction horizon: "
+        f"{HISTORICAL_TREE_PREDICTION_HORIZON_DAYS} trading days"
+    )
     print(pd.concat(summaries, ignore_index=True).round(6).to_string(index=False))
     print("\nOverlays use only the equal-weight market drawdown available on each date.")
+    print("This does not validate the separate 10-day daily paper-scoring horizon.")
     print("Diagnostic only. No model setting, target, paper order, or real order changed.")
 
 

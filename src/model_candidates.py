@@ -9,6 +9,7 @@ DEFAULT_MEMBER_MODELS: tuple[str, ...] = (
     "random_forest",
 )
 RANK_ENSEMBLE_MODEL_NAME = "rank_ensemble"
+ROLLING_RANK_ENSEMBLE_MODEL_NAME = "rolling_rank_ensemble"
 REQUIRED_COLUMNS = {
     "date",
     "ticker",
@@ -43,8 +44,17 @@ def build_rank_ensemble_history(
     if not incomplete.empty:
         raise ValueError("Ensemble members lack matched date-ticker coverage")
 
-    actual_counts = members.groupby(["date", "ticker"])["actual_return"].nunique()
-    if (actual_counts > 1).any():
+    actual_bounds = members.groupby(["date", "ticker"])["actual_return"].agg(
+        ["min", "max"]
+    )
+    actuals_match = np.isclose(
+        actual_bounds["min"],
+        actual_bounds["max"],
+        rtol=1e-10,
+        atol=1e-12,
+        equal_nan=True,
+    )
+    if not actuals_match.all():
         raise ValueError("Ensemble members disagree on realized returns")
 
     scores = members.pivot(
@@ -73,6 +83,83 @@ def build_rank_ensemble_history(
     ).reset_index()
 
 
+def build_rolling_rank_ensemble_history(
+    predictions: pd.DataFrame,
+    member_models: tuple[str, ...] = DEFAULT_MEMBER_MODELS,
+    performance_window: int = 126,
+    label_availability_lag: int = 10,
+) -> pd.DataFrame:
+    """Blend member ranks using only previously available out-of-sample Rank IC.
+
+    A label from a signal date is not used until ``label_availability_lag`` later
+    observed signal dates.  This makes the changing ensemble weights safe for a
+    forecast horizon whose realized returns arrive after the signal date.
+    """
+    if performance_window <= 0 or label_availability_lag < 0:
+        raise ValueError("performance_window must be positive and lag non-negative")
+
+    static_ensemble = build_rank_ensemble_history(predictions, member_models)
+    members = predictions.loc[predictions["model_name"].isin(member_models)].copy()
+    members["date"] = pd.to_datetime(members["date"], errors="raise")
+    scores = members.pivot(
+        index=["date", "ticker"],
+        columns="model_name",
+        values="predicted_return",
+    )
+    ranks = scores.groupby(level="date").rank(ascending=False, method="first")
+    rank_scores = 1.0 - ranks.div(
+        ranks.groupby(level="date").transform("count") + 1.0
+    )
+    daily_ic = (
+        members.groupby(["date", "model_name"])
+        .apply(
+            lambda daily: daily["predicted_return"].corr(
+                daily["actual_return"], method="spearman"
+            )
+            if daily["actual_return"].nunique() >= 2
+            else np.nan,
+            include_groups=False,
+        )
+        .rename("rank_ic")
+        .unstack("model_name")
+        .reindex(columns=list(member_models))
+    )
+    dates = list(daily_ic.index.sort_values())
+    actual = static_ensemble.set_index(["date", "ticker"])["actual_return"]
+    output_frames: list[pd.DataFrame] = []
+
+    for position, market_date in enumerate(dates):
+        available_end = max(position - label_availability_lag, 0)
+        available_dates = dates[max(0, available_end - performance_window):available_end]
+        if available_dates:
+            performance = daily_ic.loc[available_dates].mean(skipna=True).clip(lower=0.0)
+        else:
+            performance = pd.Series(0.0, index=list(member_models))
+        if performance.sum() <= 0.0:
+            weights = pd.Series(1.0 / len(member_models), index=list(member_models))
+        else:
+            weights = performance / performance.sum()
+
+        date_scores = rank_scores.xs(market_date, level="date").copy()
+        blended = date_scores.mul(weights, axis="columns").sum(axis=1)
+        frame = pd.DataFrame(
+            {
+                "date": market_date,
+                "ticker": blended.index,
+                "predicted_return": blended.to_numpy(),
+                "actual_return": actual.reindex(
+                    pd.MultiIndex.from_product([[market_date], blended.index])
+                ).to_numpy(),
+                "model_name": ROLLING_RANK_ENSEMBLE_MODEL_NAME,
+            }
+        )
+        for model_name, weight in weights.items():
+            frame[f"weight_{model_name}"] = weight
+        output_frames.append(frame)
+
+    return pd.concat(output_frames, ignore_index=True)
+
+
 def summarize_model_candidates(
     predictions: pd.DataFrame,
     top_n: int = 8,
@@ -81,7 +168,10 @@ def summarize_model_candidates(
         raise ValueError("top_n must be positive")
 
     ensemble = build_rank_ensemble_history(predictions)
-    combined = pd.concat([predictions.copy(), ensemble], ignore_index=True)
+    rolling_ensemble = build_rolling_rank_ensemble_history(predictions)
+    combined = pd.concat(
+        [predictions.copy(), ensemble, rolling_ensemble], ignore_index=True
+    )
     rows: list[dict[str, object]] = []
 
     for model_name, model_rows in combined.groupby("model_name"):
@@ -117,7 +207,10 @@ def build_daily_candidate_metrics(
         raise ValueError("top_n must be positive")
 
     ensemble = build_rank_ensemble_history(predictions)
-    combined = pd.concat([predictions.copy(), ensemble], ignore_index=True)
+    rolling_ensemble = build_rolling_rank_ensemble_history(predictions)
+    combined = pd.concat(
+        [predictions.copy(), ensemble, rolling_ensemble], ignore_index=True
+    )
     rows: list[dict[str, object]] = []
 
     for (model_name, market_date), daily in combined.groupby(["model_name", "date"]):

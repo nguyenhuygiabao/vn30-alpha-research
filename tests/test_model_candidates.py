@@ -5,7 +5,9 @@ import pandas as pd
 from src.model_candidates import (
     DEFAULT_REGIME_POLICY,
     RANK_ENSEMBLE_MODEL_NAME,
+    ROLLING_RANK_ENSEMBLE_MODEL_NAME,
     build_rank_ensemble_history,
+    build_rolling_rank_ensemble_history,
     build_historical_market_regimes,
     summarize_candidates_by_market_regime,
     evaluate_regime_policy,
@@ -47,6 +49,23 @@ def test_rank_ensemble_requires_matched_member_coverage() -> None:
         raise AssertionError("Expected incomplete member coverage to be rejected")
 
 
+def test_rank_ensemble_tolerates_only_round_trip_return_precision() -> None:
+    rounded = predictions()
+    random_forest = rounded["model_name"] == "random_forest"
+    rounded.loc[random_forest, "actual_return"] += 1e-14
+    ensemble = build_rank_ensemble_history(rounded)
+    assert not ensemble.empty
+
+    inconsistent = predictions()
+    inconsistent.loc[random_forest, "actual_return"] += 1e-4
+    try:
+        build_rank_ensemble_history(inconsistent)
+    except ValueError as error:
+        assert "disagree" in str(error)
+    else:
+        raise AssertionError("Materially inconsistent realized returns were accepted")
+
+
 def test_rank_ensemble_and_candidate_summary_are_out_of_sample_only() -> None:
     ensemble = build_rank_ensemble_history(predictions())
     summary = summarize_model_candidates(predictions(), top_n=2)
@@ -57,8 +76,53 @@ def test_rank_ensemble_and_candidate_summary_are_out_of_sample_only() -> None:
         "gradient_boosting",
         "random_forest",
         RANK_ENSEMBLE_MODEL_NAME,
+        ROLLING_RANK_ENSEMBLE_MODEL_NAME,
     }
     assert (summary["evaluated_dates"] == 2).all()
+
+
+def rolling_predictions() -> pd.DataFrame:
+    rows = []
+    for market_date in pd.bdate_range("2025-01-01", periods=8):
+        for model_name, scores in {
+            "gradient_boosting": [0.3, 0.2, 0.1],
+            "random_forest": [0.2, 0.1, 0.3],
+        }.items():
+            for ticker, score, actual in zip(
+                ["AAA", "BBB", "CCC"], scores, [0.03, 0.01, -0.02]
+            ):
+                rows.append(
+                    {
+                        "date": market_date,
+                        "ticker": ticker,
+                        "model_name": model_name,
+                        "predicted_return": score,
+                        "actual_return": actual,
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def test_rolling_rank_ensemble_uses_only_lagged_member_performance() -> None:
+    frame = rolling_predictions()
+    rolling = build_rolling_rank_ensemble_history(
+        frame,
+        performance_window=3,
+        label_availability_lag=1,
+    )
+    altered = frame.copy()
+    last_date = altered["date"].max()
+    altered.loc[altered["date"] == last_date, "actual_return"] *= -1.0
+    altered_rolling = build_rolling_rank_ensemble_history(
+        altered,
+        performance_window=3,
+        label_availability_lag=1,
+    )
+
+    latest = rolling.loc[rolling["date"] == last_date]
+    latest_altered = altered_rolling.loc[altered_rolling["date"] == last_date]
+    assert (latest["weight_gradient_boosting"] > latest["weight_random_forest"]).all()
+    assert latest["predicted_return"].tolist() == latest_altered["predicted_return"].tolist()
 
 
 def test_paired_stability_reports_matched_dates_and_confidence_interval() -> None:
@@ -71,6 +135,7 @@ def test_paired_stability_reports_matched_dates_and_confidence_interval() -> Non
     assert set(stability["baseline_model"]) == {
         "gradient_boosting",
         "random_forest",
+        ROLLING_RANK_ENSEMBLE_MODEL_NAME,
     }
     assert (stability["paired_dates"] == 2).all()
     assert (stability["bootstrap_95pct_lower"] <= stability["bootstrap_95pct_upper"]).all()
@@ -119,6 +184,7 @@ def test_market_regimes_are_historical_and_candidate_summary_is_joined() -> None
         "gradient_boosting",
         "random_forest",
         RANK_ENSEMBLE_MODEL_NAME,
+        ROLLING_RANK_ENSEMBLE_MODEL_NAME,
     }
     assert (summary["evaluated_dates"] > 0).all()
 
