@@ -10,29 +10,29 @@ A flag identifies a row requiring review. A single source row may receive multip
 
 - Source file: `data/raw/vnstock/vn30_ohlcv.csv`
 - Report generated: deterministic report; no runtime timestamp
-- Number of rows: 46863
+- Number of rows: 47223
 - Number of tickers: 30
 - Earliest date: 2020-01-02
-- Latest date: 2026-06-30
-- Total issue flags: 1341
+- Latest date: 2026-07-16
+- Total issue flags: 1355
 
 ## Issue Counts by Type
 
-| issue | Flag Count |
+| issue | flag_count |
 | --- | --- |
-| Stale Adjusted Close | 1307 |
-| Suspicious Adjusted Close Jump | 32 |
-| Close Outside Daily Range | 2 |
+| stale_adjusted_close | 1321 |
+| suspicious_adjusted_close_jump | 32 |
+| close_outside_daily_range | 2 |
 
 ## Flag Counts by Ticker
 
-| ticker | Flag Count |
+| ticker | flag_count |
 | --- | --- |
-| SSB | 134 |
+| SSB | 140 |
 | BSR | 129 |
 | SHB | 86 |
-| VIC | 82 |
-| ACB | 72 |
+| VIC | 86 |
+| ACB | 76 |
 | VPB | 71 |
 | LPB | 62 |
 | VIB | 59 |
@@ -61,7 +61,7 @@ A flag identifies a row requiring review. A single source row may receive multip
 
 ## Flag Counts by Date
 
-| date | Flag Count |
+| date | flag_count |
 | --- | --- |
 | 2020-01-06 | 2 |
 | 2020-01-07 | 2 |
@@ -905,213 +905,220 @@ A flag identifies a row requiring review. A single source row may receive multip
 | 2026-06-24 | 3 |
 | 2026-06-25 | 2 |
 | 2026-06-26 | 1 |
+| 2026-06-30 | 1 |
+| 2026-07-01 | 2 |
+| 2026-07-02 | 3 |
+| 2026-07-03 | 3 |
+| 2026-07-06 | 2 |
+| 2026-07-07 | 2 |
+| 2026-07-08 | 1 |
 
 ## Detailed Problem Rows
 
-Showing first 200 issue rows out of 1341 total flags.
+Showing first 200 issue rows out of 1355 total flags.
 
 | date | ticker | issue | details |
 | --- | --- | --- | --- |
-| 2020-01-06 | LPB | Stale Adjusted Close | 2.51, 4 |
-| 2020-01-06 | SHB | Stale Adjusted Close | 2.07, 3 |
-| 2020-01-07 | LPB | Stale Adjusted Close | 2.51, 4 |
-| 2020-01-07 | SHB | Stale Adjusted Close | 2.07, 3 |
-| 2020-01-08 | LPB | Stale Adjusted Close | 2.51, 4 |
-| 2020-01-08 | SHB | Stale Adjusted Close | 2.07, 3 |
-| 2020-01-09 | LPB | Stale Adjusted Close | 2.51, 4 |
-| 2020-01-13 | LPB | Stale Adjusted Close | 2.58, 3 |
-| 2020-01-13 | VHM | Stale Adjusted Close | 61.28, 3 |
-| 2020-01-14 | LPB | Stale Adjusted Close | 2.58, 3 |
-| 2020-01-14 | VHM | Stale Adjusted Close | 61.28, 3 |
-| 2020-01-14 | VIC | Stale Adjusted Close | 51.1, 3 |
-| 2020-01-14 | VJC | Stale Adjusted Close | 112.3, 3 |
-| 2020-01-15 | LPB | Stale Adjusted Close | 2.58, 3 |
-| 2020-01-15 | VHM | Stale Adjusted Close | 61.28, 3 |
-| 2020-01-15 | VIC | Stale Adjusted Close | 51.1, 3 |
-| 2020-01-15 | VJC | Stale Adjusted Close | 112.3, 3 |
-| 2020-01-16 | MBB | Stale Adjusted Close | 6.4, 3 |
-| 2020-01-16 | VIC | Stale Adjusted Close | 51.1, 3 |
-| 2020-01-16 | VJC | Stale Adjusted Close | 112.3, 3 |
-| 2020-01-17 | MBB | Stale Adjusted Close | 6.4, 3 |
-| 2020-01-17 | SSI | Stale Adjusted Close | 6.36, 3 |
-| 2020-01-17 | VIC | Stale Adjusted Close | 51.06, 5 |
-| 2020-01-20 | MBB | Stale Adjusted Close | 6.4, 3 |
-| 2020-01-20 | SSI | Stale Adjusted Close | 6.36, 3 |
-| 2020-01-20 | TPB | Stale Adjusted Close | 6.1, 3 |
-| 2020-01-20 | VIC | Stale Adjusted Close | 51.06, 5 |
-| 2020-01-21 | BSR | Suspicious Adjusted Close Jump | 4.85, 0.13317757009345788 |
-| 2020-01-21 | SSI | Stale Adjusted Close | 6.36, 3 |
-| 2020-01-21 | TPB | Stale Adjusted Close | 6.1, 3 |
-| 2020-01-21 | VIC | Stale Adjusted Close | 51.06, 5 |
-| 2020-01-22 | TPB | Stale Adjusted Close | 6.1, 3 |
-| 2020-01-22 | VIC | Stale Adjusted Close | 51.06, 5 |
-| 2020-01-30 | VIC | Stale Adjusted Close | 51.06, 5 |
-| 2020-01-31 | VIC | Stale Adjusted Close | 51.02, 3 |
-| 2020-02-03 | MSN | Stale Adjusted Close | 40.51, 3 |
-| 2020-02-03 | VIC | Stale Adjusted Close | 51.02, 3 |
-| 2020-02-04 | MSN | Stale Adjusted Close | 40.51, 3 |
-| 2020-02-04 | VIC | Stale Adjusted Close | 51.02, 3 |
-| 2020-02-05 | MSN | Stale Adjusted Close | 40.51, 3 |
-| 2020-02-06 | MSN | Stale Adjusted Close | 40.43, 4 |
-| 2020-02-07 | MSN | Stale Adjusted Close | 40.43, 4 |
-| 2020-02-10 | MSN | Stale Adjusted Close | 40.43, 4 |
-| 2020-02-11 | MSN | Stale Adjusted Close | 40.43, 4 |
-| 2020-02-12 | BSR | Stale Adjusted Close | 4.45, 4 |
-| 2020-02-13 | BSR | Stale Adjusted Close | 4.45, 4 |
-| 2020-02-14 | BSR | Stale Adjusted Close | 4.45, 4 |
-| 2020-02-14 | TPB | Stale Adjusted Close | 6.18, 3 |
-| 2020-02-17 | BSR | Stale Adjusted Close | 4.45, 4 |
-| 2020-02-17 | TPB | Stale Adjusted Close | 6.18, 3 |
-| 2020-02-18 | LPB | Close Outside Daily Range | 2.68, 2.72, 2.76 |
-| 2020-02-18 | TPB | Stale Adjusted Close | 6.18, 3 |
-| 2020-02-18 | VIB | Close Outside Daily Range | 3.96, 4.05, 4.07 |
-| 2020-02-25 | BSR | Stale Adjusted Close | 4.23, 4 |
-| 2020-02-26 | BSR | Stale Adjusted Close | 4.23, 4 |
-| 2020-02-27 | BSR | Stale Adjusted Close | 4.23, 4 |
-| 2020-02-28 | BSR | Stale Adjusted Close | 4.23, 4 |
-| 2020-02-28 | MSN | Stale Adjusted Close | 39.7, 4 |
-| 2020-03-02 | LPB | Suspicious Adjusted Close Jump | 2.94, 0.10943396226415092 |
-| 2020-03-02 | MSN | Stale Adjusted Close | 39.7, 4 |
-| 2020-03-02 | VHM | Stale Adjusted Close | 57.16, 3 |
-| 2020-03-03 | LPB | Suspicious Adjusted Close Jump | 3.24, 0.10204081632653073 |
-| 2020-03-03 | MSN | Stale Adjusted Close | 39.7, 4 |
-| 2020-03-03 | PLX | Stale Adjusted Close | 40.28, 3 |
-| 2020-03-03 | VHM | Stale Adjusted Close | 57.16, 3 |
-| 2020-03-04 | MSN | Stale Adjusted Close | 39.7, 4 |
-| 2020-03-04 | PLX | Stale Adjusted Close | 40.28, 3 |
-| 2020-03-04 | VHM | Stale Adjusted Close | 57.16, 3 |
-| 2020-03-05 | PLX | Stale Adjusted Close | 40.28, 3 |
-| 2020-03-09 | BSR | Suspicious Adjusted Close Jump | 4.0, -0.13606911447084236 |
-| 2020-03-09 | LPB | Suspicious Adjusted Close Jump | 2.68, -0.1545741324921135 |
-| 2020-03-09 | VIB | Suspicious Adjusted Close Jump | 3.56, -0.11662531017369726 |
-| 2020-03-11 | SHB | Suspicious Adjusted Close Jump | 4.37, 0.10075566750629728 |
-| 2020-03-17 | GVR | Suspicious Adjusted Close Jump | 9.83, -0.10391978122151324 |
-| 2020-03-19 | MSN | Stale Adjusted Close | 39.86, 3 |
-| 2020-03-20 | MSN | Stale Adjusted Close | 39.86, 3 |
-| 2020-03-23 | BSR | Suspicious Adjusted Close Jump | 3.08, -0.12994350282485878 |
-| 2020-03-23 | LPB | Suspicious Adjusted Close Jump | 2.2, -0.13043478260869557 |
-| 2020-03-23 | MSN | Stale Adjusted Close | 39.86, 3 |
-| 2020-03-23 | VIB | Suspicious Adjusted Close Jump | 2.9, -0.10769230769230775 |
-| 2020-03-30 | BSR | Suspicious Adjusted Close Jump | 2.8, -0.10828025477707015 |
-| 2020-04-03 | BSR | Suspicious Adjusted Close Jump | 3.2, 0.11888111888111896 |
-| 2020-04-09 | BSR | Stale Adjusted Close | 3.31, 3 |
-| 2020-04-10 | BSR | Stale Adjusted Close | 3.31, 3 |
-| 2020-04-10 | VIB | Stale Adjusted Close | 3.14, 3 |
-| 2020-04-13 | BSR | Stale Adjusted Close | 3.31, 3 |
-| 2020-04-13 | VIB | Stale Adjusted Close | 3.14, 3 |
-| 2020-04-14 | VIB | Stale Adjusted Close | 3.14, 3 |
-| 2020-04-17 | BSR | Suspicious Adjusted Close Jump | 3.6, 0.10769230769230775 |
-| 2020-04-22 | TPB | Stale Adjusted Close | 5.02, 3 |
-| 2020-04-23 | TPB | Stale Adjusted Close | 5.02, 3 |
-| 2020-04-24 | TPB | Stale Adjusted Close | 5.02, 3 |
-| 2020-05-04 | LPB | Stale Adjusted Close | 2.65, 4 |
-| 2020-05-05 | BSR | Stale Adjusted Close | 3.43, 3 |
-| 2020-05-05 | LPB | Stale Adjusted Close | 2.65, 4 |
-| 2020-05-06 | BSR | Stale Adjusted Close | 3.43, 3 |
-| 2020-05-06 | LPB | Stale Adjusted Close | 2.65, 4 |
-| 2020-05-07 | BSR | Stale Adjusted Close | 3.43, 3 |
-| 2020-05-07 | LPB | Stale Adjusted Close | 2.65, 4 |
-| 2020-05-14 | BSR | Stale Adjusted Close | 3.71, 6 |
-| 2020-05-14 | VJC | Stale Adjusted Close | 87.69, 3 |
-| 2020-05-15 | BSR | Stale Adjusted Close | 3.71, 6 |
-| 2020-05-15 | VJC | Stale Adjusted Close | 87.69, 3 |
-| 2020-05-18 | BSR | Stale Adjusted Close | 3.71, 6 |
-| 2020-05-18 | VJC | Stale Adjusted Close | 87.69, 3 |
-| 2020-05-19 | BSR | Stale Adjusted Close | 3.71, 6 |
-| 2020-05-20 | BSR | Stale Adjusted Close | 3.71, 6 |
-| 2020-05-20 | LPB | Stale Adjusted Close | 2.83, 3 |
-| 2020-05-21 | BSR | Stale Adjusted Close | 3.71, 6 |
-| 2020-05-21 | LPB | Stale Adjusted Close | 2.83, 3 |
-| 2020-05-22 | BSR | Stale Adjusted Close | 3.65, 5 |
-| 2020-05-22 | LPB | Stale Adjusted Close | 2.83, 3 |
-| 2020-05-25 | BSR | Stale Adjusted Close | 3.65, 5 |
-| 2020-05-26 | BSR | Stale Adjusted Close | 3.65, 5 |
-| 2020-05-27 | BSR | Stale Adjusted Close | 3.65, 5 |
-| 2020-05-28 | BSR | Stale Adjusted Close | 3.65, 5 |
-| 2020-06-02 | LPB | Stale Adjusted Close | 3.24, 3 |
-| 2020-06-03 | BSR | Suspicious Adjusted Close Jump | 4.17, 0.10610079575596809 |
-| 2020-06-03 | LPB | Stale Adjusted Close | 3.24, 3 |
-| 2020-06-04 | LPB | Stale Adjusted Close | 3.24, 3 |
-| 2020-06-16 | BSR | Stale Adjusted Close | 4.05, 3 |
-| 2020-06-17 | BSR | Stale Adjusted Close | 4.05, 3 |
-| 2020-06-18 | BSR | Stale Adjusted Close | 4.05, 3 |
-| 2020-06-19 | MBB | Stale Adjusted Close | 5.09, 3 |
-| 2020-06-19 | VIB | Stale Adjusted Close | 3.87, 3 |
-| 2020-06-22 | MBB | Stale Adjusted Close | 5.09, 3 |
-| 2020-06-22 | VIB | Stale Adjusted Close | 3.87, 3 |
-| 2020-06-23 | MBB | Stale Adjusted Close | 5.09, 3 |
-| 2020-06-23 | VIB | Stale Adjusted Close | 3.87, 3 |
-| 2020-06-24 | BSR | Stale Adjusted Close | 4.11, 3 |
-| 2020-06-24 | LPB | Stale Adjusted Close | 3.28, 3 |
-| 2020-06-24 | VJC | Stale Adjusted Close | 83.46, 3 |
-| 2020-06-25 | BSR | Stale Adjusted Close | 4.11, 3 |
-| 2020-06-25 | LPB | Stale Adjusted Close | 3.28, 3 |
-| 2020-06-25 | VJC | Stale Adjusted Close | 83.46, 3 |
-| 2020-06-26 | BSR | Stale Adjusted Close | 4.11, 3 |
-| 2020-06-26 | LPB | Stale Adjusted Close | 3.28, 3 |
-| 2020-06-26 | VJC | Stale Adjusted Close | 83.46, 3 |
-| 2020-07-01 | CTG | Stale Adjusted Close | 10.21, 3 |
-| 2020-07-01 | VIB | Stale Adjusted Close | 3.92, 4 |
-| 2020-07-02 | CTG | Stale Adjusted Close | 10.21, 3 |
-| 2020-07-02 | VIB | Stale Adjusted Close | 3.92, 4 |
-| 2020-07-03 | CTG | Stale Adjusted Close | 10.21, 3 |
-| 2020-07-03 | HDB | Stale Adjusted Close | 5.15, 3 |
-| 2020-07-03 | VIB | Stale Adjusted Close | 3.92, 4 |
-| 2020-07-06 | HDB | Stale Adjusted Close | 5.15, 3 |
-| 2020-07-06 | VIB | Stale Adjusted Close | 3.92, 4 |
-| 2020-07-07 | HDB | Stale Adjusted Close | 5.15, 3 |
-| 2020-07-10 | BSR | Stale Adjusted Close | 4.05, 4 |
-| 2020-07-10 | VJC | Stale Adjusted Close | 83.07, 3 |
-| 2020-07-13 | BSR | Stale Adjusted Close | 4.05, 4 |
-| 2020-07-13 | VJC | Stale Adjusted Close | 83.07, 3 |
-| 2020-07-14 | ACB | Stale Adjusted Close | 5.98, 3 |
-| 2020-07-14 | BSR | Stale Adjusted Close | 4.05, 4 |
-| 2020-07-14 | VJC | Stale Adjusted Close | 83.07, 3 |
-| 2020-07-15 | ACB | Stale Adjusted Close | 5.98, 3 |
-| 2020-07-15 | BSR | Stale Adjusted Close | 4.05, 4 |
-| 2020-07-15 | CTG | Stale Adjusted Close | 11.04, 3 |
-| 2020-07-16 | ACB | Stale Adjusted Close | 5.98, 3 |
-| 2020-07-16 | CTG | Stale Adjusted Close | 11.04, 3 |
-| 2020-07-17 | CTG | Stale Adjusted Close | 11.04, 3 |
-| 2020-07-21 | VCB | Stale Adjusted Close | 35.65, 3 |
-| 2020-07-22 | VCB | Stale Adjusted Close | 35.65, 3 |
-| 2020-07-23 | VCB | Stale Adjusted Close | 35.65, 3 |
-| 2020-07-27 | BSR | Suspicious Adjusted Close Jump | 3.25, -0.1095890410958904 |
-| 2020-08-05 | VHM | Stale Adjusted Close | 56.52, 4 |
-| 2020-08-06 | VHM | Stale Adjusted Close | 56.52, 4 |
-| 2020-08-07 | VHM | Stale Adjusted Close | 56.52, 4 |
-| 2020-08-10 | VHM | Stale Adjusted Close | 56.52, 4 |
-| 2020-08-11 | VHM | Stale Adjusted Close | 56.38, 3 |
-| 2020-08-12 | VHM | Stale Adjusted Close | 56.38, 3 |
-| 2020-08-13 | VHM | Stale Adjusted Close | 56.38, 3 |
-| 2020-08-18 | VIB | Stale Adjusted Close | 4.63, 3 |
-| 2020-08-19 | VIB | Stale Adjusted Close | 4.63, 3 |
-| 2020-08-20 | VIB | Stale Adjusted Close | 4.63, 3 |
-| 2020-08-25 | VIC | Stale Adjusted Close | 40.44, 3 |
-| 2020-08-26 | MBB | Stale Adjusted Close | 5.21, 3 |
-| 2020-08-26 | TPB | Stale Adjusted Close | 6.33, 3 |
-| 2020-08-26 | VIC | Stale Adjusted Close | 40.44, 3 |
-| 2020-08-26 | VRE | Stale Adjusted Close | 26.27, 3 |
-| 2020-08-27 | LPB | Stale Adjusted Close | 3.43, 4 |
-| 2020-08-27 | MBB | Stale Adjusted Close | 5.21, 3 |
-| 2020-08-27 | TPB | Stale Adjusted Close | 6.33, 3 |
-| 2020-08-27 | VIC | Stale Adjusted Close | 40.44, 3 |
-| 2020-08-27 | VRE | Stale Adjusted Close | 26.27, 3 |
-| 2020-08-28 | LPB | Stale Adjusted Close | 3.43, 4 |
-| 2020-08-28 | MBB | Stale Adjusted Close | 5.21, 3 |
-| 2020-08-28 | TPB | Stale Adjusted Close | 6.33, 3 |
-| 2020-08-28 | VRE | Stale Adjusted Close | 26.27, 3 |
-| 2020-08-31 | LPB | Stale Adjusted Close | 3.43, 4 |
-| 2020-09-01 | BSR | Stale Adjusted Close | 3.83, 3 |
-| 2020-09-01 | LPB | Stale Adjusted Close | 3.43, 4 |
-| 2020-09-03 | BSR | Stale Adjusted Close | 3.83, 3 |
-| 2020-09-04 | BSR | Stale Adjusted Close | 3.83, 3 |
-| 2020-09-07 | BSR | Stale Adjusted Close | 3.77, 4 |
-| 2020-09-08 | BSR | Stale Adjusted Close | 3.77, 4 |
-| 2020-09-08 | LPB | Stale Adjusted Close | 3.39, 3 |
-| 2020-09-08 | VIC | Stale Adjusted Close | 40.22, 3 |
-| 2020-09-09 | BSR | Stale Adjusted Close | 3.77, 4 |
-| 2020-09-09 | LPB | Stale Adjusted Close | 3.39, 3 |
+| 2020-01-06 | LPB | stale_adjusted_close | 2.51, 4 |
+| 2020-01-06 | SHB | stale_adjusted_close | 2.07, 3 |
+| 2020-01-07 | LPB | stale_adjusted_close | 2.51, 4 |
+| 2020-01-07 | SHB | stale_adjusted_close | 2.07, 3 |
+| 2020-01-08 | LPB | stale_adjusted_close | 2.51, 4 |
+| 2020-01-08 | SHB | stale_adjusted_close | 2.07, 3 |
+| 2020-01-09 | LPB | stale_adjusted_close | 2.51, 4 |
+| 2020-01-13 | LPB | stale_adjusted_close | 2.58, 3 |
+| 2020-01-13 | VHM | stale_adjusted_close | 61.28, 3 |
+| 2020-01-14 | LPB | stale_adjusted_close | 2.58, 3 |
+| 2020-01-14 | VHM | stale_adjusted_close | 61.28, 3 |
+| 2020-01-14 | VIC | stale_adjusted_close | 51.1, 3 |
+| 2020-01-14 | VJC | stale_adjusted_close | 112.3, 3 |
+| 2020-01-15 | LPB | stale_adjusted_close | 2.58, 3 |
+| 2020-01-15 | VHM | stale_adjusted_close | 61.28, 3 |
+| 2020-01-15 | VIC | stale_adjusted_close | 51.1, 3 |
+| 2020-01-15 | VJC | stale_adjusted_close | 112.3, 3 |
+| 2020-01-16 | MBB | stale_adjusted_close | 6.4, 3 |
+| 2020-01-16 | VIC | stale_adjusted_close | 51.1, 3 |
+| 2020-01-16 | VJC | stale_adjusted_close | 112.3, 3 |
+| 2020-01-17 | MBB | stale_adjusted_close | 6.4, 3 |
+| 2020-01-17 | SSI | stale_adjusted_close | 6.36, 3 |
+| 2020-01-17 | VIC | stale_adjusted_close | 51.06, 5 |
+| 2020-01-20 | MBB | stale_adjusted_close | 6.4, 3 |
+| 2020-01-20 | SSI | stale_adjusted_close | 6.36, 3 |
+| 2020-01-20 | TPB | stale_adjusted_close | 6.1, 3 |
+| 2020-01-20 | VIC | stale_adjusted_close | 51.06, 5 |
+| 2020-01-21 | BSR | suspicious_adjusted_close_jump | 4.85, 0.13317757009345788 |
+| 2020-01-21 | SSI | stale_adjusted_close | 6.36, 3 |
+| 2020-01-21 | TPB | stale_adjusted_close | 6.1, 3 |
+| 2020-01-21 | VIC | stale_adjusted_close | 51.06, 5 |
+| 2020-01-22 | TPB | stale_adjusted_close | 6.1, 3 |
+| 2020-01-22 | VIC | stale_adjusted_close | 51.06, 5 |
+| 2020-01-30 | VIC | stale_adjusted_close | 51.06, 5 |
+| 2020-01-31 | VIC | stale_adjusted_close | 51.02, 3 |
+| 2020-02-03 | MSN | stale_adjusted_close | 40.51, 3 |
+| 2020-02-03 | VIC | stale_adjusted_close | 51.02, 3 |
+| 2020-02-04 | MSN | stale_adjusted_close | 40.51, 3 |
+| 2020-02-04 | VIC | stale_adjusted_close | 51.02, 3 |
+| 2020-02-05 | MSN | stale_adjusted_close | 40.51, 3 |
+| 2020-02-06 | MSN | stale_adjusted_close | 40.43, 4 |
+| 2020-02-07 | MSN | stale_adjusted_close | 40.43, 4 |
+| 2020-02-10 | MSN | stale_adjusted_close | 40.43, 4 |
+| 2020-02-11 | MSN | stale_adjusted_close | 40.43, 4 |
+| 2020-02-12 | BSR | stale_adjusted_close | 4.45, 4 |
+| 2020-02-13 | BSR | stale_adjusted_close | 4.45, 4 |
+| 2020-02-14 | BSR | stale_adjusted_close | 4.45, 4 |
+| 2020-02-14 | TPB | stale_adjusted_close | 6.18, 3 |
+| 2020-02-17 | BSR | stale_adjusted_close | 4.45, 4 |
+| 2020-02-17 | TPB | stale_adjusted_close | 6.18, 3 |
+| 2020-02-18 | LPB | close_outside_daily_range | 2.68, 2.72, 2.76 |
+| 2020-02-18 | TPB | stale_adjusted_close | 6.18, 3 |
+| 2020-02-18 | VIB | close_outside_daily_range | 3.96, 4.05, 4.07 |
+| 2020-02-25 | BSR | stale_adjusted_close | 4.23, 4 |
+| 2020-02-26 | BSR | stale_adjusted_close | 4.23, 4 |
+| 2020-02-27 | BSR | stale_adjusted_close | 4.23, 4 |
+| 2020-02-28 | BSR | stale_adjusted_close | 4.23, 4 |
+| 2020-02-28 | MSN | stale_adjusted_close | 39.7, 4 |
+| 2020-03-02 | LPB | suspicious_adjusted_close_jump | 2.94, 0.10943396226415092 |
+| 2020-03-02 | MSN | stale_adjusted_close | 39.7, 4 |
+| 2020-03-02 | VHM | stale_adjusted_close | 57.16, 3 |
+| 2020-03-03 | LPB | suspicious_adjusted_close_jump | 3.24, 0.10204081632653073 |
+| 2020-03-03 | MSN | stale_adjusted_close | 39.7, 4 |
+| 2020-03-03 | PLX | stale_adjusted_close | 40.28, 3 |
+| 2020-03-03 | VHM | stale_adjusted_close | 57.16, 3 |
+| 2020-03-04 | MSN | stale_adjusted_close | 39.7, 4 |
+| 2020-03-04 | PLX | stale_adjusted_close | 40.28, 3 |
+| 2020-03-04 | VHM | stale_adjusted_close | 57.16, 3 |
+| 2020-03-05 | PLX | stale_adjusted_close | 40.28, 3 |
+| 2020-03-09 | BSR | suspicious_adjusted_close_jump | 4.0, -0.13606911447084236 |
+| 2020-03-09 | LPB | suspicious_adjusted_close_jump | 2.68, -0.1545741324921135 |
+| 2020-03-09 | VIB | suspicious_adjusted_close_jump | 3.56, -0.11662531017369726 |
+| 2020-03-11 | SHB | suspicious_adjusted_close_jump | 4.37, 0.10075566750629728 |
+| 2020-03-17 | GVR | suspicious_adjusted_close_jump | 9.83, -0.10391978122151324 |
+| 2020-03-19 | MSN | stale_adjusted_close | 39.86, 3 |
+| 2020-03-20 | MSN | stale_adjusted_close | 39.86, 3 |
+| 2020-03-23 | BSR | suspicious_adjusted_close_jump | 3.08, -0.12994350282485878 |
+| 2020-03-23 | LPB | suspicious_adjusted_close_jump | 2.2, -0.13043478260869557 |
+| 2020-03-23 | MSN | stale_adjusted_close | 39.86, 3 |
+| 2020-03-23 | VIB | suspicious_adjusted_close_jump | 2.9, -0.10769230769230775 |
+| 2020-03-30 | BSR | suspicious_adjusted_close_jump | 2.8, -0.10828025477707015 |
+| 2020-04-03 | BSR | suspicious_adjusted_close_jump | 3.2, 0.11888111888111896 |
+| 2020-04-09 | BSR | stale_adjusted_close | 3.31, 3 |
+| 2020-04-10 | BSR | stale_adjusted_close | 3.31, 3 |
+| 2020-04-10 | VIB | stale_adjusted_close | 3.14, 3 |
+| 2020-04-13 | BSR | stale_adjusted_close | 3.31, 3 |
+| 2020-04-13 | VIB | stale_adjusted_close | 3.14, 3 |
+| 2020-04-14 | VIB | stale_adjusted_close | 3.14, 3 |
+| 2020-04-17 | BSR | suspicious_adjusted_close_jump | 3.6, 0.10769230769230775 |
+| 2020-04-22 | TPB | stale_adjusted_close | 5.02, 3 |
+| 2020-04-23 | TPB | stale_adjusted_close | 5.02, 3 |
+| 2020-04-24 | TPB | stale_adjusted_close | 5.02, 3 |
+| 2020-05-04 | LPB | stale_adjusted_close | 2.65, 4 |
+| 2020-05-05 | BSR | stale_adjusted_close | 3.43, 3 |
+| 2020-05-05 | LPB | stale_adjusted_close | 2.65, 4 |
+| 2020-05-06 | BSR | stale_adjusted_close | 3.43, 3 |
+| 2020-05-06 | LPB | stale_adjusted_close | 2.65, 4 |
+| 2020-05-07 | BSR | stale_adjusted_close | 3.43, 3 |
+| 2020-05-07 | LPB | stale_adjusted_close | 2.65, 4 |
+| 2020-05-14 | BSR | stale_adjusted_close | 3.71, 6 |
+| 2020-05-14 | VJC | stale_adjusted_close | 87.69, 3 |
+| 2020-05-15 | BSR | stale_adjusted_close | 3.71, 6 |
+| 2020-05-15 | VJC | stale_adjusted_close | 87.69, 3 |
+| 2020-05-18 | BSR | stale_adjusted_close | 3.71, 6 |
+| 2020-05-18 | VJC | stale_adjusted_close | 87.69, 3 |
+| 2020-05-19 | BSR | stale_adjusted_close | 3.71, 6 |
+| 2020-05-20 | BSR | stale_adjusted_close | 3.71, 6 |
+| 2020-05-20 | LPB | stale_adjusted_close | 2.83, 3 |
+| 2020-05-21 | BSR | stale_adjusted_close | 3.71, 6 |
+| 2020-05-21 | LPB | stale_adjusted_close | 2.83, 3 |
+| 2020-05-22 | BSR | stale_adjusted_close | 3.65, 5 |
+| 2020-05-22 | LPB | stale_adjusted_close | 2.83, 3 |
+| 2020-05-25 | BSR | stale_adjusted_close | 3.65, 5 |
+| 2020-05-26 | BSR | stale_adjusted_close | 3.65, 5 |
+| 2020-05-27 | BSR | stale_adjusted_close | 3.65, 5 |
+| 2020-05-28 | BSR | stale_adjusted_close | 3.65, 5 |
+| 2020-06-02 | LPB | stale_adjusted_close | 3.24, 3 |
+| 2020-06-03 | BSR | suspicious_adjusted_close_jump | 4.17, 0.10610079575596809 |
+| 2020-06-03 | LPB | stale_adjusted_close | 3.24, 3 |
+| 2020-06-04 | LPB | stale_adjusted_close | 3.24, 3 |
+| 2020-06-16 | BSR | stale_adjusted_close | 4.05, 3 |
+| 2020-06-17 | BSR | stale_adjusted_close | 4.05, 3 |
+| 2020-06-18 | BSR | stale_adjusted_close | 4.05, 3 |
+| 2020-06-19 | MBB | stale_adjusted_close | 5.09, 3 |
+| 2020-06-19 | VIB | stale_adjusted_close | 3.87, 3 |
+| 2020-06-22 | MBB | stale_adjusted_close | 5.09, 3 |
+| 2020-06-22 | VIB | stale_adjusted_close | 3.87, 3 |
+| 2020-06-23 | MBB | stale_adjusted_close | 5.09, 3 |
+| 2020-06-23 | VIB | stale_adjusted_close | 3.87, 3 |
+| 2020-06-24 | BSR | stale_adjusted_close | 4.11, 3 |
+| 2020-06-24 | LPB | stale_adjusted_close | 3.28, 3 |
+| 2020-06-24 | VJC | stale_adjusted_close | 83.46, 3 |
+| 2020-06-25 | BSR | stale_adjusted_close | 4.11, 3 |
+| 2020-06-25 | LPB | stale_adjusted_close | 3.28, 3 |
+| 2020-06-25 | VJC | stale_adjusted_close | 83.46, 3 |
+| 2020-06-26 | BSR | stale_adjusted_close | 4.11, 3 |
+| 2020-06-26 | LPB | stale_adjusted_close | 3.28, 3 |
+| 2020-06-26 | VJC | stale_adjusted_close | 83.46, 3 |
+| 2020-07-01 | CTG | stale_adjusted_close | 10.21, 3 |
+| 2020-07-01 | VIB | stale_adjusted_close | 3.92, 4 |
+| 2020-07-02 | CTG | stale_adjusted_close | 10.21, 3 |
+| 2020-07-02 | VIB | stale_adjusted_close | 3.92, 4 |
+| 2020-07-03 | CTG | stale_adjusted_close | 10.21, 3 |
+| 2020-07-03 | HDB | stale_adjusted_close | 5.15, 3 |
+| 2020-07-03 | VIB | stale_adjusted_close | 3.92, 4 |
+| 2020-07-06 | HDB | stale_adjusted_close | 5.15, 3 |
+| 2020-07-06 | VIB | stale_adjusted_close | 3.92, 4 |
+| 2020-07-07 | HDB | stale_adjusted_close | 5.15, 3 |
+| 2020-07-10 | BSR | stale_adjusted_close | 4.05, 4 |
+| 2020-07-10 | VJC | stale_adjusted_close | 83.07, 3 |
+| 2020-07-13 | BSR | stale_adjusted_close | 4.05, 4 |
+| 2020-07-13 | VJC | stale_adjusted_close | 83.07, 3 |
+| 2020-07-14 | ACB | stale_adjusted_close | 5.98, 3 |
+| 2020-07-14 | BSR | stale_adjusted_close | 4.05, 4 |
+| 2020-07-14 | VJC | stale_adjusted_close | 83.07, 3 |
+| 2020-07-15 | ACB | stale_adjusted_close | 5.98, 3 |
+| 2020-07-15 | BSR | stale_adjusted_close | 4.05, 4 |
+| 2020-07-15 | CTG | stale_adjusted_close | 11.04, 3 |
+| 2020-07-16 | ACB | stale_adjusted_close | 5.98, 3 |
+| 2020-07-16 | CTG | stale_adjusted_close | 11.04, 3 |
+| 2020-07-17 | CTG | stale_adjusted_close | 11.04, 3 |
+| 2020-07-21 | VCB | stale_adjusted_close | 35.65, 3 |
+| 2020-07-22 | VCB | stale_adjusted_close | 35.65, 3 |
+| 2020-07-23 | VCB | stale_adjusted_close | 35.65, 3 |
+| 2020-07-27 | BSR | suspicious_adjusted_close_jump | 3.25, -0.1095890410958904 |
+| 2020-08-05 | VHM | stale_adjusted_close | 56.52, 4 |
+| 2020-08-06 | VHM | stale_adjusted_close | 56.52, 4 |
+| 2020-08-07 | VHM | stale_adjusted_close | 56.52, 4 |
+| 2020-08-10 | VHM | stale_adjusted_close | 56.52, 4 |
+| 2020-08-11 | VHM | stale_adjusted_close | 56.38, 3 |
+| 2020-08-12 | VHM | stale_adjusted_close | 56.38, 3 |
+| 2020-08-13 | VHM | stale_adjusted_close | 56.38, 3 |
+| 2020-08-18 | VIB | stale_adjusted_close | 4.63, 3 |
+| 2020-08-19 | VIB | stale_adjusted_close | 4.63, 3 |
+| 2020-08-20 | VIB | stale_adjusted_close | 4.63, 3 |
+| 2020-08-25 | VIC | stale_adjusted_close | 40.44, 3 |
+| 2020-08-26 | MBB | stale_adjusted_close | 5.21, 3 |
+| 2020-08-26 | TPB | stale_adjusted_close | 6.33, 3 |
+| 2020-08-26 | VIC | stale_adjusted_close | 40.44, 3 |
+| 2020-08-26 | VRE | stale_adjusted_close | 26.27, 3 |
+| 2020-08-27 | LPB | stale_adjusted_close | 3.43, 4 |
+| 2020-08-27 | MBB | stale_adjusted_close | 5.21, 3 |
+| 2020-08-27 | TPB | stale_adjusted_close | 6.33, 3 |
+| 2020-08-27 | VIC | stale_adjusted_close | 40.44, 3 |
+| 2020-08-27 | VRE | stale_adjusted_close | 26.27, 3 |
+| 2020-08-28 | LPB | stale_adjusted_close | 3.43, 4 |
+| 2020-08-28 | MBB | stale_adjusted_close | 5.21, 3 |
+| 2020-08-28 | TPB | stale_adjusted_close | 6.33, 3 |
+| 2020-08-28 | VRE | stale_adjusted_close | 26.27, 3 |
+| 2020-08-31 | LPB | stale_adjusted_close | 3.43, 4 |
+| 2020-09-01 | BSR | stale_adjusted_close | 3.83, 3 |
+| 2020-09-01 | LPB | stale_adjusted_close | 3.43, 4 |
+| 2020-09-03 | BSR | stale_adjusted_close | 3.83, 3 |
+| 2020-09-04 | BSR | stale_adjusted_close | 3.83, 3 |
+| 2020-09-07 | BSR | stale_adjusted_close | 3.77, 4 |
+| 2020-09-08 | BSR | stale_adjusted_close | 3.77, 4 |
+| 2020-09-08 | LPB | stale_adjusted_close | 3.39, 3 |
+| 2020-09-08 | VIC | stale_adjusted_close | 40.22, 3 |
+| 2020-09-09 | BSR | stale_adjusted_close | 3.77, 4 |
+| 2020-09-09 | LPB | stale_adjusted_close | 3.39, 3 |
 
 ## Treatment Policy
 

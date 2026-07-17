@@ -144,3 +144,28 @@ def test_current_universe_identifies_all_bank_members_for_risk_control() -> None
         "ACB", "BID", "CTG", "HDB", "LPB", "MBB", "SHB", "SSB", "STB",
         "TCB", "TPB", "VCB", "VIB", "VPB",
     }
+
+def test_crossed_issuer_and_sector_caps_use_joint_feasible_allocation() -> None:
+    prediction_frame, universe = predictions(
+        ["Group 1", "Group 1", "Group 2"],
+        ["Sector 1", "Sector 2", "Sector 1"],
+    )
+
+    result = build_constrained_target_weights(
+        predictions=prediction_frame,
+        universe=universe,
+        target_holdings=3,
+        target_invested_weight="0.90",
+        max_single_name_weight="0.50",
+        max_issuer_group_weight="0.50",
+        max_sector_weight="0.50",
+    )
+    targets = result.target_weights
+
+    assert abs(result.invested_weight - Decimal("0.90")) <= TOLERANCE
+    assert targets.groupby("issuer_group")["target_weight"].sum().max() <= Decimal(
+        "0.50"
+    )
+    assert targets.groupby("sector")["target_weight"].sum().max() <= Decimal(
+        "0.50"
+    )

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_FLOOR, Decimal
 from typing import Iterable
 
 import pandas as pd
+from scipy.optimize import linprog
 
 
 ZERO = Decimal("0")
@@ -145,29 +146,36 @@ def _selection_capacity(
     max_issuer_group_weight: Decimal,
     max_sector_weight: Decimal,
 ) -> Decimal:
-    group_counts = selected.groupby("issuer_group")["ticker"].count()
-    sector_counts = selected.groupby("sector")["ticker"].count()
+    tickers = selected["ticker"].tolist()
+    groups = selected.set_index("ticker")["issuer_group"].to_dict()
+    sectors = selected.set_index("ticker")["sector"].to_dict()
+    inequalities: list[list[float]] = []
+    limits: list[float] = []
 
-    issuer_capacity = sum(
-        (
-            min(
-                _to_decimal(count) * max_single_name_weight,
-                max_issuer_group_weight,
-            )
-            for count in group_counts
-        ),
-        start=ZERO,
+    for group in sorted(set(groups.values())):
+        inequalities.append(
+            [float(groups[ticker] == group) for ticker in tickers]
+        )
+        limits.append(float(max_issuer_group_weight))
+
+    for sector in sorted(set(sectors.values())):
+        inequalities.append(
+            [float(sectors[ticker] == sector) for ticker in tickers]
+        )
+        limits.append(float(max_sector_weight))
+
+    solution = linprog(
+        c=[-1.0] * len(tickers),
+        A_ub=inequalities,
+        b_ub=limits,
+        bounds=[(0.0, float(max_single_name_weight))] * len(tickers),
+        method="highs",
     )
-    sector_capacity = sum(
-        (
-            min(_to_decimal(count) * max_single_name_weight, max_sector_weight)
-            for count in sector_counts
-        ),
-        start=ZERO,
-    )
 
-    return min(issuer_capacity, sector_capacity)
+    if not solution.success:
+        raise ValueError("Unable to calculate joint target-weight capacity")
 
+    return Decimal(str(round(-float(solution.fun), 10)))
 
 def _select_capacity_feasible_names(
     ranked: pd.DataFrame,
@@ -251,89 +259,56 @@ def _allocate_capped_weights(
     max_issuer_group_weight: Decimal,
     max_sector_weight: Decimal,
 ) -> dict[str, Decimal]:
+    tickers = selected["ticker"].tolist()
     groups = selected.set_index("ticker")["issuer_group"].to_dict()
     sectors = selected.set_index("ticker")["sector"].to_dict()
-    weights = {ticker: ZERO for ticker in selected["ticker"]}
-    remaining = target_invested_weight
+    count = len(tickers)
+    objective = [0.0] * (count + 1)
+    objective[-1] = -1.0
+    inequalities: list[list[float]] = []
+    limits: list[float] = []
 
-    while remaining > TOLERANCE:
-        group_weights = {
-            group: sum(
-                (
-                    weights[ticker]
-                    for ticker, ticker_group in groups.items()
-                    if ticker_group == group
-                ),
-                start=ZERO,
-            )
-            for group in set(groups.values())
-        }
-        sector_weights = {
-            sector: sum(
-                (
-                    weights[ticker]
-                    for ticker, ticker_sector in sectors.items()
-                    if ticker_sector == sector
-                ),
-                start=ZERO,
-            )
-            for sector in set(sectors.values())
-        }
-        active = [
-            ticker
-            for ticker in weights
-            if weights[ticker] + TOLERANCE < max_single_name_weight
-            and group_weights[groups[ticker]] + TOLERANCE
-            < max_issuer_group_weight
-            and sector_weights[sectors[ticker]] + TOLERANCE < max_sector_weight
-        ]
+    for group in sorted(set(groups.values())):
+        inequalities.append(
+            [float(groups[ticker] == group) for ticker in tickers] + [0.0]
+        )
+        limits.append(float(max_issuer_group_weight))
 
-        if not active:
-            raise ValueError("Target-weight capacity was exhausted before allocation")
+    for sector in sorted(set(sectors.values())):
+        inequalities.append(
+            [float(sectors[ticker] == sector) for ticker in tickers] + [0.0]
+        )
+        limits.append(float(max_sector_weight))
 
-        equal_increment = remaining / len(active)
-        active_group_counts = {
-            group: sum(groups[ticker] == group for ticker in active)
-            for group in set(groups[ticker] for ticker in active)
-        }
-        active_sector_counts = {
-            sector: sum(sectors[ticker] == sector for ticker in active)
-            for sector in set(sectors[ticker] for ticker in active)
-        }
-        increments: dict[str, Decimal] = {}
+    for index in range(count):
+        row = [0.0] * (count + 1)
+        row[index] = -1.0
+        row[-1] = 1.0
+        inequalities.append(row)
+        limits.append(0.0)
 
-        for ticker in active:
-            group = groups[ticker]
-            single_capacity = max_single_name_weight - weights[ticker]
-            group_capacity_per_name = (
-                max_issuer_group_weight - group_weights[group]
-            ) / active_group_counts[group]
-            sector = sectors[ticker]
-            sector_capacity_per_name = (
-                max_sector_weight - sector_weights[sector]
-            ) / active_sector_counts[sector]
-            increments[ticker] = min(
-                equal_increment,
-                single_capacity,
-                group_capacity_per_name,
-                sector_capacity_per_name,
-            )
+    solution = linprog(
+        c=objective,
+        A_ub=inequalities,
+        b_ub=limits,
+        A_eq=[[1.0] * count + [0.0]],
+        b_eq=[float(target_invested_weight)],
+        bounds=[(0.0, float(max_single_name_weight))] * count
+        + [(0.0, float(max_single_name_weight))],
+        method="highs",
+    )
 
-        allocated = sum(increments.values(), start=ZERO)
+    if not solution.success:
+        raise ValueError("Target-weight capacity was exhausted before allocation")
 
-        if allocated > remaining:
-            last_ticker = active[-1]
-            increments[last_ticker] -= allocated - remaining
-            allocated = remaining
-
-        if allocated <= TOLERANCE:
-            raise ValueError("Target-weight allocation made no progress")
-
-        for ticker, increment in increments.items():
-            weights[ticker] += increment
-
-        remaining -= allocated
-
+    quantum = Decimal("1e-12")
+    weights = {
+        ticker: Decimal(str(max(0.0, float(solution.x[index])))).quantize(
+            quantum,
+            rounding=ROUND_FLOOR,
+        )
+        for index, ticker in enumerate(tickers)
+    }
     residual = target_invested_weight - sum(weights.values(), start=ZERO)
 
     if residual > ZERO:
@@ -368,11 +343,19 @@ def _allocate_capped_weights(
             if residual <= ZERO:
                 break
 
+    if residual < ZERO:
+        for ticker in sorted(weights, key=weights.get, reverse=True):
+            reduction = min(-residual, weights[ticker])
+            weights[ticker] -= reduction
+            residual += reduction
+
+            if residual >= ZERO:
+                break
+
     if abs(target_invested_weight - sum(weights.values(), start=ZERO)) > TOLERANCE:
         raise ValueError("Allocated target weights do not match invested-weight target")
 
     return weights
-
 
 def build_constrained_target_weights(
     predictions: pd.DataFrame,
