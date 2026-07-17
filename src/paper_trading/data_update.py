@@ -391,6 +391,7 @@ def build_daily_update(
         data_update_cutoff=data_update_cutoff,
         execution_submission_cutoff=execution_submission_cutoff,
         holiday_dates=holiday_dates,
+        enforce_execution_cutoff=False,
     )
     suspicious_moves = find_suspicious_moves(
         combined,

@@ -107,3 +107,17 @@ def test_calendar_can_find_nearest_covered_trading_dates() -> None:
 
     assert calendar.latest_on_or_before("2026-07-12") == date(2026, 7, 10)
     assert calendar.earliest_on_or_after("2026-07-12") == date(2026, 7, 13)
+
+
+def test_data_maintenance_can_ignore_expired_execution_cutoff() -> None:
+    timing = resolve_signal_timing(
+        data_asof_date="2026-07-10",
+        generated_at=local_datetime("2026-07-13T09:00:00"),
+        timezone_name="Asia/Ho_Chi_Minh",
+        data_update_cutoff="15:15",
+        execution_submission_cutoff="08:45",
+        enforce_execution_cutoff=False,
+    )
+
+    assert timing.data_asof_date == date(2026, 7, 10)
+    assert timing.intended_execution_date == date(2026, 7, 13)

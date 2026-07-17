@@ -55,6 +55,7 @@ def validate_completed_market_data(
     data_update_cutoff: str,
     execution_submission_cutoff: str,
     holiday_dates: Iterable[DateLike] = (),
+    enforce_execution_cutoff: bool = True,
 ) -> CompletedMarketDataValidation:
     if data.empty:
         raise ValueError("OHLCV data is empty")
@@ -93,6 +94,7 @@ def validate_completed_market_data(
         data_update_cutoff=data_update_cutoff,
         execution_submission_cutoff=execution_submission_cutoff,
         holiday_dates=holidays,
+        enforce_execution_cutoff=enforce_execution_cutoff,
     )
     latest = working.loc[working["date"].dt.date == latest_date].copy()
     expected = tuple(sorted({str(ticker).strip().upper() for ticker in expected_tickers}))

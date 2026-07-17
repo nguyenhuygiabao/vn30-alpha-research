@@ -79,6 +79,7 @@ def resolve_signal_timing(
     data_update_cutoff: str,
     execution_submission_cutoff: str,
     holiday_dates: Iterable[DateLike] = (),
+    enforce_execution_cutoff: bool = True,
 ) -> SignalTiming:
     data_date = normalize_date(data_asof_date)
     timezone = ZoneInfo(timezone_name)
@@ -107,14 +108,15 @@ def resolve_signal_timing(
     execution_date = calendar.next_trading_day(data_date)
     submission_cutoff = parse_market_time(execution_submission_cutoff)
 
-    if local_time.date() > execution_date:
+    if enforce_execution_cutoff and local_time.date() > execution_date:
         raise ValueError(
             f"Signal is stale because intended execution date {execution_date} "
             f"has already passed"
         )
 
     if (
-        local_time.date() == execution_date
+        enforce_execution_cutoff
+        and local_time.date() == execution_date
         and local_time.time() > submission_cutoff
     ):
         raise ValueError(
