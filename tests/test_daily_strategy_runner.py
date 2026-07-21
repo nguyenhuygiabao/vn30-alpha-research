@@ -13,8 +13,13 @@ def test_default_daily_workflow_ends_with_preview() -> None:
     )
 
     assert steps[0].name == "daily_data_update"
-    assert steps[-1].name == "paper_order_plan"
-    assert "--write" not in steps[-1].command
+    assert steps[-4].name == "paper_order_plan"
+    assert "--write" not in steps[-4].command
+    assert [step.name for step in steps[-3:]] == [
+        "dashboard_tables",
+        "interactive_charts",
+        "html_dashboard",
+    ]
 
 
 def test_recording_requires_explicit_flag() -> None:
@@ -25,7 +30,7 @@ def test_recording_requires_explicit_flag() -> None:
     )
 
     assert steps[0].name == "feature_pipeline"
-    assert steps[-1].command[-1] == "--write"
+    assert steps[-4].command[-1] == "--write"
 
 
 def test_daily_workflow_stops_after_failed_step() -> None:

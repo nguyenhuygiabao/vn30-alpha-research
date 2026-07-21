@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from src.data_loader import load_ohlcv_csv
 from src.paper_trading.config import load_paper_trading_config
+from src.paper_trading.daily_exports import write_daily_exports
 from src.paper_trading.execution_rules import ExecutionConstraints, MarketSnapshot
 from src.paper_trading.market_data import (
     load_universe_tickers,
@@ -257,6 +258,23 @@ def main():
             print("PAPER PLAN RECORDED SUCCESSFULLY")
         else:
             print("PAPER PLAN ALREADY RECORDED; NO DUPLICATES ADDED")
+
+        export_paths = write_daily_exports(
+            output_directory=ROOT / "reports" / "daily",
+            model_name=args.model,
+            signal_date=validation.timing.signal_date,
+            intended_execution_date=(
+                validation.timing.intended_execution_date
+            ),
+            targets=targets.target_weights,
+            plan=plan,
+            broker=broker,
+            snapshots=snapshots,
+        )
+
+        print("Daily snapshot files:")
+        for path in export_paths.values():
+            print(f"- {path.relative_to(ROOT)}")
 
         print("No real orders were submitted.")
     else:

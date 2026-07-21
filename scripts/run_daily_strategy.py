@@ -76,6 +76,30 @@ def build_steps(
         )
     )
 
+    steps.extend([
+        DailyStep(
+            "dashboard_tables",
+            (
+                sys.executable,
+                str(ROOT / "scripts" / "build_dashboard_tables.py"),
+            ),
+        ),
+        DailyStep(
+            "interactive_charts",
+            (
+                sys.executable,
+                str(ROOT / "scripts" / "build_interactive_charts.py"),
+            ),
+        ),
+        DailyStep(
+            "html_dashboard",
+            (
+                sys.executable,
+                str(ROOT / "scripts" / "build_html_report.py"),
+            ),
+        ),
+    ])
+
     return steps
 
 

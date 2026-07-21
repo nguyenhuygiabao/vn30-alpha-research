@@ -21,3 +21,6 @@ reports/figures/cumulative_after_cost_active_return.png
 reports/figures/active_drawdown.png
 reports/figures/portfolio_turnover.png
 reports/figures/rolling_diagnostic_sharpe.png
+
+# Mutable daily recommendation outputs
+reports/daily/
