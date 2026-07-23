@@ -7,6 +7,9 @@ from src.universe_history import (
     filter_to_point_in_time_universe,
     filter_to_universe,
     historical_ticker_pool,
+    normalize_constituent_snapshots,
+    snapshots_to_membership_history,
+    validate_constituent_snapshot_coverage,
     normalize_membership_history,
     summarize_membership_coverage,
 )
@@ -180,3 +183,102 @@ def test_filter_to_universe_rejects_unknown_mode() -> None:
         assert "Unknown universe mode" in str(error)
     else:
         raise AssertionError("Unknown universe mode was accepted")
+
+
+def constituent_snapshots() -> pd.DataFrame:
+    rows = []
+    baskets = {
+        "2020-01-01": ["AAA", "BBB", "CCC"],
+        "2020-07-01": ["BBB", "CCC", "DDD"],
+        "2021-01-01": ["AAA", "CCC", "DDD"],
+    }
+
+    for effective_date, tickers in baskets.items():
+        for ticker in tickers:
+            rows.append(
+                {
+                    "effective_date": effective_date,
+                    "ticker": ticker,
+                    "source_url": f"https://example.com/{effective_date}",
+                }
+            )
+
+    return pd.DataFrame(rows)
+
+
+def test_normalize_constituent_snapshots_requires_complete_baskets() -> None:
+    incomplete = constituent_snapshots().loc[
+        lambda data: ~(
+            data["effective_date"].eq("2020-01-01")
+            & data["ticker"].eq("AAA")
+        )
+    ]
+
+    try:
+        normalize_constituent_snapshots(incomplete, expected_size=3)
+    except ValueError as error:
+        assert "must contain 3 tickers" in str(error)
+    else:
+        raise AssertionError("An incomplete constituent snapshot was accepted")
+
+
+def test_normalize_constituent_snapshots_rejects_duplicates() -> None:
+    snapshots = constituent_snapshots()
+    duplicated = pd.concat([snapshots, snapshots.iloc[[0]]], ignore_index=True)
+
+    try:
+        normalize_constituent_snapshots(duplicated, expected_size=3)
+    except ValueError as error:
+        assert "duplicate" in str(error).lower()
+    else:
+        raise AssertionError("A duplicate constituent row was accepted")
+
+
+def test_snapshot_conversion_handles_exit_and_reentry() -> None:
+    history = snapshots_to_membership_history(
+        constituent_snapshots(),
+        expected_size=3,
+    )
+
+    aaa = history.loc[history["ticker"].eq("AAA")].reset_index(drop=True)
+
+    assert aaa["effective_from"].tolist() == [
+        pd.Timestamp("2020-01-01"),
+        pd.Timestamp("2021-01-01"),
+    ]
+    assert aaa.loc[0, "effective_to"] == pd.Timestamp("2020-06-30")
+    assert pd.isna(aaa.loc[1, "effective_to"])
+    assert historical_ticker_pool(history) == ["AAA", "BBB", "CCC", "DDD"]
+
+
+def test_snapshot_coverage_rejects_missing_review_period() -> None:
+    snapshots = constituent_snapshots().loc[
+        lambda data: ~data["effective_date"].eq("2020-07-01")
+    ]
+
+    try:
+        validate_constituent_snapshot_coverage(
+            snapshots,
+            start_date="2020-01-02",
+            end_date="2021-01-01",
+            expected_size=3,
+            maximum_gap_days=220,
+        )
+    except ValueError as error:
+        assert "excessive gaps" in str(error)
+    else:
+        raise AssertionError("Missing review-period coverage was accepted")
+
+
+def test_snapshot_coverage_requires_pre_start_snapshot() -> None:
+    try:
+        validate_constituent_snapshot_coverage(
+            constituent_snapshots(),
+            start_date="2019-12-31",
+            end_date="2020-02-01",
+            expected_size=3,
+        )
+    except ValueError as error:
+        assert "backtest start" in str(error)
+    else:
+        raise AssertionError("Coverage without a starting snapshot was accepted")
