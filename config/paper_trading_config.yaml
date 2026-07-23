@@ -10,7 +10,7 @@ timing:
   earliest_data_update_time: "15:15"
   require_completed_market_day: true
   signal_horizon_trading_days: 10
-  rebalance_frequency_trading_days: 5
+  rebalance_frequency_trading_days: 10
   execution_delay_trading_days: 1
   execution_price_source: next_open
   execution_submission_cutoff_time: "08:45"
