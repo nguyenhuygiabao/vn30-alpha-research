@@ -99,3 +99,57 @@ def summarize_membership_coverage(
             }
         )
     return pd.DataFrame(rows)
+
+
+UNIVERSE_MODES = ("strict_vn30", "expanding_alumni")
+
+
+def historical_ticker_pool(membership: pd.DataFrame) -> list[str]:
+    """Return every ticker that appears in verified membership history."""
+    normalized = normalize_membership_history(membership)
+    return sorted(normalized["ticker"].unique().tolist())
+
+
+def filter_to_expanding_alumni_universe(
+    market_data: pd.DataFrame,
+    membership: pd.DataFrame,
+) -> pd.DataFrame:
+    """Keep each ticker from its first known VN30 entry onward."""
+    required = {"date", "ticker"}
+    missing = sorted(required.difference(market_data.columns))
+    if missing:
+        raise ValueError(f"Market data are missing columns: {missing}")
+
+    normalized_membership = normalize_membership_history(membership)
+    first_entries = (
+        normalized_membership.groupby("ticker", as_index=False)["effective_from"]
+        .min()
+        .rename(columns={"effective_from": "first_vn30_entry"})
+    )
+
+    data = market_data.copy()
+    data["date"] = pd.to_datetime(data["date"], errors="raise").dt.normalize()
+    data["ticker"] = data["ticker"].astype(str).str.strip().str.upper()
+    data["_source_row"] = range(len(data))
+
+    joined = data.merge(first_entries, on="ticker", how="inner")
+    eligible = joined.loc[joined["date"] >= joined["first_vn30_entry"]].copy()
+
+    original_columns = list(market_data.columns)
+    return eligible.sort_values("_source_row")[original_columns].reset_index(drop=True)
+
+
+def filter_to_universe(
+    market_data: pd.DataFrame,
+    membership: pd.DataFrame,
+    mode: str = "strict_vn30",
+) -> pd.DataFrame:
+    """Apply strict VN30 or expanding VN30-alumni eligibility."""
+    if mode == "strict_vn30":
+        return filter_to_point_in_time_universe(market_data, membership)
+    if mode == "expanding_alumni":
+        return filter_to_expanding_alumni_universe(market_data, membership)
+
+    raise ValueError(
+        f"Unknown universe mode: {mode!r}. Expected one of {UNIVERSE_MODES}"
+    )
