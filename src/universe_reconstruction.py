@@ -460,6 +460,7 @@ def reconstruct_constituent_history(
                 {
                     "effective_date": effective_date,
                     "ticker": ticker,
+                    "source_url": source["source_url"],
                 }
             )
 
