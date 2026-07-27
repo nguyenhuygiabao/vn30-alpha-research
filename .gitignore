@@ -24,3 +24,6 @@ reports/figures/rolling_diagnostic_sharpe.png
 
 # Mutable daily recommendation outputs
 reports/daily/
+
+# Local FiinQuant SDK environment
+.venv-fiinquant/

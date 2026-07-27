@@ -16,6 +16,9 @@ def calculate_volume_concentration_top_n(
     values: pd.Series,
     top_n: int = TOP_TRADED_NAMES_COUNT,
 ) -> float:
+    if values.isna().any():
+        return float("nan")
+
     total_value_traded = values.sum()
 
     if total_value_traded <= 0:

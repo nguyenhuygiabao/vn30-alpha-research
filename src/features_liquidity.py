@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pandas as pd
 
-
 ROLLING_LIQUIDITY_WINDOW: int = 20
 AMIHUD_WINSOR_LOWER_QUANTILE: float = 0.01
 AMIHUD_WINSOR_UPPER_QUANTILE: float = 0.99
@@ -69,10 +68,14 @@ def add_liquidity_features(
         )
     )
 
-    working["volume_change_5d"] = working.groupby("ticker")[
-        "volume"
-    ].pct_change(
-        periods=5,
+    prior_volume = working.groupby(
+        "ticker",
+        sort=False,
+    )["volume"].shift(5)
+    working["volume_change_5d"] = (
+        working["volume"]
+        / prior_volume.where(prior_volume.gt(0))
+        - 1.0
     )
 
     if "shares_outstanding" in working.columns:
@@ -90,7 +93,10 @@ def add_liquidity_features(
         working["turnover_z_20"] = pd.NA
 
     working["amihud_illiquidity_raw"] = (
-        working["return_1d"].abs() / working["value_traded"]
+        working["return_1d"].abs()
+        / working["value_traded"].where(
+            working["value_traded"].gt(0)
+        )
     )
 
     working["amihud_illiquidity"] = working.groupby("date")[
