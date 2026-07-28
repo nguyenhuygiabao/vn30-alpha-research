@@ -193,7 +193,7 @@ def test_save_validates_before_writing(
     tmp_path: Path,
 ) -> None:
     features = complete_feature_output().drop(
-        columns=["foreign_buy_value_share_1d"]
+        columns=["foreign_flow_imbalance_1d"]
     )
     output_path = tmp_path / "features.parquet"
 
@@ -320,12 +320,7 @@ def test_point_in_time_filter_precedes_cross_sectional_ranks(
         result["foreign_net_value_share_1d"] = (
             result["value_traded"] / 100.0
         )
-        result["foreign_buy_value_share_1d"] = (
-            result["value_traded"] / 100.0
-        )
-        result["foreign_sell_value_share_1d"] = (
-            result["value_traded"] / 100.0
-        )
+        result["foreign_flow_imbalance_1d"] = 0.0
         result["foreign_net_value_rank_pct"] = -1.0
         result["foreign_buy_value_rank_pct"] = -1.0
         result["foreign_sell_value_rank_pct"] = -1.0

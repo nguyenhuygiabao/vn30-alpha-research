@@ -25,8 +25,7 @@ FROZEN_FOREIGN_FLOW_FEATURES = (
 )
 
 FB_FS_FOREIGN_FLOW_FEATURES = (
-    "foreign_buy_value_share_1d",
-    "foreign_sell_value_share_1d",
+    "foreign_flow_imbalance_1d",
     "foreign_buy_value_share_3d",
     "foreign_sell_value_share_3d",
     "foreign_buy_value_share_5d",
@@ -235,6 +234,22 @@ def add_foreign_flow_features(
         + combined["foreign_sell_value"]
     )
 
+    active_gross_flow = combined["foreign_gross_value"].gt(0)
+    combined["foreign_flow_imbalance_1d"] = (
+        combined["foreign_net_value"].div(
+            combined["foreign_gross_value"].where(
+                active_gross_flow
+            )
+        )
+    )
+    combined["foreign_flow_imbalance_1d"] = (
+        combined["foreign_flow_imbalance_1d"].mask(
+            combined["foreign_buy_value"].eq(0)
+            & combined["foreign_sell_value"].eq(0),
+            0.0,
+        )
+    )
+
     traded_value_denominator = (
         combined["value_traded"]
         .where(combined["value_traded"].gt(0))
@@ -378,7 +393,11 @@ def add_foreign_flow_features(
         ] = ranks[ratio_column]
 
     combined = combined.drop(
-        columns=["_foreign_net_buy_day"]
+        columns=[
+            "_foreign_net_buy_day",
+            "foreign_buy_value_share_1d",
+            "foreign_sell_value_share_1d",
+        ]
     )
 
     return combined.sort_values(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -22,53 +23,43 @@ from src.feature_pipeline import (
     load_verified_membership_history,
 )
 from src.foreign_flow_modeling import (
-    DEFAULT_DEVELOPMENT_END,
-    DEFAULT_HOLDOUT_START,
     DEFAULT_HORIZON_DAYS,
-    DEFAULT_INITIAL_TRAINING_DATES,
-    DEFAULT_PURGE_DATES,
-    DEFAULT_TEST_BLOCK_DATES,
+    DEFAULT_MINIMUM_TRAINING_DATES,
+    DEFAULT_RESEARCH_END,
+    DEFAULT_SIGNAL_STEP_DAYS,
     DEFAULT_TOP_N,
-    FEATURE_SET_ALL_FOREIGN,
-    FEATURE_SET_FROZEN_FOREIGN,
     FEATURE_SET_MARKET_BASELINE,
     FOREIGN_FLOW_FEATURE_SET_ORDER,
+    FROZEN_MARKET_BASELINE_FEATURES,
+    FROZEN_MODEL_NAME,
+    FUTURE_HOLDOUT_START,
+    assert_market_baseline_parity,
     build_canonical_modeling_dataset,
-    build_common_complete_case_sample,
     build_daily_foreign_flow_metrics,
-    build_expanding_walk_forward_windows,
     build_foreign_flow_feature_sets,
-    run_foreign_flow_walk_forward,
+    build_modeling_sample,
+    build_paper_horizon_signal_schedule,
+    build_production_market_baseline_reference,
+    run_foreign_flow_paper_horizon,
     summarize_foreign_feature_importance,
     summarize_foreign_flow_metrics,
     summarize_paired_foreign_flow_differences,
     target_column_for_horizon,
-    validate_foreign_flow_feature_sets,
 )
 from src.market_data_schema import (
     load_canonical_market_history,
 )
 
 
+OUTPUT_STEM = "foreign_flow_rebuild_development"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run a leakage-safe, fixed-parameter comparison of "
-            "market, frozen foreign-flow, and fb/fs feature sets."
+            "Rebuild the historical FB/FS comparison on the "
+            "production paper-horizon frame."
         )
-    )
-    parser.add_argument(
-        "--phase",
-        choices=("development", "holdout"),
-        default="development",
-    )
-    parser.add_argument(
-        "--candidate",
-        choices=FOREIGN_FLOW_FEATURE_SET_ORDER,
-        help=(
-            "Frozen development candidate. Required only for "
-            "the holdout phase."
-        ),
     )
     parser.add_argument(
         "--features-path",
@@ -92,19 +83,19 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_HORIZON_DAYS,
     )
     parser.add_argument(
-        "--initial-training-dates",
+        "--minimum-training-dates",
         type=int,
-        default=DEFAULT_INITIAL_TRAINING_DATES,
+        default=DEFAULT_MINIMUM_TRAINING_DATES,
     )
     parser.add_argument(
-        "--purge-dates",
+        "--signal-step-days",
         type=int,
-        default=DEFAULT_PURGE_DATES,
+        default=DEFAULT_SIGNAL_STEP_DAYS,
     )
+    parser.add_argument("--evaluation-start")
     parser.add_argument(
-        "--test-block-dates",
-        type=int,
-        default=DEFAULT_TEST_BLOCK_DATES,
+        "--research-end",
+        default=DEFAULT_RESEARCH_END.date().isoformat(),
     )
     parser.add_argument(
         "--top-n",
@@ -112,12 +103,9 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_TOP_N,
     )
     parser.add_argument(
-        "--development-end",
-        default=DEFAULT_DEVELOPMENT_END.date().isoformat(),
-    )
-    parser.add_argument(
-        "--holdout-start",
-        default=DEFAULT_HOLDOUT_START.date().isoformat(),
+        "--bootstrap-samples",
+        type=int,
+        default=2_000,
     )
     parser.add_argument(
         "--output-dir",
@@ -151,14 +139,8 @@ def _atomic_csv(
         temporary_path = Path(temporary.name)
 
     try:
-        data.to_csv(
-            temporary_path,
-            index=False,
-        )
-        os.replace(
-            temporary_path,
-            output_path,
-        )
+        data.to_csv(temporary_path, index=False)
+        os.replace(temporary_path, output_path)
     finally:
         temporary_path.unlink(missing_ok=True)
 
@@ -185,10 +167,7 @@ def _atomic_parquet(
             temporary_path,
             index=False,
         )
-        os.replace(
-            temporary_path,
-            output_path,
-        )
+        os.replace(temporary_path, output_path)
     finally:
         temporary_path.unlink(missing_ok=True)
 
@@ -221,143 +200,181 @@ def _atomic_json(
         temporary_path = Path(temporary.name)
 
     try:
-        os.replace(
-            temporary_path,
-            output_path,
-        )
+        os.replace(temporary_path, output_path)
     finally:
         temporary_path.unlink(missing_ok=True)
 
 
-def _phase_feature_sets(
-    all_feature_sets: dict[str, tuple[str, ...]],
-    *,
-    phase: str,
-    candidate: str | None,
-) -> dict[str, tuple[str, ...]]:
-    if phase == "development":
-        if candidate is not None:
-            raise ValueError(
-                "--candidate is not used during development"
-            )
+def _feature_contract_hash() -> str:
+    payload = "\n".join(
+        FROZEN_MARKET_BASELINE_FEATURES
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
-        return all_feature_sets
 
-    if candidate is None:
+def _validate_fixed_protocol(args: argparse.Namespace) -> pd.Timestamp:
+    if args.horizon_days != DEFAULT_HORIZON_DAYS:
         raise ValueError(
-            "--candidate is required for the holdout phase"
+            "The rebuild is frozen to a 10-trading-day target"
         )
 
-    if candidate == FEATURE_SET_MARKET_BASELINE:
+    if args.signal_step_days != args.horizon_days:
         raise ValueError(
-            "The holdout candidate must add foreign-flow features"
+            "Signal spacing must equal the forecast horizon"
         )
 
-    selected_names = list(
-        dict.fromkeys(
-            [
-                FEATURE_SET_MARKET_BASELINE,
-                FEATURE_SET_FROZEN_FOREIGN,
-                candidate,
+    if args.minimum_training_dates <= 0:
+        raise ValueError(
+            "Minimum training dates must be positive"
+        )
+
+    if args.top_n <= 0:
+        raise ValueError("top-n must be positive")
+
+    if args.bootstrap_samples <= 0:
+        raise ValueError(
+            "Bootstrap sample count must be positive"
+        )
+
+    research_end = pd.Timestamp(
+        args.research_end
+    ).normalize()
+
+    if research_end >= FUTURE_HOLDOUT_START:
+        raise ValueError(
+            "Historical development cannot enter the future "
+            f"holdout beginning {FUTURE_HOLDOUT_START.date()}"
+        )
+
+    return research_end
+
+
+def _restrict_to_research_end(
+    data: pd.DataFrame,
+    research_end: pd.Timestamp,
+) -> pd.DataFrame:
+    restricted = data.copy()
+    restricted["date"] = pd.to_datetime(
+        restricted["date"],
+        errors="raise",
+    ).dt.normalize()
+    return restricted.loc[
+        restricted["date"].le(research_end)
+    ].copy()
+
+
+def _validate_final_predictions(
+    predictions: pd.DataFrame,
+    feature_sets: dict[str, tuple[str, ...]],
+    research_end: pd.Timestamp,
+) -> None:
+    if set(predictions["feature_set"]) != set(
+        FOREIGN_FLOW_FEATURE_SET_ORDER
+    ):
+        raise ValueError(
+            "Final predictions lack a frozen feature set"
+        )
+
+    if predictions.duplicated(
+        ["date", "ticker", "feature_set"]
+    ).any():
+        raise ValueError(
+            "Final predictions contain duplicate keys"
+        )
+
+    if predictions[
+        ["predicted_return", "actual_return"]
+    ].isna().any().any():
+        raise ValueError(
+            "Final predictions contain missing values"
+        )
+
+    if pd.to_datetime(predictions["date"]).max() > research_end:
+        raise ValueError(
+            "Final predictions crossed the research cutoff"
+        )
+
+    coverage = predictions.groupby(
+        ["date", "ticker"]
+    )["feature_set"].nunique()
+
+    if not coverage.eq(len(feature_sets)).all():
+        raise ValueError(
+            "Feature sets have unmatched prediction coverage"
+        )
+
+    observed_counts = {
+        name: [
+            int(value)
+            for value in values
+        ]
+        for name, values in (
+            predictions.groupby("feature_set")[
+                "feature_count"
             ]
+            .unique()
+            .items()
         )
-    )
-
-    return {
-        name: all_feature_sets[name]
-        for name in selected_names
+    }
+    expected_counts = {
+        name: [len(columns)]
+        for name, columns in feature_sets.items()
     }
 
-
-def _load_development_feature_sets(
-    manifest_path: Path,
-    modeling: pd.DataFrame,
-    *,
-    horizon_days: int,
-    initial_training_dates: int,
-    purge_dates: int,
-    test_block_dates: int,
-) -> dict[str, tuple[str, ...]]:
-    if not manifest_path.is_file():
-        raise FileNotFoundError(
-            "Development manifest not found. Run and review the "
-            f"development phase first: {manifest_path}"
-        )
-
-    payload = json.loads(
-        manifest_path.read_text(encoding="utf-8")
-    )
-    expected_settings = {
-        "phase": "development",
-        "horizon_days": horizon_days,
-        "initial_training_dates": initial_training_dates,
-        "purge_dates": purge_dates,
-        "test_block_dates": test_block_dates,
-    }
-    mismatches = {
-        name: {
-            "expected": expected,
-            "received": payload.get(name),
-        }
-        for name, expected in expected_settings.items()
-        if payload.get(name) != expected
-    }
-
-    if mismatches:
+    if observed_counts != expected_counts:
         raise ValueError(
-            "Development manifest settings do not match the "
-            f"holdout request: {mismatches}"
+            "Prediction feature counts differ from the "
+            f"frozen contract: {observed_counts}"
         )
-
-    frozen_feature_sets = payload.get("feature_sets")
-
-    if not isinstance(frozen_feature_sets, dict):
-        raise ValueError(
-            "Development manifest lacks frozen feature sets"
-        )
-
-    return validate_foreign_flow_feature_sets(
-        modeling,
-        frozen_feature_sets,
-    )
 
 
 def main() -> None:
     args = parse_args()
+    research_end = _validate_fixed_protocol(args)
     target_column = target_column_for_horizon(
         args.horizon_days
     )
 
-    if args.purge_dates < args.horizon_days:
-        raise ValueError(
-            "Purge dates cannot be shorter than the forecast horizon"
-        )
-
-    features_path = Path(args.features_path)
-    raw_market_path = Path(args.raw_market_path)
-    adjusted_market_path = Path(
-        args.adjusted_market_path
-    )
-    membership_dir = Path(args.membership_dir)
-
-    print("FOREIGN-FLOW MODEL EXPERIMENT")
+    print("FOREIGN-FLOW MODEL REBUILD")
     print("=" * 80)
-    print("Phase:", args.phase)
-    print("Forecast horizon:", args.horizon_days)
-    print("Target:", target_column)
-    print("Model: frozen gradient_boosting")
+    print("Analysis class: historical development")
+    print("Research cutoff:", research_end.date())
     print(
-        "Missing-data rule: complete cases only; "
-        "foreign flow is never filled with zero"
+        "Future holdout begins:",
+        FUTURE_HOLDOUT_START.date(),
+    )
+    print("Forecast horizon:", args.horizon_days)
+    print("Signal spacing:", args.signal_step_days)
+    print("Target:", target_column)
+    print("Model:", FROZEN_MODEL_NAME)
+    print(
+        "Market baseline features:",
+        len(FROZEN_MARKET_BASELINE_FEATURES),
+    )
+    print(
+        "Ticker rule: all verified historical members; "
+        "point-in-time membership only"
+    )
+    print(
+        "Missing-data rule: preserve NaN values and use "
+        "the production tree-model imputer"
     )
 
-    features = pd.read_parquet(features_path)
+    features = pd.read_parquet(args.features_path)
     market_data = load_canonical_market_history(
-        raw_market_path,
-        adjusted_market_path,
+        args.raw_market_path,
+        args.adjusted_market_path,
     )
     membership = load_verified_membership_history(
-        membership_dir
+        args.membership_dir
+    )
+    features = _restrict_to_research_end(
+        features,
+        research_end,
+    )
+    market_data = _restrict_to_research_end(
+        market_data,
+        research_end,
     )
     modeling = build_canonical_modeling_dataset(
         features=features,
@@ -365,88 +382,124 @@ def main() -> None:
         membership=membership,
         horizon_days=args.horizon_days,
     )
-    historical_dates = pd.DatetimeIndex(
-        modeling.loc[
-            modeling[target_column].notna(),
-            "date",
-        ].drop_duplicates()
-    ).sort_values()
-
-    if (
-        len(historical_dates)
-        < args.initial_training_dates
-    ):
-        raise ValueError(
-            "Historical data do not cover the initial "
-            "training period"
-        )
-
-    output_dir = Path(args.output_dir)
-    development_manifest_path = (
-        output_dir
-        / "foreign_flow_development_manifest.json"
+    feature_sets = build_foreign_flow_feature_sets(
+        modeling
     )
-
-    if args.phase == "development":
-        initial_feature_cutoff = historical_dates[
-            args.initial_training_dates - 1
-        ]
-        feature_definition_rows = modeling.loc[
-            modeling["date"].le(initial_feature_cutoff)
-            & modeling[target_column].notna()
-        ]
-        all_feature_sets = (
-            build_foreign_flow_feature_sets(
-                feature_definition_rows
-            )
-        )
-    else:
-        all_feature_sets = (
-            _load_development_feature_sets(
-                development_manifest_path,
-                modeling,
-                horizon_days=args.horizon_days,
-                initial_training_dates=(
-                    args.initial_training_dates
-                ),
-                purge_dates=args.purge_dates,
-                test_block_dates=args.test_block_dates,
-            )
-        )
-
-    common_sample, complete_signal_dates, sample_audit = (
-        build_common_complete_case_sample(
+    modeling_sample, eligible_dates, sample_audit = (
+        build_modeling_sample(
             modeling,
-            all_feature_sets,
+            feature_sets,
             horizon_days=args.horizon_days,
         )
     )
-    active_feature_sets = _phase_feature_sets(
-        all_feature_sets,
-        phase=args.phase,
-        candidate=args.candidate,
-    )
-    if args.phase == "development":
-        evaluation_start = None
-        evaluation_end = args.development_end
-    else:
-        evaluation_start = args.holdout_start
-        evaluation_end = None
-
-    windows = build_expanding_walk_forward_windows(
-        historical_dates,
-        initial_training_dates=args.initial_training_dates,
-        purge_dates=args.purge_dates,
-        test_block_dates=args.test_block_dates,
-        evaluation_start=evaluation_start,
-        evaluation_end=evaluation_end,
-    )
-    predictions, importance = run_foreign_flow_walk_forward(
-        common_sample=common_sample,
-        complete_signal_dates=complete_signal_dates,
-        feature_sets=active_feature_sets,
-        windows=windows,
+    all_dates = pd.DatetimeIndex(
+        modeling["date"].drop_duplicates()
+    ).sort_values()
+    signals = build_paper_horizon_signal_schedule(
+        all_dates,
         horizon_days=args.horizon_days,
+        minimum_training_dates=(
+            args.minimum_training_dates
+        ),
+        signal_step_days=args.signal_step_days,
+        evaluation_start=args.evaluation_start,
+        evaluation_end=research_end,
+    )
+
+    print("\nBASELINE PARITY GATE")
+    print("-" * 80)
+    eligible_signal_set = set(eligible_dates)
+    parity_signal = next(
+        (
+            signal
+            for signal in signals
+            if signal.signal_date in eligible_signal_set
+        ),
+        None,
+    )
+
+    if parity_signal is None:
+        raise ValueError(
+            "No eligible signal is available for baseline parity"
+        )
+
+    print(
+        "Bounded parity signal:",
+        parity_signal.signal_date.date(),
+    )
+    baseline_feature_sets = {
+        FEATURE_SET_MARKET_BASELINE: feature_sets[
+            FEATURE_SET_MARKET_BASELINE
+        ]
+    }
+    baseline_predictions, _ = (
+        run_foreign_flow_paper_horizon(
+            modeling_sample=modeling_sample,
+            eligible_signal_dates=eligible_dates,
+            feature_sets=baseline_feature_sets,
+            signals=[parity_signal],
+            horizon_days=args.horizon_days,
+        )
+    )
+    production_reference = (
+        build_production_market_baseline_reference(
+            modeling,
+            horizon_days=args.horizon_days,
+            minimum_training_dates=(
+                args.minimum_training_dates
+            ),
+            signal_step_days=args.signal_step_days,
+            evaluation_start=parity_signal.signal_date,
+            evaluation_end=parity_signal.signal_date,
+        )
+    )
+    parity_audit = assert_market_baseline_parity(
+        baseline_predictions,
+        production_reference,
+    )
+    print("Baseline parity:", parity_audit["status"])
+    print("Parity rows:", parity_audit["rows"])
+    print(
+        "Maximum prediction difference:",
+        parity_audit["maximum_prediction_difference"],
+    )
+
+    print("\nFULL MATCHED FEATURE-SET COMPARISON")
+    print("-" * 80)
+    comparison_workers = min(4, len(feature_sets))
+    print("Parallel feature-set workers:", comparison_workers)
+
+    def report_progress(
+        completed: int,
+        total: int,
+        signal,
+    ) -> None:
+        if (
+            completed == 1
+            or completed % 10 == 0
+            or completed == total
+        ):
+            print(
+                f"Completed signals: {completed}/{total} "
+                f"through {signal.signal_date.date()}",
+                flush=True,
+            )
+
+    predictions, importance = (
+        run_foreign_flow_paper_horizon(
+            modeling_sample=modeling_sample,
+            eligible_signal_dates=eligible_dates,
+            feature_sets=feature_sets,
+            signals=signals,
+            horizon_days=args.horizon_days,
+            max_workers=comparison_workers,
+            progress_callback=report_progress,
+        )
+    )
+    _validate_final_predictions(
+        predictions,
+        feature_sets,
+        research_end,
     )
     daily_metrics = build_daily_foreign_flow_metrics(
         predictions,
@@ -455,89 +508,83 @@ def main() -> None:
     summary = summarize_foreign_flow_metrics(
         daily_metrics
     )
-
-    if args.phase == "development":
-        paired = summarize_paired_foreign_flow_differences(
-            daily_metrics
-        )
-    else:
-        holdout_comparisons = [
-            (
-                feature_set_name,
-                FEATURE_SET_MARKET_BASELINE,
-            )
-            for feature_set_name in active_feature_sets
-            if feature_set_name != FEATURE_SET_MARKET_BASELINE
-        ]
-        paired = summarize_paired_foreign_flow_differences(
-            daily_metrics,
-            comparisons=holdout_comparisons,
-        )
-
+    paired = summarize_paired_foreign_flow_differences(
+        daily_metrics,
+        bootstrap_samples=args.bootstrap_samples,
+    )
     foreign_importance = (
         summarize_foreign_feature_importance(
             importance
         )
     )
+
+    output_dir = Path(args.output_dir)
     predictions_dir = Path(args.predictions_dir)
-    stem = f"foreign_flow_{args.phase}"
     output_paths = {
-        "summary": output_dir / f"{stem}_summary.csv",
-        "paired": output_dir / f"{stem}_paired.csv",
-        "daily": output_dir / f"{stem}_daily.csv",
+        "summary": output_dir / f"{OUTPUT_STEM}_summary.csv",
+        "paired": output_dir / f"{OUTPUT_STEM}_paired.csv",
+        "daily": output_dir / f"{OUTPUT_STEM}_daily.csv",
         "foreign_importance": (
-            output_dir / f"{stem}_foreign_importance.csv"
+            output_dir
+            / f"{OUTPUT_STEM}_foreign_importance.csv"
         ),
-        "manifest": output_dir / f"{stem}_manifest.json",
+        "manifest": output_dir / f"{OUTPUT_STEM}_manifest.json",
         "predictions": (
-            predictions_dir / f"{stem}_predictions.parquet"
+            predictions_dir
+            / f"{OUTPUT_STEM}_predictions.parquet"
         ),
     }
-    manifest = {
-        "phase": args.phase,
-        "candidate": args.candidate,
-        "model": "gradient_boosting",
+    evaluation_dates = pd.DatetimeIndex(
+        predictions["date"].drop_duplicates()
+    ).sort_values()
+    manifest: dict[str, object] = {
+        "protocol_version": 2,
+        "analysis_class": "historical_development_only",
+        "model": FROZEN_MODEL_NAME,
         "horizon_days": args.horizon_days,
         "target_column": target_column,
-        "initial_training_dates": args.initial_training_dates,
-        "purge_dates": args.purge_dates,
-        "test_block_dates": args.test_block_dates,
+        "minimum_training_dates": (
+            args.minimum_training_dates
+        ),
+        "signal_step_days": args.signal_step_days,
         "top_n": args.top_n,
-        "development_end": args.development_end,
-        "holdout_start": args.holdout_start,
+        "research_end": research_end.date().isoformat(),
+        "future_holdout_start": (
+            FUTURE_HOLDOUT_START.date().isoformat()
+        ),
         "evaluation_first_date": (
-            pd.Timestamp(predictions["date"].min())
-            .date()
-            .isoformat()
+            evaluation_dates.min().date().isoformat()
         ),
         "evaluation_last_date": (
-            pd.Timestamp(predictions["date"].max())
-            .date()
-            .isoformat()
+            evaluation_dates.max().date().isoformat()
         ),
-        "evaluated_dates": int(
-            predictions["date"].nunique()
+        "evaluated_signal_dates": int(
+            len(evaluation_dates)
         ),
-        "prediction_rows": int(len(predictions)),
-        "walk_forward_windows": len(windows),
-        "sample_audit": sample_audit,
-        "feature_counts": {
-            name: len(columns)
-            for name, columns in active_feature_sets.items()
-        },
+        "historical_ticker_count": int(
+            modeling["ticker"].nunique()
+        ),
         "feature_sets": {
             name: list(columns)
-            for name, columns in all_feature_sets.items()
+            for name, columns in feature_sets.items()
         },
-        "source_paths": {
-            "features": str(features_path),
-            "raw_market": str(raw_market_path),
-            "adjusted_market": str(adjusted_market_path),
-            "membership": str(membership_dir),
-        },
+        "market_baseline_feature_count": len(
+            FROZEN_MARKET_BASELINE_FEATURES
+        ),
+        "market_baseline_contract_sha256": (
+            _feature_contract_hash()
+        ),
+        "sample_audit": sample_audit,
+        "baseline_parity": parity_audit,
+        "missing_feature_values_preserved": True,
+        "complete_case_filtering_used": False,
+        "common_exchange_calendar_labels": True,
+        "point_in_time_membership": True,
+        "production_tree_imputer_used": True,
         "production_configuration_changed": False,
         "paper_orders_changed": False,
         "real_orders_changed": False,
+        "promotion_decision": "not_evaluated",
     }
 
     _atomic_csv(summary, output_paths["summary"])
@@ -547,75 +594,35 @@ def main() -> None:
         foreign_importance,
         output_paths["foreign_importance"],
     )
-    _atomic_json(
-        manifest,
-        output_paths["manifest"],
-    )
     _atomic_parquet(
         predictions,
         output_paths["predictions"],
     )
-
-    print("\nCOMMON-SAMPLE AUDIT")
-    print("=" * 80)
-    for name, value in sample_audit.items():
-        print(f"{name}: {value}")
-    print(
-        "Feature counts:",
-        {
-            name: len(columns)
-            for name, columns in active_feature_sets.items()
-        },
+    _atomic_json(
+        manifest,
+        output_paths["manifest"],
     )
-    print("Walk-forward windows:", len(windows))
-    print(
-        "Evaluated dates:",
-        predictions["date"].nunique(),
-    )
-    print("Prediction rows:", len(predictions))
 
-    print("\nFEATURE-SET SUMMARY")
+    print("\nREBUILD RESULTS")
     print("=" * 80)
-    print(summary.round(6).to_string(index=False))
+    print(summary.to_string(index=False))
     print("\nPAIRED RANK-IC DIFFERENCES")
-    print("=" * 80)
-    print(paired.round(6).to_string(index=False))
+    print(paired.to_string(index=False))
+    print("\nSample audit:")
+    print(json.dumps(sample_audit, indent=2))
+    print("\nOutputs:")
 
-    if not foreign_importance.empty:
-        print("\nTOP FOREIGN-FLOW FEATURES")
-        print("=" * 80)
-        print(
-            foreign_importance.groupby(
-                "feature_set",
-                sort=False,
-            )
-            .head(5)
-            .round(6)
-            .to_string(index=False)
-        )
+    for output_path in output_paths.values():
+        print(output_path)
 
-    print("\nOUTPUTS")
-    print("=" * 80)
-    for name, path in output_paths.items():
-        print(f"{name}: {path}")
-
-    if args.phase == "development":
-        development_leader = summary.iloc[0][
-            "feature_set"
-        ]
-        print(
-            "\nDevelopment leader:",
-            development_leader,
-        )
-        print(
-            "Holdout data were not evaluated. "
-            "Do not promote a feature set yet."
-        )
-    else:
-        print(
-            "\nHoldout evaluated for the frozen candidate. "
-            "No production configuration was changed."
-        )
+    print(
+        "\nNo production configuration, paper orders, "
+        "or real orders were changed."
+    )
+    print(
+        "Do not promote FB/FS until the rebuilt results "
+        "and confidence intervals are reviewed."
+    )
 
 
 if __name__ == "__main__":

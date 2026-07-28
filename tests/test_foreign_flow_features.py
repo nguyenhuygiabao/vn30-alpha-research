@@ -190,8 +190,9 @@ def test_one_day_foreign_flow_ratios_are_correct() -> None:
     assert row["foreign_net_value"] == 10_000
     assert row["foreign_net_value_share_1d"] == 0.10
     assert row["foreign_gross_value_share_1d"] == 1.10
-    assert row["foreign_buy_value_share_1d"] == 0.60
-    assert row["foreign_sell_value_share_1d"] == 0.50
+    assert row["foreign_flow_imbalance_1d"] == pytest.approx(
+        1.0 / 11.0
+    )
     assert row["foreign_net_volume_share_1d"] == 0.20
 
 
@@ -268,8 +269,7 @@ def test_missing_flow_is_flagged_not_converted_to_zero() -> None:
     assert pd.isna(row["foreign_buy_value"])
     assert pd.isna(row["foreign_sell_value"])
     assert pd.isna(row["foreign_net_value"])
-    assert pd.isna(row["foreign_buy_value_share_1d"])
-    assert pd.isna(row["foreign_sell_value_share_1d"])
+    assert pd.isna(row["foreign_flow_imbalance_1d"])
     assert pd.isna(row["foreign_net_value_share_1d"])
 
 
@@ -300,8 +300,7 @@ def test_genuine_zero_flow_is_available_and_preserved() -> None:
     assert row["foreign_sell_value"] == 0
     assert row["foreign_net_value"] == 0
     assert row["foreign_gross_value"] == 0
-    assert row["foreign_buy_value_share_1d"] == 0
-    assert row["foreign_sell_value_share_1d"] == 0
+    assert row["foreign_flow_imbalance_1d"] == 0
     assert row["foreign_net_value_share_1d"] == 0
 
 
@@ -327,8 +326,9 @@ def test_missing_turnover_is_not_inferred_from_adjusted_price() -> None:
 
     assert row["foreign_flow_available"] == 1
     assert pd.isna(row["value_traded"])
-    assert pd.isna(row["foreign_buy_value_share_1d"])
-    assert pd.isna(row["foreign_sell_value_share_1d"])
+    assert row["foreign_flow_imbalance_1d"] == pytest.approx(
+        1.0 / 11.0
+    )
     assert pd.isna(row["foreign_net_value_share_1d"])
 
 
@@ -413,8 +413,9 @@ def test_value_only_flow_builds_value_features() -> None:
     )
 
     assert "foreign_net_value_share_1d" in features
-    assert "foreign_buy_value_share_1d" in features
-    assert "foreign_sell_value_share_1d" in features
+    assert "foreign_flow_imbalance_1d" in features
+    assert "foreign_buy_value_share_1d" not in features
+    assert "foreign_sell_value_share_1d" not in features
     assert (
         "foreign_net_volume_share_1d"
         not in features
@@ -423,7 +424,7 @@ def test_value_only_flow_builds_value_features() -> None:
 
 def test_learning_feature_groups_are_explicit_and_disjoint() -> None:
     assert len(FROZEN_FOREIGN_FLOW_FEATURES) == 9
-    assert len(FB_FS_FOREIGN_FLOW_FEATURES) == 14
+    assert len(FB_FS_FOREIGN_FLOW_FEATURES) == 13
     assert (
         set(FROZEN_FOREIGN_FLOW_FEATURES)
         .isdisjoint(FB_FS_FOREIGN_FLOW_FEATURES)

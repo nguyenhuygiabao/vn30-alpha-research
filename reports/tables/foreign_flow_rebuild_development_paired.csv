@@ -1,0 +1,5 @@
+model_name,challenger,baseline,paired_dates,mean_rank_ic_difference,bootstrap_95pct_lower,bootstrap_95pct_upper,positive_difference_rate
+gradient_boosting,frozen_foreign_flow,market_baseline,222,0.016777741873637578,0.004652213702736821,0.03073845568377869,0.5765765765765766
+gradient_boosting,fb_fs,market_baseline,222,-0.0005463868932322882,-0.01275641768384458,0.01275443283751106,0.4954954954954955
+gradient_boosting,frozen_plus_fb_fs,market_baseline,222,0.01344559771222176,-0.0005221346513676713,0.02795382036502524,0.545045045045045
+gradient_boosting,frozen_plus_fb_fs,frozen_foreign_flow,222,-0.0033321441614158156,-0.013180693619279068,0.0059929586906586904,0.4864864864864865
