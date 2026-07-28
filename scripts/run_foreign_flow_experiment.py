@@ -109,7 +109,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output-dir",
-        default="reports/tables",
+        default="reports/tables/foreign_flow",
     )
     parser.add_argument(
         "--predictions-dir",

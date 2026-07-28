@@ -25,8 +25,8 @@ contains exactly 51 model features for each eligible ticker-date row.
 |---|---:|---|
 | `market_baseline` | 51 | Explicit frozen market feature list |
 | `frozen_foreign_flow` | 60 | Baseline plus the original nine net/gross flow features |
-| `fb_fs` | 65 | Baseline plus 14 separate foreign-buy and foreign-sell features |
-| `frozen_plus_fb_fs` | 74 | Baseline plus all 23 approved foreign-flow features |
+| `fb_fs` | 64 | Baseline plus 14 separate foreign-buy and foreign-sell features |
+| `frozen_plus_fb_fs` | 73 | Baseline plus all 23 approved foreign-flow features |
 
 Raw `fb`, `fs`, and `fn` values, availability flags, and intermediate rolling
 sums are not admitted directly to the model.
