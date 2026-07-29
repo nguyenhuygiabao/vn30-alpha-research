@@ -45,6 +45,14 @@ ARCHIVE_PATH = (
     / "archive"
     / "flc_ros_adjusted_history.csv"
 )
+RAW_ARCHIVE_PATH = (
+    ROOT
+    / "data"
+    / "raw"
+    / "fiinquant"
+    / "archive"
+    / "flc_ros_raw_history.csv"
+)
 
 RAW_PATH = OUTPUT_DIR / "raw_market_history.csv"
 ADJUSTED_PATH = OUTPUT_DIR / "adjusted_market_history.csv"
@@ -1210,6 +1218,45 @@ def assert_tickers(
         )
 
 
+def load_raw_archive(
+    from_date: str,
+    to_date: str,
+) -> pd.DataFrame:
+    """
+    Load the FLC/ROS raw (unadjusted) OHLC archive.
+
+    The vendor extract never carries a total traded-value (VND) figure
+    alongside these raw prices. That gap is preserved as a missing "value"
+    rather than derived from price * volume; src.market_data_schema treats
+    it as a known, disclosed exception for these two tickers only. Shared
+    by the live canonical rebuild and by standalone archive backfills that
+    do not otherwise touch the live FiinQuant feed.
+    """
+    raw_archive = pd.read_csv(
+        RAW_ARCHIVE_PATH,
+        dtype={"ticker": "string"},
+    )
+    raw_archive = clean_vendor_frame(
+        raw_archive,
+        set(KEYS + ADJUSTED_FIELDS + ["volume"]),
+        "FLC/ROS raw archive",
+    )
+    raw_archive = raw_archive.loc[
+        raw_archive["timestamp"].between(
+            pd.Timestamp(from_date),
+            pd.Timestamp(to_date),
+        )
+    ].copy()
+    assert_tickers(
+        raw_archive,
+        ARCHIVE_TICKERS,
+        "FLC/ROS raw archive",
+    )
+    raw_archive["value"] = pd.NA
+
+    return raw_archive
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--from-date", default=START_DATE)
@@ -1368,6 +1415,13 @@ def main() -> None:
         ignore_index=True,
     ).sort_values(KEYS).reset_index(drop=True)
 
+    raw_archive = load_raw_archive(args.from_date, args.to_date)
+
+    raw_market = pd.concat(
+        [raw_market, raw_archive],
+        ignore_index=True,
+    ).sort_values(KEYS).reset_index(drop=True)
+
     if adjusted_market.duplicated(KEYS).any():
         raise ValueError(
             "Canonical adjusted history contains duplicate keys"
@@ -1378,9 +1432,14 @@ def main() -> None:
             "Canonical foreign flow contains duplicate keys"
         )
 
+    if raw_market.duplicated(KEYS).any():
+        raise ValueError(
+            "Canonical raw history contains duplicate keys"
+        )
+
     assert_tickers(
         raw_market,
-        set(api_tickers),
+        set(api_tickers) | ARCHIVE_TICKERS,
         "Raw market history",
     )
     assert_tickers(
@@ -1415,7 +1474,8 @@ def main() -> None:
         "raw_rows": len(raw_market),
         "adjusted_rows": len(adjusted_market),
         "foreign_flow_rows": len(foreign_flow),
-        "raw_history_unavailable": sorted(ARCHIVE_TICKERS),
+        "raw_history_unavailable": [],
+        "raw_traded_value_unavailable": sorted(ARCHIVE_TICKERS),
         "vendor_price_corrections": (
             raw_corrections + adjusted_corrections
         ),

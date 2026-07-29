@@ -32,6 +32,26 @@ COLUMN_MAPPING = {
     "ForeignSellValueTotal": "fs",
 }
 
+# Present only in newer vendor extracts. The vendor never supplies a total
+# traded-value (VND) figure alongside these raw prices, so raw traded value
+# stays genuinely missing rather than being derived from price * volume.
+RAW_PRICE_SOURCE_COLUMNS = [
+    "OpenPrice",
+    "HighPrice",
+    "LowPrice",
+    "ClosePrice",
+]
+
+RAW_COLUMN_MAPPING = {
+    "TradingDateId": "timestamp",
+    "Ticker": "ticker",
+    "OpenPrice": "open",
+    "HighPrice": "high",
+    "LowPrice": "low",
+    "ClosePrice": "close",
+    "TotalMatchVolume": "volume",
+}
+
 EXPECTED = {
     "FLC": {
         "rows": 127,
@@ -44,6 +64,173 @@ EXPECTED = {
         "last_date": "2021-01-29",
     },
 }
+
+
+def _assert_expected_coverage(
+    data: pd.DataFrame,
+    ticker: str,
+) -> None:
+    rule = EXPECTED[ticker]
+
+    if len(data) != rule["rows"]:
+        raise ValueError(
+            f"{ticker}: expected {rule['rows']} rows, "
+            f"found {len(data)}"
+        )
+
+    if data["timestamp"].min() != pd.Timestamp(
+        rule["first_date"]
+    ):
+        raise ValueError(
+            f"{ticker} has an unexpected first date"
+        )
+
+    if data["timestamp"].max() != pd.Timestamp(
+        rule["last_date"]
+    ):
+        raise ValueError(
+            f"{ticker} has an unexpected last date"
+        )
+
+
+def has_raw_price_sheet_columns(
+    workbook_path: Path,
+    ticker: str,
+) -> bool:
+    """Return True when the workbook carries the newer raw-price columns."""
+    header = pd.read_excel(
+        workbook_path,
+        sheet_name=ticker,
+        header=6,
+        nrows=0,
+    )
+    columns = {str(column).strip() for column in header.columns}
+    return set(RAW_PRICE_SOURCE_COLUMNS).issubset(columns)
+
+
+def read_archive_raw_sheet(
+    workbook_path: Path,
+    ticker: str,
+) -> pd.DataFrame:
+    """
+    Read the vendor's raw (unadjusted) OHLC columns, when present.
+
+    The vendor extract does not include a total traded-value (VND) figure
+    for these raw prices. That field is left out entirely here rather than
+    approximated from price * volume; downstream loading treats FLC/ROS as
+    a known exception with a missing traded value.
+    """
+    required_source_columns = [
+        "TradingDateId",
+        "Ticker",
+        "TotalMatchVolume",
+        *RAW_PRICE_SOURCE_COLUMNS,
+    ]
+
+    data = pd.read_excel(
+        workbook_path,
+        sheet_name=ticker,
+        header=6,
+    ).dropna(how="all")
+
+    data.columns = [
+        str(column).strip()
+        for column in data.columns
+    ]
+
+    missing = sorted(
+        set(required_source_columns).difference(data.columns)
+    )
+
+    if missing:
+        raise ValueError(
+            f"{ticker} sheet is missing raw-price columns: {missing}"
+        )
+
+    data = (
+        data[required_source_columns]
+        .rename(columns=RAW_COLUMN_MAPPING)
+        .copy()
+    )
+
+    data["timestamp"] = pd.to_datetime(
+        data["timestamp"],
+        errors="raise",
+    ).dt.normalize()
+
+    data["ticker"] = (
+        data["ticker"]
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+
+    if set(data["ticker"].unique()) != {ticker}:
+        raise ValueError(
+            f"{ticker} sheet contains unexpected tickers"
+        )
+
+    price_columns = ["open", "high", "low", "close"]
+
+    for column in price_columns:
+        data[column] = pd.to_numeric(
+            data[column],
+            errors="raise",
+        )
+
+    numeric_volume = pd.to_numeric(
+        data["volume"],
+        errors="raise",
+    )
+
+    if numeric_volume.dropna().mod(1).ne(0).any():
+        raise ValueError(
+            f"{ticker} volume contains non-integers"
+        )
+
+    data["volume"] = numeric_volume.astype("Int64")
+
+    required = ["timestamp", "ticker", *price_columns, "volume"]
+
+    if data[required].isna().any().any():
+        raise ValueError(
+            f"{ticker} raw sheet contains missing required values"
+        )
+
+    if data.duplicated(["ticker", "timestamp"], keep=False).any():
+        raise ValueError(
+            f"{ticker} raw sheet contains duplicate keys"
+        )
+
+    if data[price_columns].le(0).any().any():
+        raise ValueError(
+            f"{ticker} raw sheet contains non-positive prices"
+        )
+
+    if data["volume"].lt(0).any():
+        raise ValueError(
+            f"{ticker} raw sheet contains negative volume"
+        )
+
+    if data["high"].lt(
+        data[["open", "low", "close"]].max(axis=1)
+    ).any():
+        raise ValueError(
+            f"{ticker} raw sheet contains invalid high prices"
+        )
+
+    if data["low"].gt(
+        data[["open", "high", "close"]].min(axis=1)
+    ).any():
+        raise ValueError(
+            f"{ticker} raw sheet contains invalid low prices"
+        )
+
+    _assert_expected_coverage(data, ticker)
+
+    return data[
+        ["ticker", "timestamp", "open", "high", "low", "close", "volume"]
+    ]
 
 
 def read_archive_sheet(
@@ -170,27 +357,7 @@ def read_archive_sheet(
             f"{ticker} contains invalid low prices"
         )
 
-    rule = EXPECTED[ticker]
-
-    if len(data) != rule["rows"]:
-        raise ValueError(
-            f"{ticker}: expected {rule['rows']} rows, "
-            f"found {len(data)}"
-        )
-
-    if data["timestamp"].min() != pd.Timestamp(
-        rule["first_date"]
-    ):
-        raise ValueError(
-            f"{ticker} has an unexpected first date"
-        )
-
-    if data["timestamp"].max() != pd.Timestamp(
-        rule["last_date"]
-    ):
-        raise ValueError(
-            f"{ticker} has an unexpected last date"
-        )
+    _assert_expected_coverage(data, ticker)
 
     data["fn"] = (
         data["fb"] - data["fs"]
@@ -223,6 +390,14 @@ def main() -> None:
         "--output",
         required=True,
         type=Path,
+    )
+    parser.add_argument(
+        "--raw-output",
+        type=Path,
+        help=(
+            "Optional output path for raw (unadjusted) OHLC, only written "
+            "when the workbook contains raw-price columns."
+        ),
     )
     args = parser.parse_args()
 
@@ -318,6 +493,79 @@ def main() -> None:
     print()
     print(f"Output: {args.output}")
     print(f"Metadata: {metadata_path}")
+
+    has_raw_columns = all(
+        has_raw_price_sheet_columns(args.input, ticker)
+        for ticker in EXPECTED
+    )
+
+    if not has_raw_columns:
+        print()
+        print(
+            "Raw-price columns not found in workbook; "
+            "skipping raw-history output."
+        )
+        return
+
+    if args.raw_output is None:
+        print()
+        print(
+            "Workbook contains raw-price columns but --raw-output "
+            "was not given; skipping raw-history output."
+        )
+        return
+
+    raw_combined = (
+        pd.concat(
+            [
+                read_archive_raw_sheet(args.input, ticker)
+                for ticker in EXPECTED
+            ],
+            ignore_index=True,
+        )
+        .sort_values(["ticker", "timestamp"])
+        .reset_index(drop=True)
+    )
+
+    if raw_combined.duplicated(["ticker", "timestamp"]).any():
+        raise ValueError(
+            "Combined raw archive contains duplicate keys"
+        )
+
+    args.raw_output.parent.mkdir(parents=True, exist_ok=True)
+
+    raw_combined.to_csv(
+        args.raw_output,
+        index=False,
+        date_format="%Y-%m-%d",
+    )
+
+    raw_metadata = {
+        "source_file": args.input.name,
+        "source_sha256": hashlib.sha256(
+            args.input.read_bytes()
+        ).hexdigest(),
+        "price_basis": "vendor-raw",
+        "traded_value_included": False,
+        "traded_value_policy": (
+            "Vendor did not supply a total traded-value (VND) figure "
+            "alongside these raw prices. Traded value is left missing "
+            "downstream, never derived from price * volume."
+        ),
+        "corporate_action_records_included": False,
+    }
+
+    raw_metadata_path = args.raw_output.with_suffix(".metadata.json")
+
+    raw_metadata_path.write_text(
+        json.dumps(raw_metadata, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    print()
+    print("Raw-price rows:", len(raw_combined))
+    print("Raw output:", args.raw_output)
+    print("Raw metadata:", raw_metadata_path)
 
 
 if __name__ == "__main__":

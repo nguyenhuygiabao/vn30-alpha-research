@@ -255,20 +255,31 @@ def _load_canonical_market_csv(
     ).reset_index(drop=True)
 
 
+KNOWN_MISSING_TRADED_VALUE_TICKERS = frozenset({"FLC", "ROS"})
+
+
 def load_canonical_market_history(
     raw_file_path: str | Path,
     adjusted_file_path: str | Path,
+    *,
+    allow_missing_value_tickers: frozenset[str] = (
+        KNOWN_MISSING_TRADED_VALUE_TICKERS
+    ),
 ) -> pd.DataFrame:
     """
     Combine FiinQuant raw OHLC with adjusted close.
 
-    Raw prices are used wherever available. FLC/ROS archive rows retain
-    adjusted close and volume while unavailable raw OHLC and traded value
-    remain missing. No value is inferred from adjusted prices.
+    Raw prices are used wherever available. The FLC/ROS archive supplies
+    real raw OHLC but no vendor traded-value figure; traded value stays
+    missing for those two tickers rather than being inferred or zero-filled.
+    Any other ticker still fails loudly if raw OHLC exists without a
+    matching traded value, since that combination is not expected from a
+    live FiinQuant feed.
     """
     raw = _load_canonical_market_csv(
         raw_file_path,
         "Canonical raw market data",
+        allow_missing={"value"},
     )
     adjusted = _load_canonical_market_csv(
         adjusted_file_path,
@@ -314,9 +325,12 @@ def load_canonical_market_history(
     missing_adjusted_value = combined[
         "value_adjusted"
     ].isna()
+    exempt_ticker = combined["ticker"].isin(
+        allow_missing_value_tickers
+    )
 
     missing_value_with_raw = (
-        has_raw & missing_adjusted_value
+        has_raw & missing_adjusted_value & ~exempt_ticker
     )
 
     if missing_value_with_raw.any():

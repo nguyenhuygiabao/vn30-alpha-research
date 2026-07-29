@@ -201,6 +201,90 @@ def test_loader_rejects_missing_value_when_raw_exists(
         )
 
 
+def test_loader_allows_missing_value_for_known_archive_tickers(
+    tmp_path: Path,
+) -> None:
+    raw_path = tmp_path / "raw_market_history.csv"
+    adjusted_path = (
+        tmp_path / "adjusted_market_history.csv"
+    )
+    write_market_csv(
+        raw_path,
+        [
+            market_row(),
+            market_row(
+                ticker="FLC",
+                value=float("nan"),
+            ),
+        ],
+    )
+    write_market_csv(
+        adjusted_path,
+        [
+            market_row(),
+            market_row(
+                ticker="FLC",
+                value=float("nan"),
+            ),
+        ],
+    )
+
+    market = load_canonical_market_history(
+        raw_path,
+        adjusted_path,
+    )
+    flc = market.loc[
+        market["ticker"].eq("FLC")
+    ].iloc[0]
+
+    assert flc["open"] == 10.0
+    assert flc["close"] == 10.5
+    assert pd.isna(flc["value_traded"])
+    assert market.attrs["raw_price_fallback_rows"] == 0
+    assert market.attrs["missing_value_traded_rows"] == 1
+    assert market.attrs[
+        "missing_value_traded_tickers"
+    ] == ["FLC"]
+
+
+def test_loader_still_rejects_missing_value_for_non_archive_ticker_with_raw(
+    tmp_path: Path,
+) -> None:
+    raw_path = tmp_path / "raw_market_history.csv"
+    adjusted_path = (
+        tmp_path / "adjusted_market_history.csv"
+    )
+    write_market_csv(
+        raw_path,
+        [
+            market_row(),
+            market_row(
+                ticker="BBB",
+                value=float("nan"),
+            ),
+        ],
+    )
+    write_market_csv(
+        adjusted_path,
+        [
+            market_row(),
+            market_row(
+                ticker="BBB",
+                value=float("nan"),
+            ),
+        ],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="despite available raw market data",
+    ):
+        load_canonical_market_history(
+            raw_path,
+            adjusted_path,
+        )
+
+
 def test_loader_rejects_raw_rows_without_adjusted_match(
     tmp_path: Path,
 ) -> None:
