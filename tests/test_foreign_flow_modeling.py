@@ -11,11 +11,14 @@ import scripts.run_foreign_flow_experiment as experiment
 from src.feature_pipeline import build_combined_features
 from src.features_foreign_flow import (
     ALL_FOREIGN_FLOW_LEARNING_FEATURES,
+    ENHANCED_FB_FS_FEATURES,
     FB_FS_FOREIGN_FLOW_FEATURES,
+    FOREIGN_FLOW_FEATURE_COLUMNS,
     FROZEN_FOREIGN_FLOW_FEATURES,
 )
 from src.foreign_flow_modeling import (
     FEATURE_SET_ALL_FOREIGN,
+    FEATURE_SET_ENHANCED_FB_FS,
     FEATURE_SET_FB_FS,
     FEATURE_SET_FROZEN_FOREIGN,
     FEATURE_SET_MARKET_BASELINE,
@@ -70,7 +73,7 @@ def comparison_frame(
                 )
 
             for feature_index, feature in enumerate(
-                ALL_FOREIGN_FLOW_LEARNING_FEATURES,
+                FOREIGN_FLOW_FEATURE_COLUMNS,
                 start=1,
             ):
                 row[feature] = (
@@ -93,10 +96,14 @@ def test_feature_sets_freeze_exact_51_feature_baseline() -> None:
         FEATURE_SET_FROZEN_FOREIGN,
         FEATURE_SET_FB_FS,
         FEATURE_SET_ALL_FOREIGN,
+        FEATURE_SET_ENHANCED_FB_FS,
     )
     assert feature_sets[FEATURE_SET_MARKET_BASELINE] == (
         FROZEN_MARKET_BASELINE_FEATURES
     )
+    # The four original sets keep their exact published sizes, so the
+    # already-committed comparison stays reproducible after the fifth set
+    # was appended.
     assert len(
         feature_sets[FEATURE_SET_MARKET_BASELINE]
     ) == 51
@@ -105,6 +112,9 @@ def test_feature_sets_freeze_exact_51_feature_baseline() -> None:
     ) == 60
     assert len(feature_sets[FEATURE_SET_FB_FS]) == 64
     assert len(feature_sets[FEATURE_SET_ALL_FOREIGN]) == 73
+    assert len(
+        feature_sets[FEATURE_SET_ENHANCED_FB_FS]
+    ) == 66
     assert "future_unapproved_feature" not in feature_sets[
         FEATURE_SET_MARKET_BASELINE
     ]
@@ -116,6 +126,13 @@ def test_feature_sets_freeze_exact_51_feature_baseline() -> None:
     )
     assert set(FB_FS_FOREIGN_FLOW_FEATURES).issubset(
         feature_sets[FEATURE_SET_FB_FS]
+    )
+    assert set(ENHANCED_FB_FS_FEATURES).issubset(
+        feature_sets[FEATURE_SET_ENHANCED_FB_FS]
+    )
+    # The enhanced set must build on the frozen foreign set, not replace it.
+    assert set(FROZEN_FOREIGN_FLOW_FEATURES).issubset(
+        feature_sets[FEATURE_SET_ENHANCED_FB_FS]
     )
 
 
@@ -455,7 +472,7 @@ def test_walk_forward_keeps_rows_and_matches_feature_coverage() -> None:
         predictions.groupby("feature_set")[
             "feature_count"
         ].first()
-    ) == {51, 60, 64, 73}
+    ) == {51, 60, 64, 66, 73}
     assert not importance.empty
 
     daily = build_daily_foreign_flow_metrics(
@@ -472,7 +489,8 @@ def test_walk_forward_keeps_rows_and_matches_feature_coverage() -> None:
     assert set(summary["feature_set"]) == set(
         feature_sets
     )
-    assert len(paired) == 4
+    # Four original comparisons plus the two enhanced-set comparisons.
+    assert len(paired) == 6
     assert paired["paired_dates"].gt(1).all()
 
 
@@ -675,5 +693,6 @@ def test_rebuild_script_writes_guarded_development_outputs(
         FEATURE_SET_FROZEN_FOREIGN,
         FEATURE_SET_FB_FS,
         FEATURE_SET_ALL_FOREIGN,
+        FEATURE_SET_ENHANCED_FB_FS,
     }
     assert predictions["date"].max() <= dates[-1]

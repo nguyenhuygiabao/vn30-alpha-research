@@ -9,7 +9,9 @@ import pandas as pd
 
 from src.features_foreign_flow import (
     ALL_FOREIGN_FLOW_LEARNING_FEATURES,
+    ENHANCED_FB_FS_FEATURES,
     FB_FS_FOREIGN_FLOW_FEATURES,
+    FOREIGN_FLOW_FEATURE_COLUMNS,
     FROZEN_FOREIGN_FLOW_FEATURES,
 )
 from src.labels import (
@@ -44,12 +46,17 @@ FEATURE_SET_MARKET_BASELINE = "market_baseline"
 FEATURE_SET_FROZEN_FOREIGN = "frozen_foreign_flow"
 FEATURE_SET_FB_FS = "fb_fs"
 FEATURE_SET_ALL_FOREIGN = "frozen_plus_fb_fs"
+# Appended after the original four were already run and published. The four
+# frozen definitions above are unchanged, so the committed comparison stays
+# reproducible; this set is strictly additive.
+FEATURE_SET_ENHANCED_FB_FS = "enhanced_fb_fs"
 
 FOREIGN_FLOW_FEATURE_SET_ORDER = (
     FEATURE_SET_MARKET_BASELINE,
     FEATURE_SET_FROZEN_FOREIGN,
     FEATURE_SET_FB_FS,
     FEATURE_SET_ALL_FOREIGN,
+    FEATURE_SET_ENHANCED_FB_FS,
 )
 
 # This is the exact 51-feature market baseline used by the established
@@ -313,6 +320,14 @@ def _expected_feature_sets() -> dict[str, tuple[str, ...]]:
         FEATURE_SET_ALL_FOREIGN: (
             baseline
             + tuple(ALL_FOREIGN_FLOW_LEARNING_FEATURES)
+        ),
+        # Built on top of frozen_foreign_flow rather than on the bare
+        # baseline, because the decision-relevant question is whether the
+        # enhanced contrasts add anything to the best set measured so far.
+        FEATURE_SET_ENHANCED_FB_FS: (
+            baseline
+            + tuple(FROZEN_FOREIGN_FLOW_FEATURES)
+            + tuple(ENHANCED_FB_FS_FEATURES)
         ),
     }
 
@@ -1194,6 +1209,16 @@ def summarize_paired_foreign_flow_differences(
             FEATURE_SET_ALL_FOREIGN,
             FEATURE_SET_FROZEN_FOREIGN,
         ),
+        # Pre-registered primary test for the enhanced set: does it beat
+        # the best set measured so far, not merely the bare baseline?
+        (
+            FEATURE_SET_ENHANCED_FB_FS,
+            FEATURE_SET_FROZEN_FOREIGN,
+        ),
+        (
+            FEATURE_SET_ENHANCED_FB_FS,
+            FEATURE_SET_MARKET_BASELINE,
+        ),
     )
     model_names = tuple(
         daily_metrics["model_name"].drop_duplicates()
@@ -1288,7 +1313,7 @@ def summarize_foreign_feature_importance(
 
     foreign = importance.loc[
         importance["feature"].isin(
-            ALL_FOREIGN_FLOW_LEARNING_FEATURES
+            FOREIGN_FLOW_FEATURE_COLUMNS
         )
     ]
 

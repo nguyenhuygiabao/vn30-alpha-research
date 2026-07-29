@@ -7,7 +7,7 @@ import pandas as pd
 
 from src.features_basic import build_basic_features
 from src.features_foreign_flow import (
-    ALL_FOREIGN_FLOW_LEARNING_FEATURES,
+    FOREIGN_FLOW_FEATURE_COLUMNS,
     add_foreign_flow_features,
     load_canonical_foreign_flow_csv,
 )
@@ -56,7 +56,7 @@ REQUIRED_COMBINED_FEATURE_COLUMNS = (
     "amihud_illiquidity",
     "herding_index",
     "foreign_flow_available",
-    *ALL_FOREIGN_FLOW_LEARNING_FEATURES,
+    *FOREIGN_FLOW_FEATURE_COLUMNS,
 )
 
 
