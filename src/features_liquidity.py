@@ -59,12 +59,25 @@ def add_liquidity_features(
         )
     )
 
-    working["value_traded_z_20"] = working.groupby("ticker")[
-        "value_traded"
-    ].transform(
-        lambda values: calculate_rolling_z_score(
-            values=values,
-            window=window,
+    # Where the vendor never supplied a real traded value (currently
+    # FLC/ROS only, see market_data_schema.KNOWN_MISSING_TRADED_VALUE_TICKERS),
+    # fall back to the disclosed typical-price * volume estimate rather
+    # than leaving value-based liquidity features permanently missing.
+    value_traded_for_liquidity = working["value_traded"]
+
+    if "value_traded_estimated" in working.columns:
+        value_traded_for_liquidity = value_traded_for_liquidity.fillna(
+            working["value_traded_estimated"]
+        )
+
+    working["value_traded_z_20"] = (
+        value_traded_for_liquidity
+        .groupby(working["ticker"])
+        .transform(
+            lambda values: calculate_rolling_z_score(
+                values=values,
+                window=window,
+            )
         )
     )
 
@@ -94,8 +107,8 @@ def add_liquidity_features(
 
     working["amihud_illiquidity_raw"] = (
         working["return_1d"].abs()
-        / working["value_traded"].where(
-            working["value_traded"].gt(0)
+        / value_traded_for_liquidity.where(
+            value_traded_for_liquidity.gt(0)
         )
     )
 
