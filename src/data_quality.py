@@ -1,8 +1,19 @@
 from pathlib import Path
 import pandas as pd
-from .data_loader import load_ohlcv_csv
+from src.feature_pipeline import ADJUSTED_MARKET_PATH, RAW_MARKET_PATH
+from src.market_data_schema import load_canonical_market_history
 
-SOURCE_PATH = "data/raw/vnstock/vn30_ohlcv.csv"
+REQUIRED_MARKET_COLUMNS = [
+    "date",
+    "ticker",
+    "open",
+    "high",
+    "low",
+    "close",
+    "adjusted_close",
+    "volume",
+    "value_traded",
+]
 REPORT_PATH = "reports/data_quality_report.md"
 PRICE_COLUMNS = [
     "open",
@@ -389,10 +400,10 @@ def write_data_quality_report(
         "",
         "## Current Limitations",
         "",
-        "- The current data is vendor-sourced daily OHLCV data from vnstock and should still be checked against official exchange records when possible.",
+        "- The current data is vendor-sourced daily OHLCV data from FiinQuant (raw + adjusted, with disclosed vendor corrections; see data/raw/fiinquant/canonical/history_metadata.json) and should still be checked against official exchange records when possible.",
         "- Corporate actions are not independently verified.",
-        "- Historical VN30 membership is not yet included.",
-        "- Survivorship bias remains unresolved.",
+        "- This check covers every ticker in the canonical history, not a point-in-time VN30 membership window; membership filtering is applied later, during feature construction.",
+        "- FLC and ROS have no vendor-reported traded value (VND); that field is genuinely missing here, not zero-filled. Raw OHLC for both is sourced from a vendor archive export rather than the live feed (see docs/fiinquant_core_checkpoint.md).",
         "- Official exchange-provided ceiling and floor prices are not included; estimated price-limit features are generated separately and should be checked against official data when available.",
         "",
     ]
@@ -405,14 +416,20 @@ def write_data_quality_report(
 def main() -> None:
     """Run the data-quality pipeline"""
 
-    data = load_ohlcv_csv(SOURCE_PATH)
+    market = load_canonical_market_history(
+        RAW_MARKET_PATH,
+        ADJUSTED_MARKET_PATH,
+    )
+    data = market[REQUIRED_MARKET_COLUMNS].copy()
 
     issues = collect_data_issues(data)
+
+    source_path = f"{RAW_MARKET_PATH} + {ADJUSTED_MARKET_PATH}"
 
     write_data_quality_report(
         data = data,
         issues = issues,
-        source_path= SOURCE_PATH,
+        source_path= source_path,
         report_path = REPORT_PATH,
     )
 

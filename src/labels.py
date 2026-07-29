@@ -1,9 +1,14 @@
 from pathlib import Path
 import pandas as pd
-from .data_loader import load_ohlcv_csv
 from .universe_history import filter_to_point_in_time_universe
+from src.feature_pipeline import (
+    ADJUSTED_MARKET_PATH,
+    MEMBERSHIP_HISTORY_DIR,
+    RAW_MARKET_PATH,
+    load_verified_membership_history,
+)
+from src.market_data_schema import load_canonical_market_history
 
-STOCK_SOURCE_PATH = "data/raw/vnstock/vn30_ohlcv.csv"
 OUTPUT_PATH = "data/processed/labels.parquet"
 
 MAIN_TARGET = "forward_relative_return_5d"
@@ -224,16 +229,21 @@ def build_point_in_time_relative_labels(
         eligible_labels
     )
 
-def main() -> None: 
+def main() -> None:
     """Build, save, and verify the forward-label dataset"""
 
-    stock_data = load_ohlcv_csv(STOCK_SOURCE_PATH)
+    stock_data = load_canonical_market_history(
+        RAW_MARKET_PATH,
+        ADJUSTED_MARKET_PATH,
+    )
+    membership = load_verified_membership_history(
+        MEMBERSHIP_HISTORY_DIR
+    )
 
-    stock_labels = build_forward_labels(stock_data)
-    
-    benchmark_labels = build_equal_weight_benchmark_forward_returns(stock_data)
-
-    labels = add_leave_one_out_equal_weight_relative_labels(stock_labels)
+    labels = build_point_in_time_relative_labels(
+        stock_data,
+        membership,
+    )
 
     output_path = Path(OUTPUT_PATH)
 
