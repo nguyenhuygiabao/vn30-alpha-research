@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+from joblib import Parallel, delayed
 
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.impute import SimpleImputer
@@ -178,20 +179,42 @@ def predict_one_tree_window(
     )
 
 
-def predict_tree_models_for_window(
+def _empty_tree_predictions() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "date",
+            "ticker",
+            "predicted_return",
+            "actual_return",
+            "model_name",
+        ]
+    )
+
+
+def _empty_tree_feature_importance() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "model_name",
+            "feature",
+            "importance",
+            "test_start_date",
+            "test_end_date",
+        ]
+    )
+
+
+def predict_tree_models_for_prepared_window(
     models: dict[str, object],
-    historical_rows: pd.DataFrame,
-    window: dict[str, pd.DatetimeIndex],
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
+    x_test: pd.DataFrame,
+    test_rows: pd.DataFrame,
     feature_columns: list[str],
+    test_start_date: pd.Timestamp,
+    test_end_date: pd.Timestamp,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     prediction_frames = []
     feature_importance_frames = []
-
-    x_train, y_train, x_test, test_rows = prepare_regression_window_data(
-        historical_rows=historical_rows,
-        window=window,
-        feature_columns=feature_columns,
-    )
 
     for model_name, model in models.items():
         prediction_frame, feature_importance = predict_prepared_tree_window(
@@ -204,45 +227,48 @@ def predict_tree_models_for_window(
             feature_columns=feature_columns,
         )
 
-        feature_importance["test_start_date"] = window["test_dates"].min()
-        feature_importance["test_end_date"] = window["test_dates"].max()
+        feature_importance["test_start_date"] = test_start_date
+        feature_importance["test_end_date"] = test_end_date
 
         prediction_frames.append(prediction_frame)
         feature_importance_frames.append(feature_importance)
 
-    if prediction_frames:
-        predictions = pd.concat(
-            prediction_frames,
-            ignore_index=True,
-        )
-    else:
-        predictions = pd.DataFrame(
-            columns=[
-                "date",
-                "ticker",
-                "predicted_return",
-                "actual_return",
-                "model_name",
-            ]
-        )
-
-    if feature_importance_frames:
-        feature_importance = pd.concat(
-            feature_importance_frames,
-            ignore_index=True,
-        )
-    else:
-        feature_importance = pd.DataFrame(
-            columns=[
-                "model_name",
-                "feature",
-                "importance",
-                "test_start_date",
-                "test_end_date",
-            ]
-        )
+    predictions = (
+        pd.concat(prediction_frames, ignore_index=True)
+        if prediction_frames
+        else _empty_tree_predictions()
+    )
+    feature_importance = (
+        pd.concat(feature_importance_frames, ignore_index=True)
+        if feature_importance_frames
+        else _empty_tree_feature_importance()
+    )
 
     return predictions, feature_importance
+
+
+def predict_tree_models_for_window(
+    models: dict[str, object],
+    historical_rows: pd.DataFrame,
+    window: dict[str, pd.DatetimeIndex],
+    feature_columns: list[str],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    x_train, y_train, x_test, test_rows = prepare_regression_window_data(
+        historical_rows=historical_rows,
+        window=window,
+        feature_columns=feature_columns,
+    )
+
+    return predict_tree_models_for_prepared_window(
+        models=models,
+        x_train=x_train,
+        y_train=y_train,
+        x_test=x_test,
+        test_rows=test_rows,
+        feature_columns=feature_columns,
+        test_start_date=window["test_dates"].min(),
+        test_end_date=window["test_dates"].max(),
+    )
 
 
 def predict_tree_models_for_windows(
@@ -250,52 +276,56 @@ def predict_tree_models_for_windows(
     historical_rows: pd.DataFrame,
     windows: list[dict[str, pd.DatetimeIndex]],
     feature_columns: list[str],
+    n_jobs: int = -1,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    prediction_frames = []
-    feature_importance_frames = []
+    # Each walk-forward window is an independent fit: it only reads its own
+    # train/test slice, and every model is refit from scratch with a fixed
+    # random_state. Slicing happens up front (cheap, sequential) so only the
+    # small per-window frames -- not the full historical_rows table -- cross
+    # process boundaries; results come back in submission order, so output
+    # is identical to the sequential loop regardless of n_jobs.
+    prepared_windows = [
+        (
+            *prepare_regression_window_data(
+                historical_rows=historical_rows,
+                window=window,
+                feature_columns=feature_columns,
+            ),
+            window["test_dates"].min(),
+            window["test_dates"].max(),
+        )
+        for window in windows
+    ]
 
-    for window in windows:
-        predictions, feature_importance = predict_tree_models_for_window(
+    window_results = Parallel(n_jobs=n_jobs)(
+        delayed(predict_tree_models_for_prepared_window)(
             models=models,
-            historical_rows=historical_rows,
-            window=window,
+            x_train=x_train,
+            y_train=y_train,
+            x_test=x_test,
+            test_rows=test_rows,
             feature_columns=feature_columns,
+            test_start_date=test_start_date,
+            test_end_date=test_end_date,
         )
+        for x_train, y_train, x_test, test_rows, test_start_date, test_end_date in prepared_windows
+    )
 
-        prediction_frames.append(predictions)
-        feature_importance_frames.append(feature_importance)
+    prediction_frames = [predictions for predictions, _ in window_results]
+    feature_importance_frames = [
+        feature_importance for _, feature_importance in window_results
+    ]
 
-    if prediction_frames:
-        all_predictions = pd.concat(
-            prediction_frames,
-            ignore_index=True,
-        )
-    else:
-        all_predictions = pd.DataFrame(
-            columns=[
-                "date",
-                "ticker",
-                "predicted_return",
-                "actual_return",
-                "model_name",
-            ]
-        )
-
-    if feature_importance_frames:
-        all_feature_importance = pd.concat(
-            feature_importance_frames,
-            ignore_index=True,
-        )
-    else:
-        all_feature_importance = pd.DataFrame(
-            columns=[
-                "model_name",
-                "feature",
-                "importance",
-                "test_start_date",
-                "test_end_date",
-            ]
-        )
+    all_predictions = (
+        pd.concat(prediction_frames, ignore_index=True)
+        if prediction_frames
+        else _empty_tree_predictions()
+    )
+    all_feature_importance = (
+        pd.concat(feature_importance_frames, ignore_index=True)
+        if feature_importance_frames
+        else _empty_tree_feature_importance()
+    )
 
     return all_predictions, all_feature_importance
 

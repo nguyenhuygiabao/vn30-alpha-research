@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+from joblib import Parallel, delayed
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import ElasticNet, Ridge
 from sklearn.pipeline import Pipeline
@@ -57,14 +58,24 @@ def fit_predict_linear_model(
     )
 
 
-def predict_one_window(
-    model,
-    model_name: str,
+def _empty_linear_predictions() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "date",
+            "ticker",
+            "predicted_return",
+            "actual_return",
+            "model_name",
+        ]
+    )
+
+
+def _prepare_linear_window(
     historical_rows: pd.DataFrame,
     window: dict[str, pd.DatetimeIndex],
     feature_columns: list[str],
-) -> pd.DataFrame:
-    x_train, y_train, x_val, y_val, x_test, y_test = split_window_data(
+) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.DataFrame]:
+    x_train, y_train, _x_val, _y_val, x_test, _y_test = split_window_data(
         historical_rows=historical_rows,
         window=window,
         feature_columns=feature_columns,
@@ -74,6 +85,17 @@ def predict_one_window(
         historical_rows["date"].isin(window["test_dates"])
     ].copy()
 
+    return x_train, y_train, x_test, test_rows
+
+
+def predict_prepared_linear_window(
+    model,
+    model_name: str,
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
+    x_test: pd.DataFrame,
+    test_rows: pd.DataFrame,
+) -> pd.DataFrame:
     predictions = fit_predict_linear_model(
         model=model,
         x_train=x_train,
@@ -81,13 +103,62 @@ def predict_one_window(
         x_test=x_test,
     )
 
-    prediction_frame = build_prediction_frame(
+    return build_prediction_frame(
         test_rows=test_rows,
         predictions=predictions,
         model_name=model_name,
     )
 
-    return prediction_frame
+
+def predict_models_for_prepared_window(
+    models: dict[str, object],
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
+    x_test: pd.DataFrame,
+    test_rows: pd.DataFrame,
+) -> pd.DataFrame:
+    prediction_frames = [
+        predict_prepared_linear_window(
+            model=model,
+            model_name=model_name,
+            x_train=x_train,
+            y_train=y_train,
+            x_test=x_test,
+            test_rows=test_rows,
+        )
+        for model_name, model in models.items()
+    ]
+
+    if not prediction_frames:
+        return _empty_linear_predictions()
+
+    return pd.concat(
+        prediction_frames,
+        ignore_index=True,
+    )
+
+
+def predict_one_window(
+    model,
+    model_name: str,
+    historical_rows: pd.DataFrame,
+    window: dict[str, pd.DatetimeIndex],
+    feature_columns: list[str],
+) -> pd.DataFrame:
+    x_train, y_train, x_test, test_rows = _prepare_linear_window(
+        historical_rows=historical_rows,
+        window=window,
+        feature_columns=feature_columns,
+    )
+
+    return predict_prepared_linear_window(
+        model=model,
+        model_name=model_name,
+        x_train=x_train,
+        y_train=y_train,
+        x_test=x_test,
+        test_rows=test_rows,
+    )
 
 
 def create_linear_models() -> dict[str, object]:
@@ -109,33 +180,18 @@ def predict_models_for_window(
     window: dict[str, pd.DatetimeIndex],
     feature_columns: list[str],
 ) -> pd.DataFrame:
-    prediction_frames = []
+    x_train, y_train, x_test, test_rows = _prepare_linear_window(
+        historical_rows=historical_rows,
+        window=window,
+        feature_columns=feature_columns,
+    )
 
-    for model_name, model in models.items():
-        prediction_frame = predict_one_window(
-            model=model,
-            model_name=model_name,
-            historical_rows=historical_rows,
-            window=window,
-            feature_columns=feature_columns,
-        )
-
-        prediction_frames.append(prediction_frame)
-
-    if not prediction_frames:
-        return pd.DataFrame(
-            columns=[
-                "date",
-                "ticker",
-                "predicted_return",
-                "actual_return",
-                "model_name",
-            ]
-        )
-
-    return pd.concat(
-        prediction_frames,
-        ignore_index=True,
+    return predict_models_for_prepared_window(
+        models=models,
+        x_train=x_train,
+        y_train=y_train,
+        x_test=x_test,
+        test_rows=test_rows,
     )
 
 
@@ -144,29 +200,35 @@ def predict_models_for_windows(
     historical_rows: pd.DataFrame,
     windows: list[dict[str, pd.DatetimeIndex]],
     feature_columns: list[str],
+    n_jobs: int = -1,
 ) -> pd.DataFrame:
-    prediction_frames = []
-
-    for window in windows:
-        prediction_frame = predict_models_for_window(
-            models=models,
+    # Each walk-forward window is an independent fit. Slicing happens up
+    # front (cheap, sequential) so only the small per-window frames -- not
+    # the full historical_rows table -- cross process boundaries; results
+    # come back in submission order, so output is identical to the
+    # sequential loop regardless of n_jobs.
+    prepared_windows = [
+        _prepare_linear_window(
             historical_rows=historical_rows,
             window=window,
             feature_columns=feature_columns,
         )
+        for window in windows
+    ]
 
-        prediction_frames.append(prediction_frame)
+    prediction_frames = Parallel(n_jobs=n_jobs)(
+        delayed(predict_models_for_prepared_window)(
+            models=models,
+            x_train=x_train,
+            y_train=y_train,
+            x_test=x_test,
+            test_rows=test_rows,
+        )
+        for x_train, y_train, x_test, test_rows in prepared_windows
+    )
 
     if not prediction_frames:
-        return pd.DataFrame(
-            columns=[
-                "date",
-                "ticker",
-                "predicted_return",
-                "actual_return",
-                "model_name",
-            ]
-        )
+        return _empty_linear_predictions()
 
     return pd.concat(
         prediction_frames,

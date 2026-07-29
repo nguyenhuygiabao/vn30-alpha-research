@@ -4,6 +4,7 @@ from math import ceil
 from pathlib import Path
 
 import pandas as pd
+from joblib import Parallel, delayed
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
@@ -193,6 +194,45 @@ def rank_predictions_by_probability(
     ).reset_index(drop=True)
 
 
+def _empty_classification_predictions() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "date",
+            "ticker",
+            "predicted_probability",
+            "actual_label",
+            "actual_return",
+            "probability_rank",
+            "selected_top_5",
+        ]
+    )
+
+
+def predict_prepared_classification_window(
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
+    x_test: pd.DataFrame,
+    test_rows: pd.DataFrame,
+    label_column: str = TOP_QUINTILE_LABEL_COLUMN,
+) -> pd.DataFrame:
+    predicted_probabilities = fit_predict_logistic_model(
+        x_train=x_train,
+        y_train=y_train,
+        x_test=x_test,
+    )
+
+    prediction_frame = build_classification_prediction_frame(
+        test_rows=test_rows,
+        predicted_probabilities=predicted_probabilities,
+        label_column=label_column,
+    )
+
+    return rank_predictions_by_probability(
+        predictions=prediction_frame,
+        top_n=5,
+    )
+
+
 def predict_one_classification_window(
     historical_rows: pd.DataFrame,
     window: dict[str, pd.DatetimeIndex],
@@ -206,54 +246,50 @@ def predict_one_classification_window(
         label_column=label_column,
     )
 
-    predicted_probabilities = fit_predict_logistic_model(
+    return predict_prepared_classification_window(
         x_train=x_train,
         y_train=y_train,
         x_test=x_test,
-    )
-
-    prediction_frame = build_classification_prediction_frame(
         test_rows=test_rows,
-        predicted_probabilities=predicted_probabilities,
         label_column=label_column,
     )
-
-    ranked_predictions = rank_predictions_by_probability(
-        predictions=prediction_frame,
-        top_n=5,
-    )
-
-    return ranked_predictions
 
 
 def predict_classification_windows(
     historical_rows: pd.DataFrame,
     windows: list[dict[str, pd.DatetimeIndex]],
     feature_columns: list[str],
+    label_column: str = TOP_QUINTILE_LABEL_COLUMN,
+    n_jobs: int = -1,
 ) -> pd.DataFrame:
-    prediction_frames = []
-
-    for window in windows:
-        prediction_frame = predict_one_classification_window(
+    # Each walk-forward window is an independent fit. Slicing happens up
+    # front (cheap, sequential) so only the small per-window frames -- not
+    # the full historical_rows table -- cross process boundaries; results
+    # come back in submission order, so output is identical to the
+    # sequential loop regardless of n_jobs.
+    prepared_windows = [
+        prepare_classification_window_data(
             historical_rows=historical_rows,
             window=window,
             feature_columns=feature_columns,
+            label_column=label_column,
         )
+        for window in windows
+    ]
 
-        prediction_frames.append(prediction_frame)
+    prediction_frames = Parallel(n_jobs=n_jobs)(
+        delayed(predict_prepared_classification_window)(
+            x_train=x_train,
+            y_train=y_train,
+            x_test=x_test,
+            test_rows=test_rows,
+            label_column=label_column,
+        )
+        for x_train, y_train, x_test, test_rows in prepared_windows
+    )
 
     if not prediction_frames:
-        return pd.DataFrame(
-            columns=[
-                "date",
-                "ticker",
-                "predicted_probability",
-                "actual_label",
-                "actual_return",
-                "probability_rank",
-                "selected_top_5",
-            ]
-        )
+        return _empty_classification_predictions()
 
     return pd.concat(
         prediction_frames,
