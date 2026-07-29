@@ -100,9 +100,20 @@ def build_basic_features(data: pd.DataFrame) -> pd.DataFrame:
     )
 
     if "value_traded" in features.columns:
+        value_traded_for_liquidity = features["value_traded"]
+
+        # Where the vendor never supplied a real traded value (currently
+        # FLC/ROS only, see market_data_schema.KNOWN_MISSING_TRADED_VALUE_TICKERS),
+        # fall back to the disclosed typical-price * volume estimate rather
+        # than leaving average_daily_value_20d permanently missing.
+        if "value_traded_estimated" in features.columns:
+            value_traded_for_liquidity = value_traded_for_liquidity.fillna(
+                features["value_traded_estimated"]
+            )
+
         features["average_daily_value_20d"] = (
-            features
-            .groupby("ticker")["value_traded"]
+            value_traded_for_liquidity
+            .groupby(features["ticker"])
             .transform(
                 lambda traded_value: (
                     traded_value

@@ -247,6 +247,53 @@ def test_loader_allows_missing_value_for_known_archive_tickers(
     ] == ["FLC"]
 
 
+def test_loader_estimates_traded_value_only_for_missing_rows(
+    tmp_path: Path,
+) -> None:
+    raw_path = tmp_path / "raw_market_history.csv"
+    adjusted_path = (
+        tmp_path / "adjusted_market_history.csv"
+    )
+    write_market_csv(
+        raw_path,
+        [
+            market_row(),
+            market_row(
+                ticker="FLC",
+                value=float("nan"),
+            ),
+        ],
+    )
+    write_market_csv(
+        adjusted_path,
+        [
+            market_row(),
+            market_row(
+                ticker="FLC",
+                value=float("nan"),
+            ),
+        ],
+    )
+
+    market = load_canonical_market_history(
+        raw_path,
+        adjusted_path,
+    )
+    aaa = market.loc[market["ticker"].eq("AAA")].iloc[0]
+    flc = market.loc[market["ticker"].eq("FLC")].iloc[0]
+
+    # AAA has a real vendor value; the estimate must stay unused.
+    assert pd.isna(aaa["value_traded_estimated"])
+    assert aaa["value_traded_is_estimated"] == False  # noqa: E712
+
+    # FLC has no vendor value; typical price (H+L+C)/3 * volume fills in.
+    expected_typical_price = (11.0 + 9.0 + 10.5) / 3.0
+    assert flc["value_traded_estimated"] == pytest.approx(
+        expected_typical_price * 100
+    )
+    assert flc["value_traded_is_estimated"] == True  # noqa: E712
+
+
 def test_loader_still_rejects_missing_value_for_non_archive_ticker_with_raw(
     tmp_path: Path,
 ) -> None:
