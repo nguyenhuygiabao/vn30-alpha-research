@@ -138,9 +138,16 @@ def test_bank_heavy_top_ranks_are_replaced_until_sector_cap_is_feasible() -> Non
 
 
 def test_current_universe_identifies_all_bank_members_for_risk_control() -> None:
+    # config/vn30_universe.csv covers all 60 historical VN30 constituents
+    # (current members plus alumni, needed for issuer/sector caps on
+    # historical backtest predictions), so alumni banks such as EIB are
+    # also expected to appear here. This test only guards that every
+    # currently-live bank constituent is still present and correctly
+    # tagged for paper-trading risk control.
     universe = pd.read_csv("config/vn30_universe.csv")
+    banks = set(universe.loc[universe["sector"] == "Banks", "ticker"])
 
-    assert set(universe.loc[universe["sector"] == "Banks", "ticker"]) == {
+    assert banks >= {
         "ACB", "BID", "CTG", "HDB", "LPB", "MBB", "SHB", "SSB", "STB",
         "TCB", "TPB", "VCB", "VIB", "VPB",
     }

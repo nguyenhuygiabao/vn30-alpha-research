@@ -1,24 +1,54 @@
 ticker,vnstock_symbol,issuer_group,sector
 ACB,ACB,ACB,Banks
+BCM,BCM,Becamex,Real Estate
 BID,BID,BIDV,Banks
+BMP,BMP,Binh Minh Plastics,Materials
 BSR,BSR,BSR,Energy
+BVH,BVH,Bao Viet,Financial Services
+CII,CII,CII,Industrials
+CTD,CTD,Coteccons,Industrials
 CTG,CTG,VietinBank,Banks
+DGC,DGC,Duc Giang,Materials
+DHG,DHG,Hau Giang Pharma,Health Care
+DPM,DPM,Phu My Fertilizer,Materials
+EIB,EIB,Eximbank,Banks
+FLC,FLC,FLC Group,Real Estate
 FPT,FPT,FPT,Technology
 GAS,GAS,PV GAS,Energy
+GMD,GMD,Gemadept,Industrials
 GVR,GVR,VRG,Materials
+HAG,HAG,Hoang Anh Gia Lai,Consumer Staples
+HCM,HCM,HSC,Financial Services
 HDB,HDB,HDBank,Banks
+HNG,HNG,Hoang Anh Gia Lai,Consumer Staples
 HPG,HPG,Hoa Phat,Materials
+HSG,HSG,Hoa Sen,Materials
+ITA,ITA,Tan Tao,Real Estate
+KBC,KBC,Kinh Bac,Real Estate
+KDC,KDC,Kido,Consumer Staples
+KDH,KDH,Khang Dien,Real Estate
 LPB,LPB,LPBank,Banks
 MBB,MBB,MB,Banks
 MSN,MSN,Masan,Consumer Staples
 MWG,MWG,Mobile World,Consumer Discretionary
+NT2,NT2,PV Power,Utilities
+NVL,NVL,Novaland,Real Estate
+PDR,PDR,Phat Dat,Real Estate
 PLX,PLX,Petrolimex,Energy
+PNJ,PNJ,Phu Nhuan Jewelry,Consumer Discretionary
+POW,POW,PV Power,Utilities
+PPC,PPC,Pha Lai Power,Utilities
+PVD,PVD,PV Drilling,Energy
+REE,REE,REE,Utilities
+ROS,ROS,FLC Group,Real Estate
 SAB,SAB,Sabeco,Consumer Staples
+SBT,SBT,Thanh Thanh Cong,Consumer Staples
 SHB,SHB,SHB,Banks
 SSB,SSB,SeABank,Banks
 SSI,SSI,SSI,Financial Services
 STB,STB,Sacombank,Banks
 TCB,TCB,Techcombank,Banks
+TCH,TCH,Hoang Huy,Real Estate
 TPB,TPB,TPBank,Banks
 VCB,VCB,Vietcombank,Banks
 VHM,VHM,Vingroup,Real Estate
