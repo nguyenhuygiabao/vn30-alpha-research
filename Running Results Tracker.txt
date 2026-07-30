@@ -1,0 +1,660 @@
+This file tracks the running result:
+7/30/2026
+
+
+PS C:\Users\HUY BAO> cd vn30-alpha-research
+PS C:\Users\HUY BAO\vn30-alpha-research> py .\run_full_pipeline.py
+C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe: can't open file 'C:\\Users\\HUY BAO\\vn30-alpha-research\\run_full_pipeline.py': [Errno 2] No such file or directory
+PS C:\Users\HUY BAO\vn30-alpha-research> py .\run_full_pipeline.py
+C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe: can't open file 'C:\\Users\\HUY BAO\\vn30-alpha-research\\run_full_pipeline.py': [Errno 2] No such file or directory
+PS C:\Users\HUY BAO\vn30-alpha-research>
+PS C:\Users\HUY BAO\vn30-alpha-research> py .\scripts\run_full_pipeline.py
+
+VN30 ALPHA RESEARCH PIPELINE
+================================================================================
+Project root: C:\Users\HUY BAO\vn30-alpha-research
+Python executable: C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe
+
+This runner refreshes local outputs using existing raw data.
+It does not download new data.
+It deletes generated parquet outputs only when --clean-first is used.
+Use --keep-expensive-ml with --clean-first to preserve expensive ML caches.
+Use --reuse-existing-ml to skip expensive ML stages only when cached outputs are fresh.
+
+
+================================================================================
+[1/19] data_quality
+Validate raw OHLCV data and refresh the data quality report.
+Command: C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe -m src.data_quality
+================================================================================
+Data-quality checks completed.
+Rows checked: 137719
+Tickers checked: 60
+Issues flags found: 8558
+Reports created: reports/data_quality_report.md
+Finished: data_quality (3.8 seconds)
+
+================================================================================
+[2/19] features
+Build the combined feature dataset.
+Command: C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe -m src.feature_pipeline
+================================================================================
+Combined feature generation completed.
+Input rows: 137719
+Output rows: 74910
+Output columns: 109
+Duplicate ticker-date keys: 0
+Missing required columns: []
+Infinite numeric columns: {}
+Raw-market source: data\raw\fiinquant\canonical\raw_market_history.csv
+Adjusted-market source: data\raw\fiinquant\canonical\adjusted_market_history.csv
+Foreign-flow source: data\raw\fiinquant\canonical\foreign_flow_history.csv
+Membership source: config\vn30_history
+Universe mode: strict_vn30
+Raw-price fallback rows: 0
+Raw-price fallback tickers: []
+Missing traded-value rows: 1013
+Missing traded-value tickers: ['FLC', 'ROS']
+Market keys without foreign flow: 0
+Foreign-flow keys without market data: 0
+Foreign-flow available rows: 74910
+Rows excluded after lag construction: 62809
+Output path: data\processed\features_combined.parquet
+Finished: features (54.4 seconds)
+
+================================================================================
+[3/19] labels
+Build forward relative-return labels.
+Command: C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe -m src.labels
+================================================================================
+Label generation completed.
+Rows: 74910
+Tickers: 60
+Main target: forward_relative_return_5d
+Valid main-target rows: 74750
+Output file: data/processed/labels.parquet
+Finished: labels (2.6 seconds)
+
+================================================================================
+[4/19] walk_forward_check
+Run walk-forward split and purging checks.
+Command: C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe -m src.walk_forward_split
+================================================================================
+Features path: data/processed/features_combined.parquet
+labels path: data/processed/labels.parquet
+Target column: forward_relative_return_5d
+Key columns: ['date', 'ticker']
+Purge days: 5
+
+Feature rows 74910
+Selected label rows: 74910
+Selected label columns: ['date', 'ticker', 'forward_return_5d', 'vn30_forward_return_5d', 'forward_relative_return_5d']
+
+Modeling dataset rows: 74910
+Modeling dataset columns: 112
+Duplicate ticker-date keys: 0
+Valid target rows: 74750
+Missing target rows: 160
+
+Historical rows: 74750
+Prediction-only rows: 160
+Historical targets all known: True
+Prediction targets all missing: True
+
+Historical date count 2492
+Earliest historical date: 2016-07-26 00:00:00
+Latest historical date: 2026-07-15 00:00:00
+Walk-forward windows: 2480
+Finished: walk_forward_check (1.1 seconds)
+
+================================================================================
+[5/19] linear_models
+Run linear model experiments.
+Command: C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe -m src.linear_models
+================================================================================
+Linear model predictions path: data\processed\linear_model_predictions.parquet
+Prediction rows: 148660
+Prediction columns: ['date', 'ticker', 'predicted_return', 'actual_return', 'model_name']
+
+Models evaluated:
+['elastic_net', 'ridge']
+
+Prediction sample:
+             date ticker  predicted_return  actual_return   model_name
+0      2016-08-15    BID          0.000426      -0.034284        ridge
+1      2016-08-15    BVH          0.011996       0.002014        ridge
+2      2016-08-15    CII         -0.009132       0.055169        ridge
+3      2016-08-15    CTG          0.006760      -0.015720        ridge
+4      2016-08-15    DPM          0.004319       0.009273        ridge
+...           ...    ...               ...            ...          ...
+148655 2026-07-15    VJC          0.009345       0.030645  elastic_net
+148656 2026-07-15    VNM          0.007217       0.113536  elastic_net
+148657 2026-07-15    VPB          0.028994       0.028079  elastic_net
+148658 2026-07-15    VPL         -0.020721      -0.044810  elastic_net
+148659 2026-07-15    VRE         -0.034092      -0.067069  elastic_net
+
+[148660 rows x 5 columns]
+
+Model performance summary:
+    model_name  evaluated_dates  average_rank_ic  average_top_n_actual_return  average_selected_count
+0  elastic_net             2478         0.021737                     0.001351                     5.0
+1        ridge             2478         0.017905                     0.000786                     5.0
+Finished: linear_models (46.5 seconds)
+
+================================================================================
+[6/19] tree_models
+Run tree-based model experiments.
+Command: C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe -m src.tree_models
+================================================================================
+Tree model predictions path: data\processed\tree_model_predictions.parquet
+Tree feature importance path: data\processed\tree_feature_importance.parquet
+Prediction rows: 148660
+Feature importance rows: 490644
+
+Tree model performance summary:
+          model_name  evaluated_dates  average_rank_ic  average_top_n_actual_return  average_selected_count
+0  gradient_boosting             2478         0.019869                     0.000998                     5.0
+1      random_forest             2478         0.018015                     0.001433                     5.0
+
+Tree vs linear model comparison:
+          model_name  evaluated_dates  average_rank_ic  average_top_n_actual_return  average_selected_count
+0        elastic_net             2478         0.021737                     0.001351                     5.0
+1  gradient_boosting             2478         0.019869                     0.000998                     5.0
+2      random_forest             2478         0.018015                     0.001433                     5.0
+3              ridge             2478         0.017905                     0.000786                     5.0
+
+Top feature importance:
+           model_name                        feature  average_importance  importance_observations
+0   gradient_boosting                     return_60d            0.059645                     2478
+1   gradient_boosting                       drawdown            0.056539                     2478
+2   gradient_boosting                rolling_vol_20d            0.055500                     2478
+3   gradient_boosting       average_daily_volume_20d            0.043067                     2478
+4   gradient_boosting   foreign_flow_return_corr_20d            0.031661                     2478
+5   gradient_boosting  foreign_buy_downday_share_20d            0.027678                     2478
+6   gradient_boosting                     return_10d            0.026065                     2478
+7   gradient_boosting        average_daily_value_20d            0.025843                     2478
+8   gradient_boosting                reference_price            0.024049                     2478
+9   gradient_boosting        estimated_ceiling_price            0.023279                     2478
+10  gradient_boosting          estimated_floor_price            0.022967                     2478
+11  gradient_boosting          distance_from_20d_low            0.021841                     2478
+12  gradient_boosting   foreign_sell_value_share_20d            0.021830                     2478
+13  gradient_boosting                      return_3d            0.020435                     2478
+14  gradient_boosting         distance_from_20d_high            0.020435                     2478
+15  gradient_boosting     foreign_flow_imbalance_20d            0.019109                     2478
+16  gradient_boosting    foreign_net_value_share_20d            0.018927                     2478
+17  gradient_boosting          foreign_net_value_20d            0.018903                     2478
+18  gradient_boosting    foreign_buy_value_share_20d            0.017378                     2478
+19  gradient_boosting                     return_20d            0.016893                     2478
+20      random_forest                     return_60d            0.059848                     2478
+21      random_forest                rolling_vol_20d            0.057690                     2478
+22      random_forest                       drawdown            0.052306                     2478
+23      random_forest       average_daily_volume_20d            0.042446                     2478
+24      random_forest   foreign_flow_return_corr_20d            0.030357                     2478
+25      random_forest                     return_10d            0.027316                     2478
+26      random_forest  foreign_buy_downday_share_20d            0.026637                     2478
+27      random_forest                reference_price            0.024838                     2478
+28      random_forest          distance_from_20d_low            0.023660                     2478
+29      random_forest        estimated_ceiling_price            0.022023                     2478
+30      random_forest        average_daily_value_20d            0.021891                     2478
+31      random_forest          estimated_floor_price            0.020907                     2478
+32      random_forest         distance_from_20d_high            0.020833                     2478
+33      random_forest   foreign_sell_value_share_20d            0.020291                     2478
+34      random_forest                      return_3d            0.019990                     2478
+35      random_forest     foreign_flow_imbalance_20d            0.018910                     2478
+36      random_forest          foreign_net_value_20d            0.018466                     2478
+37      random_forest    foreign_net_value_share_20d            0.017446                     2478
+38      random_forest                     return_20d            0.017050                     2478
+39      random_forest             rolling_return_20d            0.016980                     2478
+Finished: tree_models (142.7 seconds)
+
+================================================================================
+[7/19] classification_models
+Run classification model experiments.
+Command: C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe -m src.classification_models
+================================================================================
+Classification model predictions path: data\processed\classification_model_predictions.parquet
+Prediction rows: 74330
+Prediction columns: ['date', 'ticker', 'predicted_probability', 'actual_label', 'actual_return', 'probability_rank', 'selected_top_5']
+
+Prediction sample:
+            date ticker  predicted_probability  actual_label  actual_return  probability_rank  selected_top_5
+0     2016-08-15    VNM               0.999672             0       0.020059               1.0            True
+1     2016-08-15    VIC               0.956739             0      -0.042321               2.0            True
+2     2016-08-15    MSN               0.950665             1       0.088221               3.0            True
+3     2016-08-15    SBT               0.898619             0       0.031999               4.0            True
+4     2016-08-15    CTG               0.881165             0      -0.015720               5.0            True
+...          ...    ...                    ...           ...            ...               ...             ...
+74325 2026-07-15    SHB               0.016164             0      -0.013736              26.0           False
+74326 2026-07-15    SAB               0.005228             1       0.080374              27.0           False
+74327 2026-07-15    VPL               0.002125             0      -0.044810              28.0           False
+74328 2026-07-15    VRE               0.001174             0      -0.067069              29.0           False
+74329 2026-07-15    GVR               0.001108             0      -0.041231              30.0           False
+
+[74330 rows x 7 columns]
+
+Classification metrics summary:
+   evaluated_dates  average_precision  average_recall  average_selected_count
+0             2478           0.220823        0.184019                     5.0
+Finished: classification_models (30.3 seconds)
+
+================================================================================
+[8/19] baseline_portfolios
+Run baseline portfolio comparisons.
+Command: C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe -m src.baseline_portfolios
+================================================================================
+Modeling rows: 74910
+Historical rows: 74750
+Prediction-only rows: 160
+Baseline return rows: 9919
+Baseline returns path: data/processed/baseline_returns.parquet
+
+Strategies evaluated:
+['equal_weight_all', 'low_volatility_top10', 'top5_momentum', 'top5_reversal']
+
+Baseline return summary:
+               strategy  evaluated_dates  ...  average_active_return_vs_vn30_5d  average_selected_count
+0      equal_weight_all             2492  ...                     -9.020666e-21               29.995987
+1  low_volatility_top10             2472  ...                     -3.469753e-04               10.000000
+2         top5_momentum             2482  ...                      2.294434e-03                5.000000
+3         top5_reversal             2473  ...                     -2.629704e-03                5.000000
+
+[4 rows x 5 columns]
+
+Comparison against VN30 index:
+           date              strategy  ...  active_return_vs_vn30_5d  selected_count
+0    2016-07-26      equal_weight_all  ...              3.252607e-19              30
+1    2016-07-27      equal_weight_all  ...             -4.336809e-19              30
+2    2016-07-28      equal_weight_all  ...              3.415237e-18              30
+3    2016-07-29      equal_weight_all  ...              4.770490e-18              30
+4    2016-08-01      equal_weight_all  ...              0.000000e+00              30
+...         ...                   ...  ...                       ...             ...
+9914 2026-07-14         top5_reversal  ...             -2.558552e-02               5
+9915 2026-07-15      equal_weight_all  ...             -1.734723e-18              30
+9916 2026-07-15  low_volatility_top10  ...              1.701238e-02              10
+9917 2026-07-15         top5_momentum  ...             -1.079817e-02               5
+9918 2026-07-15         top5_reversal  ...             -3.757506e-02               5
+
+[9919 rows x 6 columns]
+Finished: baseline_portfolios (1.6 seconds)
+
+================================================================================
+[9/19] risk_model
+Build the past-only rolling risk model.
+Command: C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe -m src.risk_model
+================================================================================
+Risk model path: data\processed\risk_model.parquet
+Risk model rows: 74910
+Risk model columns: ['date', 'ticker', 'return_1d', 'vn30_return_1d', 'stock_minus_vn30_return_1d', 'rolling_covariance_with_vn30', 'rolling_vn30_variance', 'rolling_beta_to_vn30', 'residual_return_1d']
+Duplicate ticker-date keys: 0
+Missing stock returns: 31
+Missing VN30 returns: 30
+Missing rolling covariance: 1231
+Missing rolling beta: 1231
+Missing residual returns: 1231
+
+Sample:
+        date ticker  return_1d  ...  rolling_vn30_variance  rolling_beta_to_vn30  residual_return_1d
+0 2016-07-26    BID        NaN  ...                    NaN                   NaN                 NaN
+1 2016-07-26    BVH        NaN  ...                    NaN                   NaN                 NaN
+2 2016-07-26    CII        NaN  ...                    NaN                   NaN                 NaN
+3 2016-07-26    CTG        NaN  ...                    NaN                   NaN                 NaN
+4 2016-07-26    DPM        NaN  ...                    NaN                   NaN                 NaN
+5 2016-07-26    FLC        NaN  ...                    NaN                   NaN                 NaN
+6 2016-07-26    FPT        NaN  ...                    NaN                   NaN                 NaN
+7 2016-07-26    GAS        NaN  ...                    NaN                   NaN                 NaN
+8 2016-07-26    GMD        NaN  ...                    NaN                   NaN                 NaN
+9 2016-07-26    HAG        NaN  ...                    NaN                   NaN                 NaN
+
+[10 rows x 9 columns]
+Finished: risk_model (1.1 seconds)
+
+================================================================================
+[10/19] optimizer
+Build constrained long-only optimized weights.
+Command: C:\Users\HUY BAO\AppData\Local\Python\pythoncore-3.14-64\python.exe -m src.optimizer
+================================================================================
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\HUY BAO\vn30-alpha-research\src\optimizer.py", line 600, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\HUY BAO\vn30-alpha-research\src\optimizer.py", line 496, in main
+    predictions = load_model_predictions()
+  File "C:\Users\HUY BAO\vn30-alpha-research\src\optimizer.py", line 65, in load_model_predictions
+    raise ValueError(
+        f"Missing issuer group for {missing_issuer_group} prediction rows"
+    )
+ValueError: Missing issuer group for 39836 prediction rows
+Traceback (most recent call last):
+  File "C:\Users\HUY BAO\vn30-alpha-research\scripts\run_full_pipeline.py", line 447, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\HUY BAO\vn30-alpha-research\scripts\run_full_pipeline.py", line 428, in main
+    run_step(step_number, total_steps, step)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HUY BAO\vn30-alpha-research\scripts\run_full_pipeline.py", line 312, in run_step
+    raise RuntimeError(
+    ...<2 lines>...
+    )
+RuntimeError: Pipeline stopped at step 10/19: optimizer. Exit code: 1
+PS C:\Users\HUY BAO\vn30-alpha-research>
+
+--- DIAGNOSIS ---
+Root cause: config/vn30_universe.csv only listed the 30 current static VN30
+tickers. tree_model_predictions.parquet now correctly carries all 60
+historical constituents (point-in-time membership fix from earlier this
+session). Merging predictions against the 30-ticker file left 39,836 of
+148,660 rows (~27%, all alumni tickers) with no issuer_group/sector, and
+optimizer.py correctly refused to proceed rather than drop them silently.
+
+Fix: extended config/vn30_universe.csv from 30 to 60 rows, adding
+issuer_group/sector for every alumni ticker (BCM, BMP, BVH, CII, CTD, DGC,
+DHG, DPM, EIB, FLC, GMD, HAG, HCM, HNG, HSG, ITA, KBC, KDC, KDH, NT2, NVL,
+PDR, PNJ, POW, PPC, PVD, REE, ROS, SBT, TCH). Classifications compiled from
+general knowledge of these companies (no vendor source for this in the
+repo) -- not vendor-verified, flagged to user. Two affiliated-issuer
+groupings applied deliberately: FLC + ROS -> "FLC Group" (same controlling
+shareholder, the 2022 fraud case is exactly the concentration risk this
+cap exists for), HAG + HNG -> "Hoang Anh Gia Lai" (HAG holds a controlling
+stake in HNG), NT2 + POW -> "PV Power" (POW holds ~59% of NT2).
+
+Verified after the fix:
+- Universe file: 60 rows, 0 duplicate tickers, 0 missing issuer_group/sector
+  cells, exact match against the 60 tickers in tree_model_predictions.
+- Full pipeline resumed with --start-at optimizer: steps 10-19/19 all
+  completed successfully (optimizer 177.3s, backtester 61.7s, ablation_tests
+  130.5s, horizon_tests 69.7s, dashboard/report/chart steps).
+- Full test suite: 339/339 passing. One pre-existing test,
+  test_current_universe_identifies_all_bank_members_for_risk_control, broke
+  because it asserted the Banks set equaled exactly the 14 current-member
+  banks -- true only when the file was current-members-only. Fixed to
+  assert the current 14 are a subset (>=) of the Banks set, since alumni
+  bank EIB is now correctly included too. Rationale documented inline in
+  the test.
+- Issuer-group caps confirmed enforced post-fix: max combined group weight
+  0.40 in normal/herding_aware/sector_aware optimization modes, 0.25 in
+  sector_diversified -- matching MAX_ISSUER_GROUP_WEIGHT /
+  PAPER_MAX_ISSUER_GROUP_WEIGHT. FLC+ROS and HAG+HNG confirmed capped as a
+  joint group on days both are selected.
+- audit_project_state.py: PASSED (figures non-empty; only expected
+  generated-output diffs in git status, no data leaks).
+
+Important caveat carried forward: this full-pipeline run (and therefore all
+regenerated headline outputs -- reports/final_results.md, model_report.md,
+dashboard.html, tables/, figures/) includes the unevaluated FB/FS enhanced
+features (foreign_flow_imbalance_3d/5d/10d/20d,
+foreign_flow_return_corr_20d, foreign_buy_downday_share_20d), auto-
+discovered into production models per the sequencing warning in
+docs/enhanced_fb_fs_checkpoint.md. foreign_flow_return_corr_20d and
+foreign_buy_downday_share_20d rank #5-#6 in gradient_boosting feature
+importance. These headline numbers are NOT a clean baseline and should not
+be reported as such until the insulated foreign-flow experiment
+(scripts/run_foreign_flow_experiment.py) confirms FB/FS against the
+pre-registered decision rule.
+
+Not committed yet. Working tree has: config/vn30_universe.csv,
+tests/test_paper_trading_targets.py, and regenerated report/table/figure
+outputs from this pipeline run.
+PS C:\Users\HUY BAO\vn30-alpha-research>
+
+--- USER REVIEW OF REGENERATED RESULTS (7/30/2026) ---
+User read the regenerated reports and raised 5 concerns. Verified each
+against the actual files rather than taking them at face value:
+
+1. Rank IC 0.018-0.022 weak: CONFIRMED (elastic_net 0.0217, ridge 0.0179,
+   GB 0.0199, RF 0.0180).
+2. top5_momentum (0.00231) badly beats ML sector_diversified
+   price_limit_aware (0.00010): CONFIRMED, and worse than stated -- 5 of 7
+   ML variants are actually negative. Nuance: momentum baseline is
+   before-cost, ML is after-cost (benchmark_results.csv return_basis
+   column) -- not apples-to-apples, but doesn't rescue the conclusion.
+3. "Cumulative active return is a sum of overlapping periods, not
+   compounded" -- valid concern in principle but ALREADY correctly
+   disclosed verbatim in every row of benchmark_results.csv and in
+   final_results.md / methodology.md. Not an omission.
+4. Latest rank diagnostic (2026-07-15) shows CTG/TPB/SHB/SSI top-ranked,
+   all realized negative: CONFIRMED exactly. One-day illustration of the
+   weak Rank IC, not independent new evidence.
+5. without_volume_liquidity beats all_features in ablation: direction
+   confirmed in the file, BUT traced the source and found the evidence
+   itself is unsound -- see bug below.
+
+BUG FOUND (beyond what user flagged): src/ablation_tests.py and
+src/horizon_tests.py both had an unconditional "if output_path.exists():
+reuse, else: rebuild" cache with NO dependency-freshness check --
+different from run_full_pipeline.py's own --reuse-existing-ml mechanism,
+which does check dependency mtimes. data/processed/ablation_tree_
+predictions.parquet was dated 2026-07-07 (23 days stale). Today's
+"ablation_tests" pipeline step silently reused it instead of refitting --
+it predates the point-in-time membership fix, the FLC/ROS raw merge, the
+traded-value estimate, and FB/FS entirely (51 features vs 99 the current
+pipeline discovers). The "without_volume_liquidity beats all_features"
+number the user cited was measuring a 3-week-old snapshot, not the current
+pipeline.
+
+FIX APPLIED: removed the internal unconditional reuse-if-exists cache from
+both ablation_tests.py::main() and horizon_tests.py::main() (same
+"if output_path.exists(): load / else: build" pattern in both). Both now
+always rebuild fresh when invoked directly. run_full_pipeline.py's
+existing --reuse-existing-ml flag remains the correct, opt-in,
+dependency-aware way to skip expensive steps -- this removes a silent,
+un-opt-in duplicate of that mechanism that could go stale forever.
+Deleted the stale ablation_tree_predictions.parquet and horizon_tree_
+predictions.parquet files. Rerunning both fresh (in progress).
+
+--- FIINQUANT/VNSTOCK BOUNDARY CHECK (task 2 of 5) ---
+data_quality.py: 0 vnstock references. Clean, fully FiinQuant. Confirmed.
+labels.py: 0 vnstock references. Clean, fully FiinQuant. Confirmed.
+
+Paper trading live-update path: still fully on vnstock. Confirmed via
+grep, not assumed:
+- src/paper_trading/data_update.py: reads/writes "vnstock_symbol" /
+  "provider_symbol" columns end to end.
+- scripts/update_daily_data.py: VnstockDailyProvider class,
+  "from vnstock import Quote".
+- config/paper_trading_config.yaml: data_update.source: KBS (a vnstock
+  data source identifier), audit_path and model.raw_ohlcv_path both under
+  data/raw/vnstock/.
+
+Correction to a claim carried in this session's earlier memory: the
+assumption that "FiinQuant has no incremental updater, only a bulk
+historical downloader" does NOT hold up under inspection.
+scripts/download_fiinquant_history.py's fetch_history() calls
+client.Fetch_Trading_Data(..., from_date=, to_date=, lasted=False) --
+this accepts arbitrary date ranges, so a narrow-window incremental fetch
+is technically feasible. Not repeating the old claim as settled fact.
+
+Conclusion: paper trading's live daily-update path is a known, real gap
+(not an accidental vnstock leak into research results -- data_quality,
+labels, and the full research/backtest pipeline are confirmed FiinQuant).
+Migrating it to FiinQuant is a real, separate implementation task
+(auth/session handling, adjusted-price back-revision on corporate actions,
+foreign-flow incremental merge, canonical-format writer) that was not
+attempted here without explicit confirmation -- it's a build task, not a
+"fix the boundary" task, since paper trading was never claimed to be
+FiinQuant-migrated.
+
+--- EXECUTION COVERAGE AUDIT (task 3 of 5) ---
+New script: scripts/audit_execution_coverage.py. For every (date, ticker)
+pair where ticker is an active point-in-time VN30 constituent per verified
+membership history, on every date in the dataset's actual trading
+calendar, classifies genuine execution-data availability: raw OHLC
+present, volume present, value_traded real vs clearly-flagged estimate vs
+genuinely unavailable, or the ticker-date row missing entirely. Writes
+reports/tables/execution_coverage_summary.csv (per date) and
+execution_coverage_gaps.csv (per ticker-date, non-clean rows only). 3 new
+unit tests in tests/test_execution_coverage_audit.py, all passing, no
+warnings.
+
+RESULT: clean. 74,910 expected active constituent-dates across 2,497
+trading dates. 73,897 have full real raw OHLC + volume + real traded
+value. The only gap is the already-known, already-flagged one: 1,013 rows
+(FLC 127, ROS 886, 2016-07-26 to 2021-01-29) relying on the disclosed
+typical-price traded-value estimate. Zero rows with missing raw price,
+missing volume, or a missing row entirely. Zero blocked dates. This
+validates that this session's earlier point-in-time membership fix and
+FLC/ROS raw-price archive merge fully closed the execution-coverage gap
+that motivated them -- nothing new to chase here.
+
+--- WHY top5_momentum BEATS ML (task 4 of 5) ---
+Root cause identified with a precise, apples-to-apples comparison rather
+than the vague before/after-cost and diversification hand-waving from the
+earlier response.
+
+top5_momentum's signal is exactly one feature: return_10d (trailing 10-day
+return), ranked daily, top 5 held -- see src/baseline_portfolios.py
+(MOMENTUM_SCORE_COLUMN = "score_portfolio_momentum" = data["return_10d"]).
+Nothing else. No cost, no diversification constraint.
+
+Recomputed each production model's own top-5 raw pick on the identical
+basis -- top 5 by predicted_return each day, actual_return (already
+forward_relative_return_5d, i.e. relative to VN30, same basis as
+top5_momentum's active_return_vs_vn30_5d), before any transaction cost or
+portfolio-construction step, directly from tree_model_predictions.parquet
+/ linear_model_predictions.parquet (2,478 evaluated dates each, matching):
+
+  top5_momentum (return_10d only):  0.002310
+  random_forest top-5:              0.001433
+  elastic_net top-5:                0.001351
+  gradient_boosting top-5:          0.000998
+  ridge top-5:                      0.000786
+
+Momentum beats the best trained model (random_forest) by 1.6x and the
+worst (ridge) by 2.9x -- on a genuinely matched basis (same concentration,
+same cost treatment, same relative-to-VN30 target). This rules out cost
+asymmetry and diversification dilution as the PRIMARY explanation: the gap
+is already present in the raw model output before either of those enters
+the picture. Diversification caps (sector_diversified averages ~26 names
+vs top5's 5) and transaction costs are real, visible, compounding factors
+in the full after-cost portfolio numbers (e.g. ml_normal_normal drops to
+-6.4e-5 after cost/construction) but they are not the root cause.
+
+The models already have return_10d as an input feature (it shows up in
+both tree models' top-14 feature importances). So a model with strictly
+more information than the momentum baseline still picks worse top-5 names
+than the momentum baseline alone. This is consistent with -- and now gives
+a mechanistic explanation for -- the (currently rerunning, previously
+stale) ablation finding that removing volume/liquidity features improved
+results: the models appear to be diluting a real, already-available
+momentum signal with a large block of noisier features. Will cross-check
+against the fresh ablation_results.csv once the rerun finishes.
+
+--- FRESH ABLATION RESULTS (task 1, after the cache fix) ---
+ablation_tests rerun completed cleanly against the current 99-feature
+pipeline (full test suite 342/342 passing, including 3 new execution-
+coverage tests). Reconciled an apparent discrepancy before trusting these
+numbers: ablation's after-cost figures use apply_price_limit_execution_
+rules unconditionally (hardcoded in build_ablation_backtest_summary), so
+"all_features" must be compared against benchmark_results.csv's
+ml_normal_price_limit_aware (-0.000481), not ml_normal_normal (-0.0000637)
+-- confirmed exact match (-0.000481 both) once compared correctly. No bug;
+the two pipelines agree.
+
+Current (correct) ranking, all under price-limit-aware execution:
+
+  ablation_name              rank_ic   top5_actual  after_cost  cumulative
+  without_risk                0.0257      0.001234   -0.000321      -0.797
+  without_volume_liquidity    0.0215      0.000773   -0.000540      -1.337
+  without_herding             0.0203      0.000899   -0.000572      -1.418
+  all_features (current)      0.0199      0.000998   -0.000481      -1.191
+  without_price_limit         0.0135      0.000567   -0.000664      -1.644
+
+This is a MATERIALLY DIFFERENT picture from the stale 51-feature result
+the user originally flagged (without_volume_liquidity dominant, cumulative
++1.211 positive, all_features +0.516 positive). With current data:
+
+1. Every single ablation variant is now NET NEGATIVE after cost (cumulative
+   -0.80 to -1.64). None of the stale run's positive after-cost numbers
+   survive against the current 99-feature pipeline. This matters more than
+   any single ablation ranking -- the honest current picture is that this
+   model configuration is not profitable after transaction costs in any of
+   the 5 feature configurations tested.
+2. without_risk (removing just rolling_vol_20d and drawdown -- 2 features)
+   is now the clear standout: best rank IC (0.0257 vs 0.0199), best top-5
+   actual return, AND least-negative after-cost return of all 5 variants.
+   This did not show up in the stale run at all.
+3. without_volume_liquidity's story partially reverses: it still improves
+   raw rank IC and top-5 actual return over all_features (confirming part
+   of the original concern -- these features add prediction noise), BUT it
+   is actually WORSE than all_features on after-cost return (-0.000540 vs
+   -0.000481) and cumulative (-1.337 vs -1.191). Plausible mechanism: some
+   volume/liquidity features may help the optimizer avoid illiquid names
+   that trigger costlier price-limit execution penalties, even though they
+   add noise to the raw prediction. Raw predictive accuracy and after-cost
+   portfolio outcome are not the same thing here.
+4. without_price_limit is unambiguously worst on every metric -- confirms
+   price-limit features are genuinely load-bearing, not noise.
+
+Bottom line: the user's instinct that something in the feature set is
+hurting the model was directionally right, but the specific culprit named
+(volume/liquidity) and the specific magnitude were both artifacts of a
+3-week-stale cache. The current, honest evidence points at the risk
+features (rolling_vol_20d, drawdown) as the more promising ablation
+candidate, and at a first-order finding more important than any single
+ablation: nothing tested here clears transaction costs yet.
+
+horizon_tests.py rerun fresh too (same cache-removal fix, confirmed
+working): 222,898 prediction rows, 3 horizons. The 5-day row matches the
+fresh ablation's all_features row exactly (rank_ic 0.019869, after-cost
+-0.000481, cumulative -1.191474) -- full internal consistency between the
+two now-independently-rebuilt outputs. 1-day horizon is worse (rank_ic
+0.0188, after-cost -0.000703, cumulative -1.749). 10-day horizon is
+genuinely better and now freshly confirmed rather than stale (rank_ic
+0.0391, after-cost +0.000804 POSITIVE, cumulative +1.980 POSITIVE) --
+consistent with final_results.md's existing claim that the 10-day horizon
+is the strongest tested configuration.
+
+TASK 1 COMPLETE. Full test suite: 342/342 passing after both reruns.
+
+--- FB/FS EXPERIMENT RESULT (task 5 of 5) -- FINAL ---
+scripts/run_foreign_flow_experiment.py completed: started 11:57:59, finished
+15:59 (~4h01m wall clock -- slower than the 5.5h calibrated estimate turned
+out to be an overestimate, or parallelism improved in the second half of
+the run; either way, genuinely finished, not killed). 222/222 signals
+completed (10-day horizon, 10-day spacing, expanding training window,
+2017-08-09 through 2026-07-01). Exit code 0. 342/342 tests still pass
+afterward; all 6 expected output files written.
+
+PRE-REGISTERED PRIMARY TEST (fixed before results were seen, per
+docs/enhanced_fb_fs_checkpoint.md): enhanced_fb_fs vs frozen_foreign_flow,
+paired block bootstrap on daily Rank IC. Promote only if the 95% CI
+excludes zero.
+
+RESULT: mean_rank_ic_difference = -0.002608 (enhanced_fb_fs actually
+LOWER, not higher). bootstrap_95pct_lower = -0.013314, bootstrap_95pct_
+upper = +0.008297. The CI spans zero, and the point estimate itself is
+negative.
+
+VERDICT: DOES NOT CLEAR THE PRE-REGISTERED BAR. FB/FS is NOT promoted.
+
+Secondary test (reported, not decisive): enhanced_fb_fs vs market_baseline
+= +0.005619, CI [-0.009386, +0.020961] -- also spans zero.
+
+Full ranking by average_rank_ic across all 5 sets (222 signals each):
+  frozen_foreign_flow   0.063616  <- BEST, the ORIGINAL set, no FB/FS at all
+  frozen_plus_fb_fs     0.062448
+  enhanced_fb_fs        0.061007  <- the new work from this session
+  market_baseline       0.055389
+  fb_fs                 0.053736  <- WORST
+
+The single most informative fact here: frozen_foreign_flow alone (zero
+buy/sell features) outperforms every set that adds foreign buy/sell
+features, original or enhanced. Six new features, a full diagnostic
+rebuild of the failure mode, and ~4 hours of walk-forward refitting later,
+the honest conclusion is that this session's FB/FS engineering did not
+find a version of the buy/sell signal that beats simply not using it.
+This is exactly the outcome the pre-registered rule and the multiplicity
+caveat (this was the fifth feature set tested on the same development
+data) existed to catch honestly rather than let get talked into a
+marginal-looking win.
+
+STANDING RULE HELD: FB/FS was never promoted into production at any point
+this session. This result confirms that caution was correct, not just
+procedurally cautious. No production config, feature_pipeline.py's
+auto-discovery boundary, paper trading, or real orders were touched by
+this experiment -- confirmed via the script's own printed guarantee and
+via git status.
+
+TASK 5 COMPLETE. ALL 5 TASKS FROM THIS SESSION'S WORKLIST COMPLETE.
+PS C:\Users\HUY BAO\vn30-alpha-research>
