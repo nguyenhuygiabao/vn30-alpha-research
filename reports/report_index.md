@@ -1,55 +1,61 @@
 # Report Index
 
-This page links the main outputs of the VN30 Alpha Research Framework.
+Links to the main outputs of the VN30 Alpha Research Framework.
 
 ## Start here
 
-- [HTML Dashboard](dashboard.html): visual dashboard with stock ranking, portfolio weights, figures, and metric glossary.
-- [Project Context](../PROJECT_CONTEXT.md): reusable handoff prompt for continuing the project in a new coding session.
-- [Final Results](Final Results.md): main findings, backtest results, horizon tests, ablation tests, figures, limitations, and conclusion.
-- [Methodology](methodology.md): data, labels, features, models, validation, optimizer, backtester, transaction costs, and bias controls.
-- [Final Audit](Final Audit.md): final repo state, script reruns, verification checks, and artifact audit.
+- [HTML Dashboard](dashboard.html) — visual dashboard with rankings, portfolio weights, figures, and metric glossary.
+- [Final Results](final_results.md) — main findings, backtest results, horizon and ablation tests, baseline comparison, limitations.
+- [Methodology](methodology.md) — universe, data contract, labels, features, models, validation, optimizer, costs, bias controls.
+- [Audit](final_audit.md) — automated audit output, test suite, reproducibility and consistency checks, known gaps.
 
 ## Supporting reports
 
-- [Model Report](Model Report.md): model evaluation details.
-- [Data Quality Report](data_quality_report.md): data coverage and quality checks.
+- [Model Report](model_report.md) — model evaluation detail.
+- [Data Quality Report](data_quality_report.md) — data coverage and quality checks.
+- [Foreign Flow Checkpoint](../docs/enhanced_fb_fs_checkpoint.md) — foreign buy/sell experiment, pre-registered decision rule, and result.
+- [FiinQuant Core Checkpoint](../docs/fiinquant_core_checkpoint.md) — data-path scope and contract.
+- [Foreign Flow Modeling](../docs/foreign_flow_modeling.md) — frozen comparison design.
 
 ## Result tables
 
-- [Ablation Results](tables/Ablation Results.csv): feature-ablation results.
-- [Horizon Results](tables/Horizon Results.csv): forecast-horizon results.
+- [Horizon Results](tables/horizon_results.csv) — forecast-horizon comparison.
+- [Ablation Results](tables/ablation_results.csv) — feature-ablation comparison.
+- [Benchmark Results](tables/benchmark_results.csv) — ML strategies against equal-weight and rule-based baselines.
+- [Model Comparison](tables/model_comparison_results.csv) — Rank IC and top-5 diagnostics by model family.
+- [Concentration Summary](tables/concentration_summary.csv) — max single-name weight, HHI, effective position count, top issuer-group exposure.
+- [Issuer Group Exposure](tables/issuer_group_exposure_latest.csv) — latest issuer-group exposure by optimization mode.
+- [Latest Rank Diagnostic](tables/latest_rank_diagnostic.csv) — predicted versus realized rank by ticker.
+- [Horizon Sample Disclosure](tables/horizon_sample_disclosure.csv) — overlapping-window disclosure and non-overlapping period counts.
+- [Optimizer Bound Diagnostic](tables/optimizer_bound_diagnostic.csv) — which constraints bind, and how often.
+- [Execution Coverage Summary](tables/execution_coverage_summary.csv) — per-date execution-data availability.
+- [Execution Coverage Gaps](tables/execution_coverage_gaps.csv) — per-ticker-date detail for rows not on full real data.
+- [Foreign Flow Tables](tables/foreign_flow/) — per-feature-set summary, paired bootstrap differences, daily series, feature importance.
 
 ## Main figures
 
-- [Top Gradient Boosting Feature Importance](figures/Top Gradient Boosting Feature Importance.png)
-- [Ablation Diagnostic Sharpe](figures/Ablation Diagnostic Sharpe.png)
-- [Horizon Diagnostic Sharpe](figures/Horizon Diagnostic Sharpe.png)
-- [Horizon Rank IC](figures/Horizon Rank Ic.png)
+- [Gradient Boosting Feature Importance](figures/top_gradient_boosting_feature_importance.png)
+- [Ablation Diagnostic Sharpe](figures/ablation_diagnostic_sharpe.png)
+- [Horizon Diagnostic Sharpe](figures/horizon_diagnostic_sharpe.png)
+- [Horizon Rank IC](figures/horizon_rank_ic.png)
 
-## Current conclusion
+Interactive charts covering cumulative return, active drawdown, turnover, rolling diagnostic Sharpe, and optimizer cap hits are in [`interactive/`](interactive/).
 
-The project should be presented as a transparent research framework, not a live trading strategy.
+## Current summary
 
-Current evidence suggests that the 10-day forward relative-return label is the strongest tested horizon, while the 5-day label remains a strong baseline. The full feature set performs best overall. Price-limit, risk, volume, and liquidity features matter more than herding features for raw predictive performance, while herding remains useful as portfolio-level risk control.
+Point-in-time VN30 membership across 60 historical constituents, FiinQuant raw and adjusted price data, and foreign-flow data, evaluated with purged walk-forward validation and after transaction costs and price-limit execution rules.
+
+Of the three tested horizons, only the 10-day horizon is after-cost positive (Rank IC 0.039, after-cost return +0.000804). The 1-day and 5-day horizons are net-negative. No feature-ablation configuration clears transaction costs at the 5-day horizon. A single-feature trailing-return rule (`top5_momentum`, 0.002310 before cost) outperforms every trained model's top-5 basket on a matched basis, the best of which returns 0.001433. Foreign buy/sell features did not clear their pre-registered confidence-interval criterion and are not promoted.
+
+This is a research framework, not a live trading strategy.
 
 ## Local viewing commands
 
-- code .\reports\Final Results.md
-- code .\reports\methodology.md
-- code .\reports\Final Audit.md
-- code .\reports\Report Index.md
-- explorer .\reports\figures
-- explorer .\reports\tables
-
-## Latest dashboard additions
-
-The dashboard now includes the following robustness tables:
-
-- `reports/tables/Benchmark Results.csv`: ML strategy comparison against equal-weight and simple rule-based baselines.
-- `reports/tables/Concentration Summary.csv`: latest concentration metrics including max single-name weight, HHI, effective position count, and top issuer-group exposure.
-- `reports/tables/Issuer Group Exposure Latest.csv`: latest issuer-group exposure by optimization mode.
-- `reports/tables/Latest Rank Diagnostic.csv`: latest predicted rank versus realized rank by ticker.
-- `reports/tables/Horizon Sample Disclosure.csv`: overlapping-window disclosure and approximate non-overlapping period counts.
-
-The dashboard page at `reports/dashboard.html` displays these diagnostics directly.
+```powershell
+code .\reports\final_results.md
+code .\reports\methodology.md
+code .\reports\final_audit.md
+code .\reports\report_index.md
+explorer .\reports\figures
+explorer .\reports\tables
+```

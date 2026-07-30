@@ -1,175 +1,235 @@
 # Methodology
 
-## 1. Project Objective
+## 1. Objective
 
-This project builds a VN30 alpha research framework for ranking large-cap Vietnamese equities and testing whether predictive signals can be converted into a constrained portfolio after transaction costs and Vietnam-specific execution frictions.
+This project tests whether cross-sectional stock selection inside the VN30 universe can be turned into a constrained long-only portfolio that survives transaction costs and Vietnam-specific execution frictions.
 
-The objective is not to claim a live trading strategy but to build a research-grade pipeline that connects data ingestion, feature engineering, supervised learning, walk-forward validation, portfolio construction, transaction-cost-aware backtesting, and diagnostic robustness tests.
+For each trading date the model ranks the active VN30 constituents by expected outperformance against the VN30 benchmark over a forward horizon. Those rankings are converted into portfolio weights under long-only, turnover, single-name, issuer-group, and sector constraints, then backtested with commission, slippage, a liquidity penalty, and price-limit execution rules.
 
-The framework focuses on cross-sectional stock selection inside the VN30 universe. For each trading date, the model estimates which stocks are likely to outperform the VN30 benchmark over a forward horizon. The portfolio then selects and weights stocks subject to long-only constraints, turnover controls, and issuer-group concentration limits.
+This is a research pipeline, not a trading strategy. Several of the results reported below are negative.
 
 ## 2. Investment Universe
 
-The investment universe is the current VN30 constituent list used in this project. It contains 30 Vietnamese large-cap equities across banks, real estate, consumer, energy, industrials, brokerage, and other major sectors.
+The universe is **point-in-time VN30 membership**, not the current constituent list applied backward.
 
-The project uses a static VN30 universe file stored in:
+Membership is reconstructed from four verified source files in `config/vn30_history/`:
 
-`config/vn30_universe.csv`
+- `initial_snapshot.csv` — constituents as of 2016-07-25
+- `review_calendar.csv` — every index review date
+- `membership_changes.csv` — additions and removals at each review
+- `source_manifest.csv` — the source URL backing each review
 
-This file contains ticker-level metadata, including issuer-group labels. Issuer grouping is used to control concentration risk. For example, related companies in the Vingroup group are capped together rather than treated as fully independent exposures.
+`src/universe_reconstruction.py` replays these into per-ticker `(effective_from, effective_to)` intervals, asserting that every review date resolves to exactly 30 constituents. `src/universe_history.py` then filters market data so a ticker only contributes rows on dates when it was actually in the index.
 
-A static universe is simple and transparent, but it has one limitation: it does not fully account for historical VN30 membership changes. Therefore, the results should be interpreted as a research test on the selected VN30 universe rather than a fully point-in-time index membership simulation.
+Across the full history this pool contains **60 tickers**: the current 30 plus 30 former constituents such as FLC, ROS, HAG, HNG, ITA, and PVD. Including delisted and demoted names is what removes survivorship bias — earlier versions of this project used a static 30-ticker universe and were biased as a result.
+
+`config/vn30_universe.csv` carries issuer-group and sector metadata for all 60 tickers. Issuer groups deliberately link affiliated companies so concentration caps apply to shared economic exposure rather than per-ticker: FLC and ROS share a controlling shareholder, HAG holds a controlling stake in HNG, POW holds roughly 59 percent of NT2, and the Vingroup names (VHM, VIC, VPL, VRE) are capped together.
 
 ## 3. Market Data
 
-The main market data source is daily OHLCV data downloaded with `vnstock`. The raw data is stored locally in:
+Data comes from **FiinQuant**, stored as three canonical CSV files:
 
-`data/raw/vnstock/vn30_ohlcv.csv`
+```text
+data/raw/fiinquant/canonical/raw_market_history.csv
+data/raw/fiinquant/canonical/adjusted_market_history.csv
+data/raw/fiinquant/canonical/foreign_flow_history.csv
+```
 
-The dataset contains daily open, high, low, close, volume, and value-related information for the VN30 tickers. The current dataset covers the period from 2020-01-02 to 2026-06-30 and contains 46,863 rows across 30 tickers.
+The dataset holds **137,719 daily rows across 60 tickers from 2016-07-26 to 2026-07-15**. After point-in-time universe filtering and lag construction, **74,910 rows** reach the modeling stage.
 
-The project uses daily end-of-day data. It does not use intraday order-book data, tick data, or market-by-order data. Therefore, the framework is designed for medium-frequency research rather than high-frequency trading.
+### Raw versus adjusted price contract
 
-## 4. Label Construction
+The two price files are not interchangeable, and `src/market_data_schema.py` enforces the distinction:
 
-The project creates forward relative-return labels. For each stock and each date, the stock's future return is compared with the VN30 benchmark's future return over the same horizon.
+- **Raw prices** are used for anything that depends on the price actually printed on the exchange: price-limit bands, ceiling and floor detection, and execution reference prices. Adjusted prices would silently break these, because a split-adjusted close does not sit at the historical ceiling.
+- **Adjusted close** is used for returns, labels, and any return-derived feature, so corporate actions do not appear as spurious jumps.
 
-The main label family is:
+The loader cross-checks that raw and adjusted rows agree on volume and traded value, and raises an error on mismatch rather than reconciling the two.
 
-- 1-day forward relative return
-- 5-day forward relative return
-- 10-day forward relative return
+### FLC and ROS coverage
 
-The original baseline design used the 5-day label:
+FiinQuant's own raw-price history does not reach back over FLC and ROS. Raw OHLC for those two tickers was backfilled from a vendor archive export (`scripts/import_fiinquant_archived_history.py`, `scripts/backfill_flc_ros_raw_archive.py`), which brought raw-price fallback rows to zero.
 
-`Forward Relative Return 5D`
+Traded value for those tickers is not available from any source. Rather than zero-fill it, the loader leaves `value_traded` genuinely missing and publishes a separate typical-price estimate — `(high + low + close) / 3 × volume` — in `value_traded_estimated`, with `value_traded_is_estimated` marking exactly which rows are affected (1,013 of 74,910). Features that need a liquidity denominator opt into the estimate explicitly, so estimated and vendor-reported values remain distinguishable downstream.
 
-This label asks whether a stock outperforms the VN30 benchmark over the next five trading days. Later horizon testing compared 1-day, 5-day, and 10-day labels. The horizon experiment found that the 10-day horizon produced the strongest diagnostic performance in this dataset, while the 5-day horizon remains a useful baseline.
+`scripts/audit_execution_coverage.py` verifies this end to end: for every active constituent on every trading date, it checks that raw OHLC, volume, and traded value are actually present. The current result is 73,897 rows with complete real data, 1,013 rows on the flagged estimate, and zero rows with missing prices, missing volume, or missing rows entirely.
 
-Labels are constructed using future returns, but all model features are constructed using information available before the prediction date.
+## 4. Labels
 
-## 5. Feature Engineering
+Labels are forward returns relative to the VN30 benchmark over the same window, at 1-day, 5-day, and 10-day horizons. The primary target is `forward_relative_return_5d`; the horizon test in section 10 compares all three.
 
-The feature pipeline combines several groups of features.
+Labels are built from the same point-in-time membership and adjusted-price history as the features. An earlier version of the pipeline built labels from a static 30-ticker file while features came from the 60-ticker point-in-time history, so the feature/label merge silently dropped every former-constituent row and made the membership filtering a no-op. The merge is now 1:1 with zero unmatched rows.
 
-Momentum and return features measure recent price behavior, including simple returns, log returns, rolling returns, and medium-term momentum.
+Features use only information available strictly before the prediction date. Forward labels are never fed back in as inputs.
 
-Risk features measure recent volatility and drawdown. These help the model identify stocks with unstable or stressed price behavior.
+## 5. Features
 
-Liquidity features measure trading activity, value traded, dollar-volume ranks, abnormal volume, and illiquidity. These features are important in Vietnam because liquidity conditions affect whether a model signal can realistically be traded.
+`data/processed/features_combined.parquet` holds 109 columns, of which 99 are model-facing features after keys, labels, and raw-price columns are excluded. They fall into six groups:
 
-Price-limit features capture Vietnam-specific market microstructure. The framework estimates ceiling and floor prices, distance to price limits, whether stocks hit price limits, whether stocks closed at price limits, and whether price-limit pressure is broad across the universe.
+**Momentum and return** — simple and log returns, rolling returns over several windows, medium-term momentum, distance from rolling highs and lows, drawdown.
 
-Herding features measure market-wide crowding behavior. These include return dispersion, percent of stocks moving up or down together, rolling average pairwise correlation, market-direction agreement, and herding index features.
+**Risk** — 20-day rolling volatility and drawdown.
 
-The combined feature dataset is saved locally as:
+**Liquidity** — average daily volume and traded value, traded-value rank, volume z-score, abnormal-volume flags, and Amihud illiquidity. These matter in Vietnam because a signal that only fires on illiquid names is not tradable.
 
-`data/processed/Features Combined.parquet`
+**Price limit** — estimated ceiling and floor prices, distance to each band, whether a stock hit or closed at a limit, consecutive limit days, and market-wide limit pressure. This is the group the ablation test finds most load-bearing.
 
-Generated parquet files are not committed to Git because they are reproducible outputs rather than source files.
+**Herding** — cross-sectional return dispersion, share of stocks moving in the same direction, rolling average pairwise correlation, and a composite herding index.
 
-## 6. Prediction Models
+**Foreign flow** — foreign buy and sell value from FiinQuant, expressed as net and gross shares of traded value across several windows, plus persistence, z-scores, and cross-sectional ranks. A second-generation set of buy/sell contrast features was also built and tested; see section 11 for why it is not promoted.
 
-The project tests several model families:
+## 6. Models
 
-- Linear models
-- Tree-based regression models
-- Classification models
-- Baseline portfolios
+Five models are run through identical walk-forward machinery: ridge and elastic-net regression, random forest, gradient boosting, and a gradient-boosting classifier over a binary outperformance label.
 
-The main predictive model used in later portfolio testing is gradient boosting. Gradient boosting was selected because it produced stronger rank-ordering performance than the linear models in the walk-forward tests.
+Gradient boosting (`n_estimators=100`, `max_depth=2`) is the model carried into portfolio construction, mainly for continuity with earlier versions of the project rather than because it dominates. On the current data its Rank IC (0.0199) sits mid-pack: elastic net is higher (0.0217) and ridge lower (0.0179). The differences are small relative to the day-to-day dispersion of the metric.
 
-The model is evaluated mainly as a ranking model, not only as a point forecast model. This is appropriate because the portfolio construction step uses predicted returns to rank stocks and select the top candidates.
+Models are evaluated as rankers, since portfolio construction only uses predicted values to sort candidates.
 
 ## 7. Walk-Forward Validation
 
-The project uses walk-forward validation instead of random train-test splitting.
+Validation is walk-forward, never a random split. Random splitting on time-ordered market data leaks future regimes into training and inflates every metric.
 
-This matters because financial data is time-ordered. Random splitting would leak future market regimes into the training set and produce overly optimistic results.
+Each window trains on 3 date-blocks, validates on 1, and tests on 1, stepping forward one date at a time, which yields about 2,480 windows over the history. A **5-day purge** is applied at each train/validation and validation/test boundary.
 
-Each walk-forward window trains on past data, validates on a later period, and tests on a still-later period. This structure better resembles the actual research workflow of training a model using only information available before the test period.
+The purge exists because 5-day and 10-day forward labels overlap adjacent dates. Without it, a training row's label window extends into the test period and the model is partly scored on information it already saw. Adding purging is what collapsed this project's earlier headline results, and those earlier numbers should be treated as leakage-inflated.
 
-The project also uses purging logic around train, validation, and test boundaries to reduce leakage from overlapping forward-return labels.
+Model fitting across windows is parallelized with process-based `joblib` workers. Output is asserted identical to the sequential path, so parallelism is a speed change only.
 
 ## 8. Portfolio Construction
 
-Predicted returns are converted into portfolio weights using a constrained long-only optimizer.
+`src/optimizer.py` turns predicted rankings into weights under:
 
-The core portfolio rules are:
+- long-only, no shorting or leverage
+- 20 percent maximum single-name weight
+- 40 percent maximum portfolio turnover per rebalance
+- 40 percent maximum issuer-group weight
+- 35 percent maximum sector weight
 
-- Long-only positions
-- Top-ranked stock selection
-- Maximum single-stock weight
-- Maximum turnover
-- Issuer-group concentration cap
-- Optional herding-aware risk mode
+Four optimizer modes are compared:
 
-The normal optimizer selects stocks based on model predictions while respecting portfolio constraints.
+- `normal` — constrained long-only on the raw ranking
+- `herding_aware` — reduced exposure and tighter caps during high-herding states
+- `sector_aware` — adds the sector cap
+- `sector_diversified` — widest diversification, roughly 26 names, with a 25 percent issuer-group cap
 
-The herding-aware optimizer reduces exposure during high-herding market states. This risk-control mode is designed to reduce crowding and concentration when many stocks are moving together.
+The optimizer refuses to run if any prediction row lacks issuer-group or sector metadata rather than dropping it, which is how the 60-ticker metadata gap in `config/vn30_universe.csv` was caught.
 
-Issuer-group caps are especially important in the VN30 universe because related companies can appear as separate tickers while sharing common business exposure.
+## 9. Costs and Execution Frictions
 
-## 9. Transaction Costs and Execution Frictions
+The backtester applies commission (10 bps), slippage (10 bps), a sell-side tax (10 bps), and a liquidity penalty scaled to how large an order is against 20-day average daily value. Trades are capped at 5 percent of ADV and rounded to 100-share lots. Settlement is T+2, so sale proceeds are not immediately available for reinvestment.
 
-The backtester includes transaction costs:
+Two execution modes are compared:
 
-- Commission cost
-- Slippage cost
-- Liquidity penalty
+- `normal` — assumes intended trades fill
+- `price_limit_aware` — blocks buys into a ceiling close and sells into a floor close, then recomputes feasible trades
 
-The framework also tests price-limit-aware execution. In Vietnam, stocks can hit daily ceiling or floor prices. A simple backtest may assume trades can always be executed, but this can be unrealistic.
-
-The price-limit-aware execution mode applies rules such as:
-
-- Blocking buys when a stock closes at the ceiling price
-- Blocking sells when a stock closes at the floor price
-- Recomputing feasible trades after execution restrictions
-
-This makes the backtest more conservative and more connected to Vietnam’s actual trading environment.
+Price-limit-aware execution is consistently worse than normal execution. The gap between the two measures how much of the result depends on fills that HOSE's daily bands would not have allowed.
 
 ## 10. Robustness Tests
 
-The project includes two major robustness tests.
+### Feature ablation
 
-First, feature ablation testing removes one feature group at a time. This checks whether model performance depends too heavily on one feature family. The ablation results showed that volume/liquidity, price-limit, and risk features are especially important. Herding features contributed less to raw prediction performance, but herding still remains useful as a portfolio-level risk-control concept.
+Five configurations, removing one feature group at a time, all under price-limit-aware execution:
 
-Second, forecast horizon testing compares 1-day, 5-day, and 10-day labels. The 1-day horizon performed poorly and appeared noisy. The 5-day horizon performed strongly. The 10-day horizon performed best across rank IC, hit rate, diagnostic Sharpe, drawdown, turnover, and final cumulative after-cost active return.
+| Configuration | Features | Rank IC | Top-5 Hit Rate | After-Cost Return | Cumulative After-Cost |
+|---|---:|---:|---:|---:|---:|
+| Excluding risk | 97 | 0.025746 | 0.476755 | -0.000321 | -0.797 |
+| Excluding volume/liquidity | 88 | 0.021549 | 0.469169 | -0.000540 | -1.337 |
+| Excluding herding | 89 | 0.020276 | 0.468846 | -0.000572 | -1.418 |
+| All features | 99 | 0.019869 | 0.469492 | -0.000481 | -1.191 |
+| Excluding price limit | 84 | 0.013470 | 0.466990 | -0.000664 | -1.644 |
 
-## 11. Bias Controls
+Every configuration is net-negative after cost, so no feature set tested clears transaction costs at the 5-day horizon. Removing the two risk features gives the best Rank IC and the least-negative after-cost result; this has not been investigated further. Removing price-limit features is worst on every metric, indicating that group carries information rather than noise.
 
-Several controls are used to reduce common backtest biases.
+Note also that Rank IC and after-cost outcome do not move together: excluding volume/liquidity improves Rank IC but worsens after-cost return, plausibly because those features help the optimizer avoid names that are expensive to trade even while adding noise to the raw prediction.
 
-The model uses walk-forward validation instead of random splits.
+These numbers come from a fresh run. A stale-cache bug in `src/ablation_tests.py` previously served three-week-old predictions from a 51-feature snapshot, and the conclusions drawn from that run were wrong. The internal cache has been removed.
 
-Feature construction is past-only. Rolling risk features use lagged returns so that same-day or future information is not accidentally included.
+### Forecast horizon
 
-Forward labels are kept separate from model features.
+| Horizon | Rank IC | Top-5 Hit Rate | After-Cost Return | Diagnostic Sharpe | Cumulative After-Cost | Dates |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1d | 0.018752 | 0.467203 | -0.000703 | -0.114101 | -1.749 | 2488 |
+| 5d | 0.019869 | 0.469492 | -0.000481 | -0.025742 | -1.191 | 2478 |
+| 10d | 0.039083 | 0.487130 | 0.000804 | 0.030871 | 1.980 | 2463 |
 
-Transaction costs are included.
+The 10-day horizon is the only configuration in this project that is after-cost positive. It roughly doubles the Rank IC of the shorter horizons and has the lowest turnover. The 1-day horizon is the clearest failure: daily noise and execution frictions dominate any signal at that frequency.
 
-Liquidity penalties are included.
+### Baseline comparison
 
-Price-limit-aware execution is tested separately from normal execution.
+`reports/tables/benchmark_results.csv` compares the ML portfolios against naive rules:
 
-Generated data files are not committed as source code. The repository commits source files, report tables, and final figures, while large reproducible parquet outputs remain local.
+| Strategy | Active Return per 5d Period | Basis | Names Held |
+|---|---:|---|---:|
+| top5_momentum | 0.002310 | before cost | 5 |
+| ML sector_diversified / normal | 0.000341 | after cost | 25.8 |
+| ML sector_diversified / price_limit_aware | 0.000102 | after cost | 25.8 |
+| ML normal / price_limit_aware | -0.000481 | after cost | 13.2 |
 
-## 12. Main Limitations
+`top5_momentum` sorts on a single feature — trailing 10-day return — and holds the top five. It beats every ML portfolio variant, and five of the eight ML variants are outright negative.
 
-The framework still has important limitations.
+The cost basis differs (baselines are before cost, ML is after), so this is not a like-for-like table. Recomputing each model's own top-5 pick on a matched basis — same concentration, same relative-to-VN30 target, before any cost or portfolio construction — gives:
 
-The VN30 universe is treated as a static universe, so the test does not fully model historical index membership changes.
+| Selection Rule | Top-5 Active Return, Before Cost |
+|---|---:|
+| top5_momentum (`return_10d` only) | 0.002310 |
+| random_forest top-5 | 0.001433 |
+| elastic_net top-5 | 0.001351 |
+| gradient_boosting top-5 | 0.000998 |
+| ridge top-5 | 0.000786 |
 
-The backtest uses overlapping forward returns. Therefore, cumulative active returns and diagnostic Sharpe values should be interpreted as research diagnostics, not as final live-trading performance statistics.
+Every trained model picks worse top-5 baskets than a single trailing-return sort, and `return_10d` is already one of their input features. This is unresolved.
 
-The data is daily OHLCV data, so the project does not model intraday queue priority, order-book depth, hidden liquidity, or high-frequency execution.
+## 11. Foreign Flow Experiment
 
-The model does not include fundamental data, news, analyst forecasts, ownership flows, or macroeconomic variables.
+Foreign buy/sell (FB/FS) features were tested against a decision rule fixed **before** results were seen: paired block bootstrap on daily Rank IC over 222 non-overlapping 10-day signals, promote only if the 95 percent confidence interval excludes zero.
 
-The project does not claim to overcome information asymmetry in the Vietnamese stock market. Instead, it builds a disciplined public-data framework that accounts for several Vietnam-specific frictions.
+Result: mean Rank-IC difference **-0.002608**, 95 percent CI **[-0.013314, +0.008297]**. The interval spans zero and the point estimate is negative. FB/FS is **not promoted**.
 
-## 13. Summary
+The full ranking is informative:
 
-The methodology is designed to be realistic enough for research while remaining transparent and reproducible. The project does not only train a model; it connects prediction, validation, constrained optimization, transaction costs, execution frictions, feature ablation, forecast-horizon testing, and final visualization.
+| Feature Set | Rank IC |
+|---|---:|
+| Frozen foreign flow (net-style only) | 0.063616 |
+| Frozen plus original buy/sell | 0.062448 |
+| Frozen plus enhanced buy/sell | 0.061007 |
+| Market baseline (no foreign flow) | 0.055389 |
+| Buy/sell only | 0.053736 |
 
-The main research conclusion is that medium-horizon stock selection inside the VN30 universe is more promising than 1-day prediction. In this experiment, the 10-day forecast horizon is the strongest tested horizon, while the 5-day horizon remains the original baseline benchmark.
+Net-style foreign-flow features are genuinely useful — they beat the market baseline by 0.0082. Every set that adds a buy/sell split sits below the net-only set, and stacking more buy/sell features makes it progressively worse.
+
+The reason is not that the model ignores them. The two strongest new features rank second and third in the model's own importance output. It is that their relationship with forward returns is not sign-stable: the year-by-year Rank-IC difference is positive in six years and negative in four, the per-signal win rate is 50.5 percent, and the day-to-day standard deviation of the difference is about 29 times its mean. At 222 signals there is not enough power to separate the true effect from zero in either direction. Details are in `docs/enhanced_fb_fs_checkpoint.md`.
+
+## 12. Bias Controls
+
+- Point-in-time VN30 membership, so delisted and demoted names are included on the dates they were actually investable.
+- Walk-forward validation with horizon-aware purging at every boundary.
+- Past-only feature construction, with a leakage test asserting that appending future rows leaves already-computed feature values bit-identical.
+- Raw versus adjusted price separation enforced at the loader.
+- Transaction costs, liquidity penalties, ADV caps, lot sizes, and T+2 settlement in the backtest.
+- Price-limit-aware execution reported alongside frictionless execution rather than instead of it.
+- Estimated traded value flagged per row, never silently substituted.
+- Pre-registered decision rule and paired bootstrap confidence intervals for the foreign-flow comparison.
+
+## 13. Limitations
+
+**Cumulative returns are sums, not compounded.** Every cumulative figure in this project sums overlapping forecast-period active returns. At the 10-day horizon, 2,463 evaluated dates correspond to roughly 246 genuinely non-overlapping periods. Read cumulative figures as diagnostics, not portfolio track records.
+
+**Multiple comparisons are not corrected.** This project has tested three horizons, five ablation configurations, four optimizer modes, two execution modes, and five foreign-flow feature sets against the same history. Only the foreign-flow comparison carries a confidence interval, and even that one does not adjust for being the fifth feature set on the same development data. The best-looking number in this repository is partly a product of search.
+
+**Most metrics are point estimates.** Rank IC, diagnostic Sharpe, drawdown, and return figures outside the foreign-flow experiment have no confidence intervals. Extending bootstrap intervals to the horizon and ablation results would materially strengthen or weaken those conclusions.
+
+**Daily data only.** No intraday queue priority, order-book depth, or hidden liquidity. Foreign ownership room is not modeled.
+
+**No fundamental, macro, or news data.** Features are derived from price, volume, and foreign flow.
+
+**Paper trading runs on a different data source.** The live daily-update path still uses vnstock rather than FiinQuant, and has not been reconciled against the research pipeline.
+
+**Corporate-action adjustment quality has not been fully audited** beyond the raw/adjusted consistency checks in the loader.
+
+## 14. Summary
+
+Pipeline components: point-in-time VN30 universe, enforced raw/adjusted price contract, purged walk-forward validation, constrained long-only optimization, transaction costs and price-limit execution, feature-ablation and forecast-horizon tests, and a pre-registered bootstrap comparison for the foreign-flow feature sets.
+
+Current results: only the 10-day horizon is after-cost positive; no ablation configuration clears transaction costs at the 5-day horizon; a single-feature trailing-return rule outperforms every trained model on a matched basis; foreign buy/sell features did not clear their pre-registered confidence-interval criterion.

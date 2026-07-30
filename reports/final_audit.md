@@ -1,156 +1,119 @@
-# Final Audit
+# Audit
 
-## 1. Audit Purpose
+## 1. Purpose
 
-This file records the final reproducibility and report audit for the VN30 alpha research framework.
+This file records the reproducibility and consistency checks run against the repository, and the state of the automated audits.
 
-The goal of the audit is to confirm that the repository contains the final source code, report tables, figures, methodology write-up, final results write-up, and manual checks needed to support the project conclusions.
+## 2. Automated Audits
 
-## 2. Repository State
+Three audit scripts are maintained in `scripts/`. All three currently pass.
 
-The latest completed project commits before this audit were:
+### Project state audit
 
-- `c4428e2 Add final results report`
-- `512069e Add project methodology`
-- `a4fe94c Add result visualization figures`
-- `3631e0c Add forecast horizon testing`
-- `d22aa80 Add feature ablation testing`
-- `3dc4715 Add herding-aware risk control`
-- `94ae647 Add price-limit-aware backtest comparison`
-- `3b20c5e Add backtester with transaction costs`
+```powershell
+py .\scripts\audit_project_state.py
+```
 
-The tracked repository was clean before the final audit commit.
+Checks that every required source file, report, table, figure, and config file exists and is non-empty, that no generated data files have leaked into Git, and that all PNG figures are non-empty. It also reports working-tree status.
 
-Generated local data files remain untracked by design. These include raw data files and reproducible parquet outputs in:
+### FiinQuant core audit
 
-- `data/raw/`
-- `data/processed/`
+```powershell
+py .\scripts\audit_fiinquant_core.py --require-data
+```
 
-These files are excluded from the committed research artifact because they are generated outputs rather than source code or final report artifacts.
+Validates the data contract end to end. Current output:
 
-## 3. Compilation Audit
+```text
+Canonical market rows: 137719
+Canonical market tickers: 60
+Raw-price fallback rows: 0
+Canonical foreign-flow rows: 137719
+Combined feature rows: 74910
+Combined feature columns: 109
+Duplicate feature keys: 0
+Infinite feature columns: {}
+```
 
-All Python files were compiled with:
+Zero raw-price fallback rows means every ticker-date resolves to genuine raw OHLC, including FLC and ROS after the vendor-archive backfill. Zero duplicate keys and zero infinite columns are hard requirements enforced by `validate_combined_features`.
 
-`Get-ChildItem -Recurse -Filter *.py | ForEach-Object { py -m Py Compile $_.FullName }`
+### Execution coverage audit
 
-The command completed without Python compilation errors.
+```powershell
+py .\scripts\audit_execution_coverage.py
+```
 
-## 4. Final Script Rerun
+For every active point-in-time VN30 constituent on every trading date, checks whether raw OHLC, volume, and traded value are present. Current output:
 
-The final report-producing scripts were rerun:
+```text
+Trading dates in dataset: 2497
+Expected active constituent-dates: 74910
+  full_raw_execution_data: 73897
+  estimated_traded_value: 1013
+Dates with 100% execution-valid coverage: 2497 / 2497
+Blocked dates (raw price, volume, or row missing): 0
+```
 
-- `py -m src.Horizon Tests`
-- `py -m src.Visualize Results`
+The 1,013 estimated rows are FLC (127) and ROS (886) between 2016-07-26 and 2021-01-29, where no vendor traded-value figure exists. These are flagged per row by `value_traded_is_estimated`. There are no rows with missing raw prices, missing volume, or missing rows entirely.
 
-The horizon script regenerated:
+Per-date and per-ticker-date detail is written to:
 
-`reports/tables/Horizon Results.csv`
+```text
+reports/tables/execution_coverage_summary.csv
+reports/tables/execution_coverage_gaps.csv
+```
 
-The visualization script regenerated the final figure set in:
+### Point-in-time universe audit
 
-`reports/figures/`
+```powershell
+py .\scripts\audit_point_in_time_universe.py --market-data-path <path>
+```
 
-## 5. Horizon Test Verification
+Verifies that reconstructed VN30 membership resolves to exactly 30 constituents on every review date and that market data covers every historical member.
 
-The final horizon manual check was rerun:
+## 3. Test Suite
 
-`py .\tests\Manual Check Horizon Tests.py`
+```powershell
+py -m pytest -q
+```
 
-The check confirmed:
+342 tests, all passing. Coverage of note:
 
-- Prediction horizons: `[1, 5, 10]`
-- Result horizons: `[1, 5, 10]`
-- One result row per horizon
-- Required result columns present
-- Hit rates valid
-- Sharpe values valid
-- Drawdowns valid
-- Turnover valid
-- Best IC horizon: `10`
-- Best Sharpe horizon: `10`
-- Best final return horizon: `10`
-- `10d is best on core metrics: True`
+- **Leakage guards** — appending future rows must leave every already-computed feature value bit-identical, asserted with `pd.testing.assert_frame_equal`.
+- **Parallelism equivalence** — parallel walk-forward output must equal sequential output exactly, so process-based fitting is a speed change only.
+- **Data-contract enforcement** — raw/adjusted mismatch, missing traded value on non-exempt tickers, and infinite feature values must all raise.
+- **Feature-set freeze guards** — the four published foreign-flow feature sets must remain at exactly 51/60/64/73 features so committed comparisons stay reproducible.
+- **Execution coverage classification** — membership-exit filtering, each execution-status category, and the rule that a flagged estimate does not block date completeness.
 
-The final horizon result supports the conclusion that the 10-day forecast horizon is the strongest tested horizon in this experiment.
+## 4. Pipeline Reproducibility
 
-## 6. Visualization Verification
+The full pipeline runs 19 stages:
 
-The final visualization manual check was rerun:
+```powershell
+py .\scripts\run_full_pipeline.py
+```
 
-`py .\tests\Manual Check Visualize Results.py`
+Stage order: data quality, features, labels, walk-forward checks, linear models, tree models, classification models, baseline portfolios, risk model, optimizer, backtester, ablation tests, horizon tests, dashboard tables, model report, figures, interactive charts, HTML dashboard, report summary.
 
-The check confirmed that all expected figures exist and are non-empty.
+Cache behaviour: `--reuse-existing-ml` skips expensive model stages only when their outputs exist and are newer than their dependency files. `src/ablation_tests.py` and `src/horizon_tests.py` previously carried a separate internal cache with no freshness check, which served stale predictions indefinitely; that cache has been removed and both stages now always rebuild when invoked directly.
 
-The verified final figures are:
+## 5. Consistency Checks
 
-- `Top Gradient Boosting Feature Importance.png`
-- `Ablation Diagnostic Sharpe.png`
-- `Horizon Diagnostic Sharpe.png`
-- `Horizon Rank Ic.png`
+Two independently regenerated outputs are cross-checked for agreement:
 
-## 7. Final Report Artifacts
+- `horizon_results.csv` at the 5-day horizon and `ablation_results.csv` for `all_features` describe the same configuration (gradient boosting, all features, price-limit-aware execution) and agree exactly: Rank IC 0.019869, after-cost return -0.000481, cumulative -1.191474.
+- `ablation_results.csv` for `all_features` and `benchmark_results.csv` for `ml_normal_price_limit_aware` agree at -0.000481. The ablation backtest applies price-limit execution unconditionally, so it corresponds to the `price_limit_aware` benchmark row, not the `normal` one.
 
-The final report folder contains:
+## 6. Known Gaps
 
-- `reports/methodology.md`
-- `reports/Final Results.md`
-- `reports/Model Report.md`
-- `reports/data_quality_report.md`
-- `reports/tables/Ablation Results.csv`
-- `reports/tables/Horizon Results.csv`
-- `reports/figures/`
+- **Paper-trading data source.** The live daily-update path (`scripts/update_daily_data.py`, `config/paper_trading_config.yaml`, `src/paper_trading/data_update.py`) still uses vnstock rather than FiinQuant, and has not been reconciled against the research pipeline. This does not affect research or backtest results, which run entirely on FiinQuant data.
+- **Issuer-group and sector metadata provenance.** `config/vn30_universe.csv` covers all 60 historical constituents, but the issuer-group and sector labels for the 30 alumni tickers were compiled manually rather than sourced from a vendor classification file. They should be verified against an authoritative source.
+- **Unreferenced script.** `scripts/download_vnstock_ohlcv.py` has no remaining references in code, README, or docs, and appears superseded by `scripts/update_daily_data.py`. It has been left in place pending confirmation.
+- **Corporate-action adjustment quality.** Verified only to the extent that raw and adjusted files agree on volume and traded value. A dedicated split and stock-dividend audit has not been run.
+- **Confidence intervals.** Only the foreign-flow comparison reports bootstrap confidence intervals. Horizon, ablation, and portfolio metrics are point estimates.
 
-The main final interpretation is documented in:
+## 7. Status
 
-`reports/Final Results.md`
+Automated audits pass, the test suite passes at 342 tests, and independently regenerated outputs agree where they describe the same configuration. Research results are documented in `reports/final_results.md`, methodology in `reports/methodology.md`, and the foreign-flow experiment in `docs/enhanced_fb_fs_checkpoint.md`.
 
-The project methodology is documented in:
-
-`reports/methodology.md`
-
-## 8. Final Audit Conclusion
-
-The project passes the final audit.
-
-The repository contains a reproducible VN30 alpha research machine learning research framework with:
-
-- Data ingestion scripts
-- Feature engineering pipeline
-- Label construction
-- Walk-forward validation
-- Linear, tree-based, classification, and baseline model testing
-- Risk model
-- Constrained long-only optimizer
-- Transaction-cost-aware backtester
-- Price-limit-aware execution rules
-- Herding-aware risk-control mode
-- Feature ablation testing
-- Forecast horizon testing
-- Final result figures
-- Methodology write-up
-- Final results write-up
-- Manual verification scripts
-
-The project should be presented as a research framework rather than a deployable live trading strategy. The strongest tested forecast horizon is 10 days, while the original 5-day horizon remains a strong baseline.
-
-## Research validity limitations and next steps
-
-This project is currently a research-grade backtesting framework, not a live trading system. The dashboard and reports should be read as historical diagnostics rather than investment recommendations.
-
-Current methodological limitations:
-
-- Static VN30 universe: the current dataset uses a fixed VN30 stock universe rather than point-in-time VN30 membership. This can create survivorship bias because today's constituents may not fully represent the investable VN30 universe at earlier dates.
-- Multiple comparisons: the project tests multiple forecast horizons, feature ablations, optimizer variants, and execution assumptions on the same historical dataset. The best-looking result may partly reflect search across configurations rather than stable predictive skill.
-- Point-estimate metrics: current Sharpe, Rank IC, drawdown, and return metrics are reported as point estimates. Future versions should add bootstrap confidence intervals or a deflated Sharpe ratio.
-- Baseline comparison: future reports should display ML results directly against simple baselines such as equal-weight VN30 and a simple momentum-only rule.
-- Corporate actions: before relying on automated daily updates, the project should further audit whether OHLCV prices are consistently adjusted for splits, stock dividends, and other HOSE corporate actions.
-- Live-execution frictions: a future live or paper-trading workflow should consider VN-specific constraints such as foreign ownership room, liquidity, price limits, turnover, and realistic order execution.
-
-Priority research upgrades before live trading claims:
-
-1. Add explicit equal-weight and momentum-only baseline comparisons to the dashboard.
-2. Add bootstrap confidence intervals or deflated Sharpe diagnostics.
-3. Replace the static VN30 universe with point-in-time VN30 membership when reliable constituent history is available.
-4. Audit corporate-action adjustment quality in the raw OHLCV source.
-5. Add paper-trading validation before considering any live execution workflow.
+This repository is a research framework. It is not a live trading system and the reports are historical diagnostics, not investment recommendations.
