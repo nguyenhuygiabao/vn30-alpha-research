@@ -330,26 +330,22 @@ def main() -> None:
 
     output_path = Path(ABLATION_PREDICTIONS_PATH)
 
-    if output_path.exists():
-        ablation_predictions = pd.read_parquet(output_path)
-        print("Loaded existing ablation predictions:", output_path)
-    else:
-        ablation_predictions = build_ablation_predictions(
-            historical_rows=historical_rows,
-            feature_sets=feature_sets,
-        )
+    ablation_predictions = build_ablation_predictions(
+        historical_rows=historical_rows,
+        feature_sets=feature_sets,
+    )
 
-        output_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
-        ablation_predictions.to_parquet(
-            output_path,
-            index=False,
-        )
+    ablation_predictions.to_parquet(
+        output_path,
+        index=False,
+    )
 
-        print("Ablation predictions path:", output_path)
+    print("Ablation predictions path:", output_path)
 
     print("Ablation prediction rows:", len(ablation_predictions))
     print("Ablation names:", sorted(ablation_predictions["ablation_name"].unique()))

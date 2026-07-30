@@ -304,16 +304,12 @@ def main() -> None:
         print()
     output_path = Path(HORIZON_PREDICTIONS_PATH)
 
-    if output_path.exists():
-        horizon_predictions = pd.read_parquet(output_path)
-        print("Loaded existing horizon predictions:", output_path)
-    else:
-        horizon_predictions = build_horizon_predictions()
+    horizon_predictions = build_horizon_predictions()
 
-        output_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-     )
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
     horizon_predictions.to_parquet(
         output_path,
