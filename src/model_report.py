@@ -145,11 +145,14 @@ def build_model_report(
         ),
         "",
         (
-            "Important caution: the current dataset uses the current VN30 constituent "
-            "list applied backward through time. The numbers below are real-data "
-            "walk-forward results, but they are not final market evidence until "
-            "survivorship bias, liquidity limits, and transaction costs are handled "
-            "more carefully."
+            "Important caution: the numbers below are real-data walk-forward "
+            "results on a point-in-time VN30 universe, with transaction costs "
+            "and price-limit execution rules applied. They are still research "
+            "diagnostics rather than final market evidence: cumulative figures "
+            "sum overlapping forecast-period returns, metrics other than the "
+            "foreign-flow comparison are point estimates without confidence "
+            "intervals, and multiple horizons, feature sets, and optimizer "
+            "variants were tested against the same history."
         ),
         "",
         "## Regression model comparison",
