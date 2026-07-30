@@ -135,7 +135,7 @@ imbalance and forward returns does not hold a consistent sign across the
 sample period. No further feature re-encoding on the same 9-year sample is
 expected to fix that.
 
-**One specific, honestly-flagged lead, not yet pursued:** the year-by-year
+**One lead, not yet pursued:** the year-by-year
 sign flips loosely track known stress/calm alternation, and this project
 already has herding/regime features in production (`herding_index`,
 `high_herding_day`). Whether foreign-flow imbalance's predictive sign is
@@ -183,7 +183,7 @@ the fact:
   `market_baseline`.
 - A positive result is **not** a deployment decision. It is development-set
   evidence only. The post-2026-07-22 holdout stays closed.
-- Honest caveat to carry into any write-up: this is the **fifth** feature
+- Caveat to carry into any write-up: this is the **fifth** feature
   set tested against the same development data. The bootstrap CI does not
   adjust for that multiplicity, so a marginal result should be read as
   weaker than its nominal interval suggests.
