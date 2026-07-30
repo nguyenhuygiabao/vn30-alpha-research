@@ -1,5 +1,5 @@
 signal_date,optimization_mode,holding_count,total_weight,max_single_name_weight,positions_at_or_above_20pct,single_name_cap_hit_share,hhi,effective_position_count,top_issuer_group,top_issuer_group_weight,top_issuer_group_tickers,issuer_groups_at_or_above_40pct,concentration_flag
-2026-07-09,herding_aware,5,1.0,0.2,5,1.0,0.20000000000000004,4.999999999999999,HDBank,0.2,HDB,0,all_positions_at_20pct_cap; low_effective_position_count
-2026-07-09,normal,5,1.0,0.2,5,1.0,0.20000000000000004,4.999999999999999,HDBank,0.2,HDB,0,all_positions_at_20pct_cap; low_effective_position_count
-2026-07-09,sector_aware,5,0.55,0.2,1,0.2,0.07062500000000001,14.159292035398229,Vingroup,0.2,VHM,0,normal
-2026-07-09,sector_diversified,28,0.97,0.11225482108249449,0,0.0,0.08291829796778548,12.06006423803476,Vingroup,0.23003864022809237,"VHM, VIC, VPL, VRE",0,normal
+2026-07-15,herding_aware,21,1.0,0.18929896763114898,0,0.0,0.11234093867870135,8.90147449150333,VPBank,0.18929896763114898,VPB,0,normal
+2026-07-15,normal,21,1.0,0.18929896763114898,0,0.0,0.11234093867870135,8.90147449150333,VPBank,0.18929896763114898,VPB,0,normal
+2026-07-15,sector_aware,18,0.551166748904265,0.1948386801875134,0,0.0,0.06781872976879186,14.745189174276897,SSI,0.1948386801875134,SSI,0,normal
+2026-07-15,sector_diversified,28,0.9700000000000001,0.09566142757475601,0,0.0,0.05424393207235039,18.435241727428664,Vingroup,0.14799577225774654,"VHM, VIC, VPL, VRE",0,normal
