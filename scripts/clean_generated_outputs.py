@@ -12,7 +12,6 @@ GENERATED_OUTPUTS = [
     ROOT / "data" / "processed" / "baseline_returns.parquet",
     ROOT / "data" / "processed" / "classification_model_predictions.parquet",
     ROOT / "data" / "processed" / "features_combined.parquet",
-    ROOT / "data" / "processed" / "features_momentum.parquet",
     ROOT / "data" / "processed" / "horizon_tree_predictions.parquet",
     ROOT / "data" / "processed" / "labels.parquet",
     ROOT / "data" / "processed" / "linear_model_predictions.parquet",

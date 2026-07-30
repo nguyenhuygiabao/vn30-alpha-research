@@ -1,12 +1,6 @@
-from pathlib import Path
-
 import pandas as pd 
 import numpy as np
 
-from .data_loader import load_ohlcv_csv
-
-SOURCE_PATH = "data/raw/vnstock/vn30_ohlcv.csv"
-OUTPUT_PATH = "data/processed/features_basic.parquet"
 
 RETURN_WINDOW_SHORT = 5
 RETURN_WINDOW_LONG  =20 
@@ -137,34 +131,3 @@ def build_basic_features(data: pd.DataFrame) -> pd.DataFrame:
     )
 
     return features
-
-def main() -> None: 
-    """Build, save, and verify the basic feature dataset"""
-
-    data = load_ohlcv_csv(SOURCE_PATH)
-
-    features = build_basic_features(data)
-
-    output_path = Path(OUTPUT_PATH)
-
-    output_path.parent.mkdir(
-        parents = True, 
-        exist_ok = True,    
-    )
-
-    features.to_parquet(
-        output_path,
-        index = False,
-    ) 
-
-    reloaded_features = pd.read_parquet(output_path)
-
-    print("Basic feature generation completed.")
-    print(f"Input rows: {len(data)}")
-    print(f"Output rows: {len(features)}")
-    print(f"Reloaded rows: {len(reloaded_features)}")
-    print(f"Tickers: {reloaded_features['ticker'].nunique()}")
-    print(f"Output file: {OUTPUT_PATH}")
-
-if __name__ == "__main__":
-    main()
