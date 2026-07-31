@@ -17,7 +17,7 @@ Beyond that:
 
 Pipeline components: point-in-time VN30 membership, an enforced raw/adjusted price contract, purged walk-forward validation, modeled transaction costs and price limits, and a pre-registered bootstrap test for the foreign-flow feature sets.
 
-Every cumulative figure below sums overlapping forecast-period active returns. It is not a compounded portfolio return and should not be read as a track record.
+Every cumulative figure below sums overlapping forecast-period active returns. It is not a compounded portfolio return and should not be read as a track record. Max active drawdown is measured on that same summed series, so it is reported as a plain number in summed-return units, not as a percentage of capital.
 
 ## 2. Main Portfolio Backtest
 
@@ -33,6 +33,8 @@ Four optimizer modes crossed with two execution modes, at the 5-day horizon, aft
 | herding_aware | price_limit_aware | -0.000280 | -0.016299 | -1.455 | -0.692 | 11.6 |
 | sector_aware | price_limit_aware | -0.000445 | -0.026249 | -1.667 | -1.104 | 11.1 |
 | normal | price_limit_aware | -0.000481 | -0.025742 | -1.876 | -1.191 | 13.2 |
+
+Drawdown here is the largest fall of the cumulative active-return *sum* below its running peak, in the same units as that sum. The -1.876 for `normal / price_limit_aware` is a fall of 1.876 in summed active return from a peak of +0.607 to a trough of -1.269; it is not a 187% loss of capital. Individual 5-day period returns range only -12.6% to +8.5%.
 
 Only three of eight configurations are positive, and the largest is 0.000341 per period with a diagnostic Sharpe of 0.03 — economically indistinguishable from zero.
 

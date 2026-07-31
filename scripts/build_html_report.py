@@ -128,12 +128,14 @@ DISPLAY_COLUMN_NAMES = {
     "final_cumulative_active_return_sum": "Cumulative active-return sum",
     "final_cumulative_top5_return_sum": "Cumulative top-5 return sum",
     "final_cumulative_active_return_note": "Cumulative active-return note",
-    "max_active_drawdown": "Max active drawdown",
-    "max_drawdown_from_top5_return_sum": "Max drawdown from top-5 return sum",
+    "max_active_drawdown": "Max drawdown of active-return sum",
+    "max_drawdown_from_top5_return_sum": "Max drawdown of top-5 return sum",
 }
 
 CUMULATIVE_ACTIVE_RETURN_NOTE = (
-    "Sum of overlapping forecast-period active returns, not a compounded portfolio return."
+    "Sum of overlapping forecast-period active returns, not a compounded portfolio return. "
+    "The drawdown column is measured in those same summed-return units, so it is shown as a "
+    "plain number rather than a percentage and is not a percentage of capital."
 )
 
 
@@ -395,12 +397,12 @@ def horizon_table_html() -> str:
         percent_columns={
             "average_top_5_hit_rate",
             "average_after_cost_return",
-            "max_active_drawdown",
             "average_turnover",
         },
         decimal_columns={
             "average_rank_ic",
             "diagnostic_sharpe",
+            "max_active_drawdown",
             "final_cumulative_after_cost_active_return",
             "final_cumulative_active_return",
             "final_cumulative_active_return_sum",
@@ -433,12 +435,12 @@ def ablation_table_html() -> str:
         percent_columns={
             "average_top_5_hit_rate",
             "average_after_cost_return",
-            "max_active_drawdown",
             "average_turnover",
         },
         decimal_columns={
             "average_rank_ic",
             "diagnostic_sharpe",
+            "max_active_drawdown",
             "final_cumulative_after_cost_active_return",
             "final_cumulative_active_return",
             "final_cumulative_active_return_sum",
@@ -475,10 +477,10 @@ def benchmark_table_html() -> str:
         percent_columns={
             "average_period_active_return",
             "return_volatility",
-            "max_active_drawdown",
         },
         decimal_columns={
             "diagnostic_sharpe",
+            "max_active_drawdown",
             "final_cumulative_after_cost_active_return",
             "final_cumulative_active_return",
             "final_cumulative_active_return_sum",
@@ -665,11 +667,11 @@ def model_comparison_table_html() -> str:
             "average_top5_hit_rate",
             "average_top5_realized_return_per_5d_period",
             "return_volatility",
-            "max_drawdown_from_top5_return_sum",
         },
         decimal_columns={
             "average_rank_ic",
             "diagnostic_sharpe",
+            "max_drawdown_from_top5_return_sum",
             "final_cumulative_top5_return_sum",
             "average_selected_count",
         },
@@ -1633,6 +1635,7 @@ def page_html() -> str:
         Compares available linear, tree-based, and classification prediction files using an equal-weight top-5 diagnostic.
         This is not the same as the optimized transaction-cost-aware backtest. Rank IC is unitless, from -1 to +1.
       </p>
+      {cumulative_active_return_note_html()}
       <div class="table-wrap">
         {model_comparison_table_html()}
       </div>

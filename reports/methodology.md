@@ -90,7 +90,9 @@ Models are evaluated as rankers, since portfolio construction only uses predicte
 
 Validation is walk-forward, never a random split. Random splitting on time-ordered market data leaks future regimes into training and inflates every metric.
 
-Each window trains on 3 date-blocks, validates on 1, and tests on 1, stepping forward one date at a time, which yields about 2,480 windows over the history. A **5-day purge** is applied at each train/validation and validation/test boundary.
+Each window trains on 3 trading dates, validates on 1, and tests on 1, stepping forward one date at a time, which yields about 2,480 windows over the history. A **5-day purge** is applied at each train/validation and validation/test boundary.
+
+`train_size` counts dates, not blocks, so with roughly 30 active constituents each window fits on about **90 rows** against 99 features. That is a very small training set for the feature count, and it is the most likely reason Rank IC sits near 0.02 here while the foreign-flow experiment, which trains on an expanding window of 252 dates or more, reports roughly 0.06. The setting has not been changed, because doing so would alter every published number in this report and warrants its own before/after comparison.
 
 The purge exists because 5-day and 10-day forward labels overlap adjacent dates. Without it, a training row's label window extends into the test period and the model is partly scored on information it already saw. Adding purging is what collapsed this project's earlier headline results, and those earlier numbers should be treated as leakage-inflated.
 
@@ -214,7 +216,7 @@ The reason is not that the model ignores them. The two strongest new features ra
 
 ## 13. Limitations
 
-**Cumulative returns are sums, not compounded.** Every cumulative figure in this project sums overlapping forecast-period active returns. At the 10-day horizon, 2,463 evaluated dates correspond to roughly 246 genuinely non-overlapping periods. Read cumulative figures as diagnostics, not portfolio track records.
+**Cumulative returns are sums, not compounded.** Every cumulative figure in this project sums overlapping forecast-period active returns. At the 10-day horizon, 2,463 evaluated dates correspond to roughly 246 genuinely non-overlapping periods. Read cumulative figures as diagnostics, not portfolio track records. Drawdown is computed on that same summed series and is therefore also in summed-return units, not a percentage of capital.
 
 **Multiple comparisons are not corrected.** This project has tested three horizons, five ablation configurations, four optimizer modes, two execution modes, and five foreign-flow feature sets against the same history. Only the foreign-flow comparison carries a confidence interval, and even that one does not adjust for being the fifth feature set on the same development data. The best-looking number in this repository is partly a product of search.
 

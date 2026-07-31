@@ -42,7 +42,7 @@ A single-feature momentum rule outperforms every trained model. `return_10d` is 
 
 Foreign buy/sell features were tested against a decision rule fixed before results were seen (paired block bootstrap on daily Rank IC, 222 non-overlapping signals, promote only if the 95 percent confidence interval excludes zero). Mean difference -0.002608, CI [-0.013314, +0.008297]. Not promoted.
 
-Cumulative return figures in this repository sum overlapping forecast-period active returns and are not compounded portfolio returns.
+Cumulative return figures in this repository sum overlapping forecast-period active returns and are not compounded portfolio returns. Drawdown is measured on that same summed series, so it is reported in summed-return units rather than as a percentage of capital.
 
 ## Data
 
@@ -127,7 +127,7 @@ Tests:
 py -m pytest -q
 ```
 
-342 tests.
+344 tests.
 
 ## Paper Trading
 
