@@ -15,6 +15,10 @@ from src.model_candidates import (
     summarize_model_candidates,
     summarize_paired_candidate_stability,
 )
+from src.research_market_data import (
+    add_market_data_arguments,
+    load_research_market_history_from_args,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -27,18 +31,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--top-n", type=int, default=8)
     parser.add_argument("--rolling-window", type=int, default=126)
-    parser.add_argument(
-        "--market-data-path",
-        default="data/raw/vnstock/vn30_ohlcv.csv",
-        help="OHLCV CSV used to classify historical market regimes.",
-    )
+    add_market_data_arguments(parser)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     predictions = pd.read_parquet(args.predictions_path)
-    market_data = pd.read_csv(args.market_data_path)
+    market_data = load_research_market_history_from_args(args)
     summary = summarize_model_candidates(predictions, top_n=args.top_n)
     stability = summarize_paired_candidate_stability(
         predictions,

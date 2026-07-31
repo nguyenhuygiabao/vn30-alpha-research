@@ -1,11 +1,22 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
-import pandas as pd
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from src.data_loader import load_ohlcv_csv
+from src.feature_pipeline import (
+    MEMBERSHIP_HISTORY_DIR,
+    load_verified_universe_reconstruction,
+)
+from src.research_market_data import (
+    DEFAULT_ADJUSTED_MARKET_PATH,
+    DEFAULT_RAW_MARKET_PATH,
+    load_research_market_history,
+)
 from src.universe_bias import (
     assert_complete_membership_interval_data,
     build_membership_interval_audit,
@@ -16,18 +27,31 @@ from src.universe_history import (
     validate_constituent_snapshot_coverage,
 )
 
-
-DEFAULT_MARKET_PATH = "data/raw/vnstock/vn30_ohlcv.csv"
-DEFAULT_SNAPSHOT_PATH = "data/reference/vn30_constituent_snapshots.csv"
 DEFAULT_REPORT_PATH = "reports/tables/universe_bias_audit.csv"
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Audit historical VN30 universe and vendor coverage.",
+        description=(
+            "Audit historical VN30 universe coverage and check the market "
+            "data for a current-members-only survivorship signature."
+        ),
     )
-    parser.add_argument("--market-data", default=DEFAULT_MARKET_PATH)
-    parser.add_argument("--snapshots", default=DEFAULT_SNAPSHOT_PATH)
+    parser.add_argument(
+        "--raw-market-path",
+        default=DEFAULT_RAW_MARKET_PATH,
+        help="FiinQuant canonical raw OHLC history.",
+    )
+    parser.add_argument(
+        "--adjusted-market-path",
+        default=DEFAULT_ADJUSTED_MARKET_PATH,
+        help="FiinQuant canonical adjusted history.",
+    )
+    parser.add_argument(
+        "--membership-dir",
+        default=MEMBERSHIP_HISTORY_DIR,
+        help="Directory holding verified VN30 membership history.",
+    )
     parser.add_argument("--output", default=DEFAULT_REPORT_PATH)
     return parser.parse_args()
 
@@ -35,11 +59,20 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    market = load_ohlcv_csv(args.market_data)
-    snapshots = pd.read_csv(args.snapshots)
+    # This audit deliberately loads the unfiltered vendor history. Applying
+    # point-in-time membership first would remove exactly the former-member
+    # rows the bias check is looking for.
+    market = load_research_market_history(
+        args.raw_market_path,
+        args.adjusted_market_path,
+        point_in_time=False,
+    )
+    reconstruction = load_verified_universe_reconstruction(
+        args.membership_dir
+    )
 
     verified_snapshots = validate_constituent_snapshot_coverage(
-        snapshots=snapshots,
+        snapshots=reconstruction.snapshots,
         start_date=market["date"].min(),
         end_date=market["date"].max(),
         expected_size=30,
@@ -68,7 +101,13 @@ def main() -> None:
         membership=membership,
     )
 
-    print("Historical VN30 universe audit")
+    print("HISTORICAL VN30 UNIVERSE BIAS AUDIT")
+    print("=" * 80)
+    print("Raw-market source:", args.raw_market_path)
+    print("Adjusted-market source:", args.adjusted_market_path)
+    print("Membership source:", args.membership_dir)
+    print("Market rows:", len(market))
+    print("Market tickers:", market["ticker"].nunique())
     print("Snapshot dates:", verified_snapshots["effective_date"].nunique())
     print("Historical tickers:", membership["ticker"].nunique())
     print("Membership intervals:", len(audit))

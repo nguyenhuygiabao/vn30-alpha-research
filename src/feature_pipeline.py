@@ -60,9 +60,15 @@ REQUIRED_COMBINED_FEATURE_COLUMNS = (
 )
 
 
-def load_verified_membership_history(
+def load_verified_universe_reconstruction(
     history_dir: str | Path = MEMBERSHIP_HISTORY_DIR,
-) -> pd.DataFrame:
+):
+    """Replay verified VN30 review history into a reconstruction result.
+
+    Exposes `snapshots`, `ticker_pool`, and `membership_history` for callers
+    that need more than the membership intervals, such as the survivorship-
+    bias audit.
+    """
     directory = Path(history_dir)
     inputs = {
         "initial_snapshot": "initial_snapshot.csv",
@@ -86,7 +92,7 @@ def load_verified_membership_history(
             encoding="utf-8-sig",
         )
 
-    reconstruction = reconstruct_constituent_history(
+    return reconstruct_constituent_history(
         initial_snapshot=loaded["initial_snapshot"],
         review_calendar=loaded["review_calendar"],
         membership_changes=loaded["membership_changes"],
@@ -94,7 +100,13 @@ def load_verified_membership_history(
         expected_size=30,
     )
 
-    return reconstruction.membership_history
+
+def load_verified_membership_history(
+    history_dir: str | Path = MEMBERSHIP_HISTORY_DIR,
+) -> pd.DataFrame:
+    return load_verified_universe_reconstruction(
+        history_dir
+    ).membership_history
 
 
 def mask_unavailable_raw_price_features(

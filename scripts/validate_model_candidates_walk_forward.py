@@ -21,6 +21,10 @@ from src.walk_forward import (
     select_training_candidate,
     summarize_walk_forward_candidates,
 )
+from src.research_market_data import (
+    add_market_data_arguments,
+    load_research_market_history_from_args,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,7 +32,7 @@ def parse_args() -> argparse.Namespace:
         description="Select a fixed model on training history and validate it on holdout dates."
     )
     parser.add_argument("--predictions-path", default="data/processed/tree_model_predictions.parquet")
-    parser.add_argument("--market-data-path", default="data/raw/vnstock/vn30_ohlcv.csv")
+    add_market_data_arguments(parser)
     parser.add_argument("--top-n", type=int, default=8)
     parser.add_argument("--holdout-start", default="2024-01-01")
     return parser.parse_args()
@@ -37,7 +41,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     predictions = pd.read_parquet(args.predictions_path)
-    market_data = pd.read_csv(args.market_data_path)
+    market_data = load_research_market_history_from_args(args)
     histories = {
         name: build_non_overlapping_policy_returns(
             predictions,

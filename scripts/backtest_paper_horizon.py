@@ -17,6 +17,10 @@ from src.paper_horizon_evaluation import (
     prepare_paper_horizon_inputs,
 )
 from src.regime_policy_backtest import summarize_non_overlapping_policy_returns
+from src.research_market_data import (
+    add_market_data_arguments,
+    load_research_market_history_from_args,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,7 +28,7 @@ def parse_args() -> argparse.Namespace:
         description="Backtest the aligned ten-day paper-horizon prediction history."
     )
     parser.add_argument("--predictions-path", default=PAPER_HORIZON_PREDICTIONS_PATH)
-    parser.add_argument("--market-data-path", default="data/raw/vnstock/vn30_ohlcv.csv")
+    add_market_data_arguments(parser)
     parser.add_argument("--top-n", type=int, default=8)
     return parser.parse_args()
 
@@ -32,7 +36,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     predictions = pd.read_parquet(args.predictions_path)
-    market_data = pd.read_csv(args.market_data_path)
+    market_data = load_research_market_history_from_args(args)
     predictions, market_data, benchmark_returns = prepare_paper_horizon_inputs(
         predictions, market_data
     )

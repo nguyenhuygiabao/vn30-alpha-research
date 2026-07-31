@@ -8,19 +8,22 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.data_loader import load_ohlcv_csv
 from src.paper_horizon_history import (
     build_historical_paper_predictions,
     save_historical_paper_predictions,
 )
 from src.paper_trading.scoring import build_daily_modeling_dataset
+from src.research_market_data import (
+    add_market_data_arguments,
+    load_research_market_history_from_args,
+)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build leakage-safe historical predictions aligned to paper scoring."
     )
-    parser.add_argument("--raw-data-path", default="data/raw/vnstock/vn30_ohlcv.csv")
+    add_market_data_arguments(parser)
     parser.add_argument("--output-path", default="data/processed/paper_horizon_predictions.parquet")
     parser.add_argument("--horizon-days", type=int, default=10)
     parser.add_argument("--minimum-training-dates", type=int, default=252)
@@ -35,7 +38,7 @@ def main() -> None:
     print("=" * 80, flush=True)
     print(f"Checkpoint: {checkpoint_path}", flush=True)
     print("An interrupted run can be resumed with the same command.", flush=True)
-    market_data = load_ohlcv_csv(args.raw_data_path)
+    market_data = load_research_market_history_from_args(args)
     modeling_dataset = build_daily_modeling_dataset(
         market_data,
         horizon_days=args.horizon_days,

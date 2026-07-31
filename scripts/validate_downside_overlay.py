@@ -17,6 +17,10 @@ from src.regime_policy_backtest import (
     build_paired_overlay_returns,
     summarize_paired_overlay_stability,
 )
+from src.research_market_data import (
+    add_market_data_arguments,
+    load_research_market_history_from_args,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,7 +28,7 @@ def parse_args() -> argparse.Namespace:
         description="Check whether a fixed drawdown overlay is stable through time."
     )
     parser.add_argument("--predictions-path", default="data/processed/tree_model_predictions.parquet")
-    parser.add_argument("--market-data-path", default="data/raw/vnstock/vn30_ohlcv.csv")
+    add_market_data_arguments(parser)
     parser.add_argument("--model", default="rank_ensemble")
     parser.add_argument("--top-n", type=int, default=8)
     return parser.parse_args()
@@ -37,7 +41,7 @@ def fixed_model_policy(model_name: str) -> dict[str, str]:
 def main() -> None:
     args = parse_args()
     predictions = pd.read_parquet(args.predictions_path)
-    market_data = pd.read_csv(args.market_data_path)
+    market_data = load_research_market_history_from_args(args)
     policy = fixed_model_policy(args.model)
     baseline = build_non_overlapping_policy_returns(
         predictions, market_data, policy=policy, top_n=args.top_n

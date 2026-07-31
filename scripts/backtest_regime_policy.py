@@ -15,6 +15,10 @@ from src.regime_policy_backtest import (
     build_non_overlapping_policy_returns,
     summarize_non_overlapping_policy_returns,
 )
+from src.research_market_data import (
+    add_market_data_arguments,
+    load_research_market_history_from_args,
+)
 
 
 POLICIES = {
@@ -38,7 +42,7 @@ def parse_args() -> argparse.Namespace:
         description="Compare non-overlapping, cost-aware regime-policy diagnostics."
     )
     parser.add_argument("--predictions-path", default="data/processed/tree_model_predictions.parquet")
-    parser.add_argument("--market-data-path", default="data/raw/vnstock/vn30_ohlcv.csv")
+    add_market_data_arguments(parser)
     parser.add_argument("--top-n", type=int, default=8)
     parser.add_argument(
         "--holding-period-days",
@@ -51,7 +55,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     predictions = pd.read_parquet(args.predictions_path)
-    market_data = pd.read_csv(args.market_data_path)
+    market_data = load_research_market_history_from_args(args)
     summaries = []
     for policy_name, policy in POLICIES.items():
         history = build_non_overlapping_policy_returns(
