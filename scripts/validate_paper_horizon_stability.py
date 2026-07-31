@@ -63,7 +63,11 @@ def main() -> None:
     print(stability.round(6).to_string(index=False))
     print("\nCalendar-year results:")
     print(years.round(6).to_string(index=False))
-    print("\nCurrent-constituent historical testing may contain survivorship bias.")
+    print(
+        "\nMarket data is filtered to point-in-time VN30 membership, so this "
+        "is not a current-constituent test and does not carry the associated "
+        "survivorship bias."
+    )
     print("Diagnostic only. No model, target, paper order, or real order changed.")
 
 
