@@ -16,6 +16,7 @@ from src.modeling_utils import (
     prepare_regression_window_data,
 )
 from src.walk_forward_split import (
+    DEFAULT_TRAIN_SIZE,
     TARGET_COLUMN,
     build_walk_forward_date_windows,
     get_sorted_dates,
@@ -331,7 +332,7 @@ def predict_tree_models_for_windows(
 
 
 def build_tree_model_outputs(
-    train_size: int = 3,
+    train_size: int = DEFAULT_TRAIN_SIZE,
     validation_size: int = 1,
     test_size: int = 1,
     purge_size: int = 5,

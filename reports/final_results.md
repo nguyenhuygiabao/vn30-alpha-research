@@ -4,16 +4,18 @@
 
 This project ranks VN30 stocks by expected outperformance against the VN30 benchmark, converts those rankings into a constrained long-only portfolio, and measures what survives transaction costs and Vietnam-specific execution frictions.
 
-The main finding is negative:
+The main finding remains negative, but by a smaller margin than before:
 
-**A single-feature momentum rule beats every trained model.** Sorting on trailing 10-day return and holding the top five names returns 0.002310 per 5-day period before cost. The best trained model's top-five basket returns 0.001433 on the same basis. `return_10d` is already an input feature to every model, so the models have strictly more information and use it worse.
+**A single-feature momentum rule still beats every trained model.** Sorting on trailing 10-day return and holding the top five names returns 0.002264 per 5-day period before cost. The best trained model's top-five basket returns 0.001992 on the same basis. `return_10d` is already an input feature to every model, so the models have strictly more information and still use it worse.
 
 Beyond that:
 
-- Only the **10-day horizon** is after-cost positive. The 1-day and 5-day horizons are both net-negative.
-- **No feature-ablation configuration** clears transaction costs at the 5-day horizon. All five are negative.
+- The **5-day and 10-day horizons** are now after-cost positive. The 1-day horizon is not.
+- **Two of five feature-ablation configurations** clear transaction costs, and the full feature set is the strongest.
 - **Foreign buy/sell features failed a pre-registered test** and are not promoted.
-- Five of eight ML portfolio variants have negative after-cost active return.
+- All eight ML portfolio variants now have positive after-cost active return.
+
+These figures reflect a walk-forward training window of 63 trading dates. It was previously 3, which fit about 90 rows against 99 features. See section 11 for the before/after comparison.
 
 Pipeline components: point-in-time VN30 membership, an enforced raw/adjusted price contract, purged walk-forward validation, modeled transaction costs and price limits, and a pre-registered bootstrap test for the foreign-flow feature sets.
 
@@ -25,38 +27,38 @@ Four optimizer modes crossed with two execution modes, at the 5-day horizon, aft
 
 | Optimizer | Execution | Active Return / Period | Diagnostic Sharpe | Max Active Drawdown | Cumulative Sum | Avg Names |
 |---|---|---:|---:|---:|---:|---:|
-| sector_diversified | normal | 0.000341 | 0.029910 | -0.710 | 0.844 | 25.8 |
-| sector_diversified | price_limit_aware | 0.000102 | 0.008918 | -0.922 | 0.254 | 25.8 |
-| herding_aware | normal | 0.000036 | 0.002103 | -1.361 | 0.088 | 11.6 |
-| normal | normal | -0.000064 | -0.003511 | -1.454 | -0.158 | 13.2 |
-| sector_aware | normal | -0.000080 | -0.004878 | -1.230 | -0.198 | 11.1 |
-| herding_aware | price_limit_aware | -0.000280 | -0.016299 | -1.455 | -0.692 | 11.6 |
-| sector_aware | price_limit_aware | -0.000445 | -0.026249 | -1.667 | -1.104 | 11.1 |
-| normal | price_limit_aware | -0.000481 | -0.025742 | -1.876 | -1.191 | 13.2 |
+| sector_diversified | normal | 0.000930 | 0.071309 | -1.027 | 2.249 | 12.9 |
+| sector_diversified | price_limit_aware | 0.000696 | 0.052945 | -1.199 | 1.682 | 12.9 |
+| herding_aware | normal | 0.000512 | 0.029370 | -1.161 | 1.238 | 6.0 |
+| sector_aware | normal | 0.000488 | 0.028693 | -1.116 | 1.181 | 6.0 |
+| normal | normal | 0.000419 | 0.021966 | -1.437 | 1.014 | 6.3 |
+| herding_aware | price_limit_aware | 0.000205 | 0.011565 | -1.493 | 0.496 | 6.0 |
+| sector_aware | price_limit_aware | 0.000089 | 0.005159 | -1.560 | 0.216 | 6.1 |
+| normal | price_limit_aware | 0.000076 | 0.003907 | -1.778 | 0.184 | 6.3 |
 
-Drawdown here is the largest fall of the cumulative active-return *sum* below its running peak, in the same units as that sum. The -1.876 for `normal / price_limit_aware` is a fall of 1.876 in summed active return from a peak of +0.607 to a trough of -1.269; it is not a 187% loss of capital. Individual 5-day period returns range only -12.6% to +8.5%.
+Drawdown here is the largest fall of the cumulative active-return *sum* below its running peak, in the same units as that sum. The -1.778 for `normal / price_limit_aware` is a fall of 1.778 in summed active return, not a 178% loss of capital. Individual 5-day period returns range only -12.6% to +8.5%.
 
-Only three of eight configurations are positive, and the largest is 0.000341 per period with a diagnostic Sharpe of 0.03 — economically indistinguishable from zero.
+All eight configurations are now positive, where five of eight were negative under the previous 3-date training window. The largest is 0.000930 per period at a diagnostic Sharpe of 0.07 — better than before, still small.
 
-Two patterns are consistent. Price-limit-aware execution is worse than normal execution in every matched pair, which quantifies how much of the paper result depends on fills HOSE's daily bands would have blocked. And wider diversification helps: `sector_diversified` (roughly 26 names) outperforms the concentrated `normal` mode (13 names), the opposite of what a genuinely strong ranking signal would produce. A model with real edge should do better when allowed to concentrate into its top picks.
+Two patterns persist. Price-limit-aware execution is worse than normal execution in every matched pair, which quantifies how much of the result depends on fills HOSE's daily bands would have blocked. And wider diversification still helps: `sector_diversified` (about 13 names) outperforms the concentrated `normal` mode (about 6 names). A ranking with strong edge should do better when allowed to concentrate, so this remains evidence that the signal is weak, even though every mode now clears cost.
 
-The most conservative configuration is **`normal` + `price_limit_aware`** at -0.000481, since it neither relaxes execution assumptions nor relies on wide diversification.
+The most conservative configuration is **`normal` + `price_limit_aware`** at 0.000076, since it neither relaxes execution assumptions nor relies on wide diversification.
 
 ## 3. Forecast Horizon
 
 | Horizon | Rank IC | Top-5 Hit Rate | Top-5 Return | After-Cost Return | Diagnostic Sharpe | Cumulative Sum | Turnover | Dates |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 1d | 0.018752 | 0.467203 | 0.000446 | -0.000703 | -0.114101 | -1.749 | 0.391 | 2488 |
-| 5d | 0.019869 | 0.469492 | 0.000998 | -0.000481 | -0.025742 | -1.191 | 0.366 | 2478 |
-| 10d | 0.039083 | 0.487130 | 0.001910 | 0.000804 | 0.030871 | 1.980 | 0.346 | 2463 |
+| 1d | 0.044204 | 0.482784 | 0.000387 | -0.000244 | -0.031919 | -0.593 | 0.391 | 2428 |
+| 5d | 0.033360 | 0.481307 | 0.001073 | 0.000076 | 0.003907 | 0.184 | 0.366 | 2418 |
+| 10d | 0.037407 | 0.482147 | 0.001943 | 0.001120 | 0.039957 | 2.691 | 0.346 | 2403 |
 
-The 10-day horizon is the only after-cost positive configuration in the project. It roughly doubles the Rank IC of the shorter horizons, has the best hit rate, and turns over least, which is why it costs less to run.
+The 10-day horizon remains the strongest after cost, and the 5-day horizon has crossed from negative to marginally positive. Both clear transaction costs.
 
-The 1-day horizon is the clearest failure. Rank IC is comparable to 5-day but after-cost return is the worst of the three, because turnover is highest and a 0.019 Rank IC cannot pay for rebalancing every session.
+The 1-day horizon now has the *highest* Rank IC of the three (0.0442) yet is still the only one that is net-negative after cost. That combination is informative: raw predictive accuracy at one day is real, but daily rebalancing turnover consumes it. It is a cost problem, not a prediction problem.
 
-The 5-day horizon is this project's original baseline. It is net-negative after cost and should no longer be described as strong. Earlier versions of this report claimed it "performed strongly"; that claim came from a pre-purge run and was leakage-inflated.
+The 5-day horizon is this project's original baseline. Under the previous 3-date training window it was net-negative; it is now marginally positive at 0.000076 per period, with a diagnostic Sharpe of 0.004 that is still indistinguishable from zero.
 
-Overlap disclosure: the 10-day horizon's 2,463 evaluated dates correspond to roughly **246 genuinely non-overlapping periods**. Average after-cost return is per forecast period, not annualized.
+Overlap disclosure: the 10-day horizon's 2,403 evaluated dates correspond to roughly **240 genuinely non-overlapping periods**. Average after-cost return is per forecast period, not annualized.
 
 ## 4. Feature Ablation
 
@@ -64,19 +66,19 @@ One feature group removed at a time, all under price-limit-aware execution:
 
 | Configuration | Features | Rank IC | Top-5 Hit Rate | Top-5 Return | After-Cost Return | Cumulative Sum |
 |---|---:|---:|---:|---:|---:|---:|
-| Excluding risk | 97 | 0.025746 | 0.476755 | 0.001234 | -0.000321 | -0.797 |
-| Excluding volume/liquidity | 88 | 0.021549 | 0.469169 | 0.000773 | -0.000540 | -1.337 |
-| Excluding herding | 89 | 0.020276 | 0.468846 | 0.000899 | -0.000572 | -1.418 |
-| All features | 99 | 0.019869 | 0.469492 | 0.000998 | -0.000481 | -1.191 |
-| Excluding price limit | 84 | 0.013470 | 0.466990 | 0.000567 | -0.000664 | -1.644 |
+| All features | 99 | 0.033360 | 0.481307 | 0.001073 | 0.000076 | 0.184 |
+| Excluding risk | 97 | 0.033263 | 0.481472 | 0.000794 | -0.000347 | -0.840 |
+| Excluding herding | 89 | 0.033124 | 0.482299 | 0.001097 | 0.000081 | 0.195 |
+| Excluding price limit | 84 | 0.029790 | 0.477916 | 0.000920 | -0.000202 | -0.489 |
+| Excluding volume/liquidity | 88 | 0.029133 | 0.476427 | 0.000724 | -0.000309 | -0.747 |
 
-**Every configuration is net-negative after cost.**
+**The full feature set is now the strongest configuration**, and two of five clear transaction costs.
 
-Removing the two risk features (`rolling_vol_20d`, `drawdown`) gives the best Rank IC, the best hit rate, and the least-negative after-cost result. This has not been investigated further.
+This reverses the previous reading. Under the 3-date training window, removing features improved Rank IC and `without_risk` led the table, which suggested the feature set was mostly noise. With 63 dates of training the ranking inverts: `all_features` leads, and every reduced set is worse or no better. The earlier result was a symptom of too little training data to use 99 features, not evidence that the features were harmful.
 
-Removing price-limit features is worst on every metric, indicating that group carries information about Vietnamese market microstructure rather than acting as noise.
+Removing volume/liquidity or price-limit features is now clearly worse on both Rank IC and after-cost return, so both groups carry information.
 
-Rank IC and after-cost outcome do not move together. Excluding volume/liquidity improves Rank IC (0.0215 vs 0.0199) but worsens after-cost return (-0.000540 vs -0.000481). The plausible mechanism is that liquidity features add noise to the raw prediction while still steering the optimizer away from names that are expensive to trade. Prediction accuracy and portfolio outcome are separate objectives here.
+`without_herding` is a marginal exception, essentially tied with the full set (0.000081 against 0.000076 after cost, on a Rank IC 0.0002 lower). Herding features remain unproven as an alpha source, which is consistent with their original purpose as a portfolio risk control.
 
 These numbers are from a fresh run. `src/ablation_tests.py` previously carried a cache with no freshness check and silently served three-week-old predictions from a 51-feature snapshot of the pipeline. That output showed several configurations as after-cost profitable; those figures described an obsolete pipeline. The cache has been removed.
 
@@ -86,25 +88,28 @@ Equal-weight top-5 by model score, diagnostic only:
 
 | Model | Rank IC | Top-5 Hit Rate | Top-5 Return / 5d | Diagnostic Sharpe |
 |---|---:|---:|---:|---:|
-| elastic_net | 0.021737 | 0.185069 | 0.001351 | 0.066882 |
-| gradient_boosting | 0.019869 | 0.185230 | 0.000998 | 0.046962 |
-| classification | 0.018657 | 0.189427 | 0.001006 | 0.050339 |
-| random_forest | 0.018015 | 0.190638 | 0.001433 | 0.066590 |
-| ridge | 0.017905 | 0.183697 | 0.000786 | 0.039614 |
+| elastic_net | 0.036697 | 0.198677 | 0.001992 | 0.095810 |
+| ridge | 0.036075 | 0.192721 | 0.001478 | 0.075068 |
+| gradient_boosting | 0.033360 | 0.187924 | 0.001073 | 0.053650 |
+| random_forest | 0.031098 | 0.191150 | 0.001076 | 0.051486 |
+| classification | 0.020905 | 0.207858 | 0.001811 | 0.086431 |
 
-Rank IC spans 0.0179 to 0.0217 across five model families of very different capacity. That narrow a spread, with linear models at the top, indicates the ceiling is set by the features and the signal-to-noise of the problem, not by model choice. Gradient boosting is carried into portfolio construction for continuity with earlier versions of this project, not because it wins.
+Every model improved with the wider training window, but the *linear* models improved most and now lead clearly: elastic net at 0.0367 against gradient boosting at 0.0334, and elastic net returns roughly 85 percent more per top-5 basket. Under the previous window the spread was narrow (0.0179 to 0.0217) and the ordering close to arbitrary.
+
+Gradient boosting is still the model carried into portfolio construction, for continuity with earlier versions of this project. On the current evidence that choice is now actively questionable rather than merely unjustified: elastic net beats it on Rank IC, hit rate, top-5 return, and diagnostic Sharpe simultaneously. Switching would change every portfolio number and has not been done here.
 
 ## 6. Baseline Comparison
 
 | Strategy | Active Return / Period | Basis | Cumulative Sum | Names |
 |---|---:|---|---:|---:|
-| top5_momentum | 0.002310 | before cost | 5.724 | 5 |
-| ML sector_diversified / normal | 0.000341 | after cost | 0.844 | 25.8 |
-| ML sector_diversified / price_limit_aware | 0.000102 | after cost | 0.254 | 25.8 |
+| top5_momentum | 0.002264 | before cost | 5.474 | 5 |
+| ML sector_diversified / normal | 0.000930 | after cost | 2.249 | 12.9 |
+| ML sector_diversified / price_limit_aware | 0.000696 | after cost | 1.682 | 12.9 |
+| ML normal / normal | 0.000419 | after cost | 1.014 | 6.3 |
+| ML normal / price_limit_aware | 0.000076 | after cost | 0.184 | 6.3 |
 | equal_weight_all | ~0 | before cost | ~0 | 30 |
-| low_volatility_top10 | -0.000347 | before cost | -0.858 | 10 |
-| ML normal / price_limit_aware | -0.000481 | after cost | -1.191 | 13.2 |
-| top5_reversal | -0.002630 | before cost | -6.503 | 5 |
+| low_volatility_top10 | -0.000411 | before cost | -0.994 | 10 |
+| top5_reversal | -0.002731 | before cost | -6.603 | 5 |
 
 `top5_momentum` sorts on `return_10d` alone and holds the top five. It is an order of magnitude ahead of the best ML configuration.
 
@@ -112,15 +117,17 @@ The cost basis differs, so this table alone is not conclusive. Recomputing each 
 
 | Selection Rule | Top-5 Active Return, Before Cost |
 |---|---:|
-| top5_momentum (`return_10d` only) | 0.002310 |
-| random_forest | 0.001433 |
-| elastic_net | 0.001351 |
-| gradient_boosting | 0.000998 |
-| ridge | 0.000786 |
+| top5_momentum (`return_10d` only) | 0.002264 |
+| elastic_net | 0.001992 |
+| ridge | 0.001478 |
+| gradient_boosting | 0.001080 |
+| random_forest | 0.001030 |
 
-Momentum leads the best model by 1.6x and the worst by 2.9x, before cost or diversification enter the picture. Since `return_10d` is an input feature to all five models, they are not missing the information — they are diluting it. The `without_risk` ablation result points the same direction: removing features improved Rank IC.
+Momentum still leads, but the margin has narrowed substantially. The best model now reaches 88 percent of the baseline, against 62 percent under the 3-date training window. Momentum led the best model by 1.6x before; it now leads by 1.14x.
 
-This is the central unresolved problem in the project. Candidate explanations, none yet tested: the tree depth limit (`max_depth=2`) cannot represent the interaction that makes momentum work; the 99-feature input is mostly noise that swamps a small number of informative axes; or the relative-return target is a poor fit for a momentum-dominated market.
+Part of the earlier gap was therefore an artefact of undertrained models rather than a property of the signal. The remaining gap is real but much smaller, and the two best models are now the linear ones, which is what one would expect if the useful structure is close to a linear combination of a few momentum-like features.
+
+Still unresolved: a single trailing-return sort continues to beat a 99-feature model that receives `return_10d` as an input. Candidate explanations, none yet tested: the tree depth limit (`max_depth=2`) cannot represent the interaction that makes momentum work; the remaining features still dilute a small number of informative axes; or the relative-return target is a poor fit for a momentum-dominated market.
 
 ## 7. Foreign Flow
 
@@ -142,20 +149,21 @@ The cause is not that the model ignores the new features — two of them rank se
 
 ## 8. Concentration and Latest Diagnostics
 
-Latest signal date 2026-07-15, `normal` optimizer: 21 holdings, 100 percent invested, maximum single-name weight 18.9 percent (VPB), HHI 0.112, effective position count 8.9, top issuer group VPBank at 18.9 percent. No issuer group at or above 40 percent, and no position at or above 20 percent. Constraints are binding as designed.
+Latest signal date 2026-07-15, `normal` optimizer: 16 holdings, maximum single-name weight 20.0 percent, HHI 0.147, effective position count 6.8, top issuer group Vingroup at 20.1 percent. No issuer group approaches the 40 percent cap. The single-name cap is now binding exactly at 20 percent, and the portfolio is more concentrated than under the previous training window (16 holdings against 21).
 
-The rank diagnostic for the same date shows the model missing badly at the top:
+The rank diagnostic for the same date still shows misses at the top:
 
 | Ticker | Predicted Rank | Realized Rank | Realized Forward Return |
 |---|---:|---:|---:|
-| CTG | 1 | 19 | -1.87% |
-| TPB | 3 | 20 | -2.10% |
-| SHB | 4 | 16 | -1.37% |
-| SSI | 5 | 24 | -2.57% |
-| LPB | 24 | 1 | +11.84% |
-| VNM | 22 | 2 | +11.35% |
+| FPT | 1 | 10 | +2.61% |
+| SSI | 2 | 24 | -2.57% |
+| MSN | 3 | 11 | -0.22% |
+| VJC | 4 | 7 | +3.06% |
+| VHM | 5 | 14 | -0.91% |
+| LPB | 28 | 1 | +11.84% |
+| VNM | 30 | 2 | +11.35% |
 
-Four of the top five picks realized negative returns while two of the bottom seven were the two best performers of the day. This is a single date and not independent evidence, but it is a concrete illustration of what a 0.02 Rank IC means in practice.
+Two of the top five realized positive returns, an improvement on the previous run where four of five were negative. But the two best performers of the day were still ranked 28th and 30th out of 30. One date is not evidence, and this remains a concrete illustration of what a 0.03 Rank IC means in practice.
 
 ## 9. Figures
 
@@ -170,9 +178,9 @@ Interactive charts covering cumulative return, active drawdown, turnover, rollin
 
 ## 10. Weaknesses
 
-**A one-feature baseline beats the models.** Section 6. Unresolved.
+**A one-feature baseline beats the models.** Section 6. Narrowed from 1.6x to 1.14x by widening the training window, but unresolved.
 
-**Nothing clears cost at the 5-day horizon.** Section 4. Only the 10-day horizon is positive at all.
+**Margins are thin.** Section 2. All eight portfolio configurations now clear cost, but the most conservative does so by 0.000076 per period at a diagnostic Sharpe of 0.004.
 
 **Multiple comparisons are uncorrected.** Three horizons, five ablations, four optimizer modes, two execution modes, five foreign-flow feature sets, all against the same history. Only the foreign-flow test carries a confidence interval, and it does not adjust for being the fifth feature set on the same development data. The best number in this repository is partly a product of search.
 
@@ -182,12 +190,42 @@ Interactive charts covering cumulative return, active drawdown, turnover, rollin
 
 **Concentration reduces performance** rather than improving it, which is consistent with a weak ranking signal.
 
+**The production model is no longer the best one.** Section 5. Elastic net now beats gradient boosting on every diagnostic, but gradient boosting is still what feeds portfolio construction.
+
 **Data scope.** Daily bars only: no intraday queue priority, order-book depth, or hidden liquidity. No fundamentals, macro, or news. Foreign ownership room is not modeled.
 
 **Paper trading runs on a different data source** (vnstock) than the research pipeline (FiinQuant) and has not been reconciled against it.
 
-## 11. Conclusion
+## 11. Training Window Change
 
-The results do not support an alpha claim. One horizon out of three is after-cost positive, no feature configuration clears cost at the 5-day baseline horizon, a single-feature momentum rule outperforms every trained model on a matched basis, and the most recent feature addition did not clear its pre-registered criterion.
+Every figure in this report reflects a walk-forward training window of **63 trading dates**. It was previously **3**.
 
-The open question is why a single trailing-return sort outperforms a 99-feature gradient-boosting model that already receives that feature as an input. Until that is answered, additional features are unlikely to help, and each further configuration tested against the same history increases the multiple-comparisons problem described in section 10.
+`train_size` in `build_walk_forward_date_windows` counts dates, not blocks of dates, so the old setting fit 99 features on about 90 rows per window. The value was duplicated across five model modules and appears never to have been revisited as the dataset grew. It is now a single constant, `DEFAULT_TRAIN_SIZE` in `src/walk_forward_split.py`.
+
+The value was chosen by sweeping {3, 21, 63, 126, 252} on 223 shared evaluation dates (`scripts/diagnose_training_window.py`, results in `reports/tables/training_window_diagnostic.csv`). The relationship is an inverted U, not monotonic: Rank IC peaks at 21 dates and collapses to roughly zero at 252, consistent with long windows averaging across market regimes that no longer apply. 63 was chosen over the Rank-IC-optimal 21 because it had the best top-5 hit rate and the only clearly positive top-5 return, and portfolio construction selects a top-N basket.
+
+Effect on the headline numbers:
+
+| Metric | train_size=3 | train_size=63 |
+|---|---:|---:|
+| Rank IC, 1d | 0.018752 | 0.044204 |
+| Rank IC, 5d | 0.019869 | 0.033360 |
+| Rank IC, 10d | 0.039083 | 0.037407 |
+| After-cost return, 5d | -0.000481 | 0.000076 |
+| After-cost return, 10d | 0.000804 | 0.001120 |
+| Best ML portfolio | 0.000341 | 0.000930 |
+| ML configurations positive | 3 of 8 | 8 of 8 |
+| Ablation configurations positive | 0 of 5 | 2 of 5 |
+| Best model vs momentum baseline | 62% | 88% |
+
+Two results did not improve. The 10-day Rank IC is marginally lower (0.0374 against 0.0391), and the 10-day top-5 hit rate fell slightly. The sweep only measured the 5-day horizon, so the 10-day outcome was not predicted by it and is a genuine, if small, cost of the change.
+
+One caveat carried forward: this is a parameter chosen by measuring five values against the same history, which adds to the multiple-comparisons problem in section 10. The improvement is large and consistent enough across horizons, ablations, and portfolio modes that it is unlikely to be selection noise, but no confidence interval supports that judgement.
+
+## 12. Conclusion
+
+The results still do not support an alpha claim, though they are materially better than before the training window was corrected. Two horizons out of three are after-cost positive, the full feature set clears cost, and every portfolio configuration is positive — but the best of them earns 0.000930 per 5-day period at a diagnostic Sharpe of 0.07, and a single-feature momentum rule continues to outperform every trained model on a matched basis.
+
+Two open questions follow from this run. Why does a trailing-return sort still beat a 99-feature model that receives that feature as an input, now that undertraining has been ruled out as the main cause? And should gradient boosting remain the production model when elastic net beats it on every diagnostic measured here?
+
+Neither is answered by adding features. Each further configuration tested against the same history increases the multiple-comparisons problem described in section 10, and none of these figures carry confidence intervals.

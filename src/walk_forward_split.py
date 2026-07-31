@@ -19,6 +19,26 @@ KEY_COLUMNS: list[str] = [
 
 PURGE_DAYS: int = 5
 
+# Walk-forward training window, in trading dates. `train_size` counts dates,
+# so with roughly 30 active constituents this is about 1,890 training rows.
+#
+# This was 3 dates (~90 rows against 99 features) in every model module, set
+# when the dataset was much smaller and never revisited. The sweep in
+# scripts/diagnose_training_window.py measured {3, 21, 63, 126, 252} on a
+# shared set of 223 evaluation dates and found an inverted U rather than a
+# monotonic gain: Rank IC rises from 0.0168 at 3 dates to 0.0311 at 21, then
+# falls, reaching roughly zero at 252. Long windows appear to average across
+# market regimes that no longer apply.
+#
+# 63 is chosen over the Rank-IC-optimal 21 because it has the best top-5 hit
+# rate (0.4987) and the only clearly positive top-5 return (+0.001074), and
+# portfolio construction selects a top-N basket rather than trading the full
+# ranking. Its Rank IC (0.0281) is within noise of 21's over 223 dates.
+#
+# Defined once here so the value cannot drift back out of sync across the
+# model modules, which is how it went unexamined for so long.
+DEFAULT_TRAIN_SIZE: int = 63
+
 
 def load_modeling_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
     features = pd.read_parquet(FEATURES_PATH)
@@ -202,7 +222,7 @@ def main() -> None:
     print("Latest historical date:", historical_dates.max())
 
     windows = build_walk_forward_date_windows(dates = historical_dates,
-                                              train_size=1,
+                                              train_size=DEFAULT_TRAIN_SIZE,
                                               validation_size= 1,
                                               test_size= 1,
                                               purge_size= PURGE_DAYS,

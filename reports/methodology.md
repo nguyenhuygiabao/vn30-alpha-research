@@ -82,7 +82,7 @@ Features use only information available strictly before the prediction date. For
 
 Five models are run through identical walk-forward machinery: ridge and elastic-net regression, random forest, gradient boosting, and a gradient-boosting classifier over a binary outperformance label.
 
-Gradient boosting (`n_estimators=100`, `max_depth=2`) is the model carried into portfolio construction, mainly for continuity with earlier versions of the project rather than because it dominates. On the current data its Rank IC (0.0199) sits mid-pack: elastic net is higher (0.0217) and ridge lower (0.0179). The differences are small relative to the day-to-day dispersion of the metric.
+Gradient boosting (`n_estimators=100`, `max_depth=2`) is the model carried into portfolio construction, for continuity with earlier versions of the project rather than because it dominates. On the current data it does not: its Rank IC is 0.0334 against elastic net at 0.0367 and ridge at 0.0361, and elastic net also leads on hit rate, top-5 return, and diagnostic Sharpe. Reconsidering the production model is a live question, not a formality.
 
 Models are evaluated as rankers, since portfolio construction only uses predicted values to sort candidates.
 
@@ -90,9 +90,13 @@ Models are evaluated as rankers, since portfolio construction only uses predicte
 
 Validation is walk-forward, never a random split. Random splitting on time-ordered market data leaks future regimes into training and inflates every metric.
 
-Each window trains on 3 trading dates, validates on 1, and tests on 1, stepping forward one date at a time, which yields about 2,480 windows over the history. A **5-day purge** is applied at each train/validation and validation/test boundary.
+Each window trains on **63 trading dates**, validates on 1, and tests on 1, stepping forward one date at a time, which yields about 2,420 windows over the history. A **5-day purge** is applied at each train/validation and validation/test boundary.
 
-`train_size` counts dates, not blocks, so with roughly 30 active constituents each window fits on about **90 rows** against 99 features. That is a very small training set for the feature count, and it is the most likely reason Rank IC sits near 0.02 here while the foreign-flow experiment, which trains on an expanding window of 252 dates or more, reports roughly 0.06. The setting has not been changed, because doing so would alter every published number in this report and warrants its own before/after comparison.
+`train_size` counts dates, not blocks, so with roughly 30 active constituents each window fits on about **1,890 rows** against 99 features. This was previously 3 dates, or about 90 rows, a value duplicated across five model modules that appears never to have been revisited as the dataset grew. It is now the single constant `DEFAULT_TRAIN_SIZE` in `src/walk_forward_split.py`.
+
+The value was selected by sweeping {3, 21, 63, 126, 252} against a shared set of 223 evaluation dates (`scripts/diagnose_training_window.py`). The relationship is an inverted U rather than monotonic: Rank IC peaks at 21 dates and falls to roughly zero at 252, which is consistent with long windows averaging across market regimes that no longer apply. 63 was chosen over the Rank-IC-optimal 21 because it had the best top-5 hit rate and the only clearly positive top-5 return, and portfolio construction selects a top-N basket rather than trading the full ranking.
+
+Widening the window raised Rank IC at 1-day and 5-day horizons, moved the 5-day horizon from net-negative to net-positive after cost, and reversed the earlier ablation finding that removing features helped. Section 11 of `reports/final_results.md` carries the full before/after comparison.
 
 The purge exists because 5-day and 10-day forward labels overlap adjacent dates. Without it, a training row's label window extends into the test period and the model is partly scored on information it already saw. Adding purging is what collapsed this project's earlier headline results, and those earlier numbers should be treated as leakage-inflated.
 
@@ -136,15 +140,15 @@ Five configurations, removing one feature group at a time, all under price-limit
 
 | Configuration | Features | Rank IC | Top-5 Hit Rate | After-Cost Return | Cumulative After-Cost |
 |---|---:|---:|---:|---:|---:|
-| Excluding risk | 97 | 0.025746 | 0.476755 | -0.000321 | -0.797 |
-| Excluding volume/liquidity | 88 | 0.021549 | 0.469169 | -0.000540 | -1.337 |
-| Excluding herding | 89 | 0.020276 | 0.468846 | -0.000572 | -1.418 |
-| All features | 99 | 0.019869 | 0.469492 | -0.000481 | -1.191 |
-| Excluding price limit | 84 | 0.013470 | 0.466990 | -0.000664 | -1.644 |
+| All features | 99 | 0.033360 | 0.481307 | 0.000076 | 0.184 |
+| Excluding risk | 97 | 0.033263 | 0.481472 | -0.000347 | -0.840 |
+| Excluding herding | 89 | 0.033124 | 0.482299 | 0.000081 | 0.195 |
+| Excluding price limit | 84 | 0.029790 | 0.477916 | -0.000202 | -0.489 |
+| Excluding volume/liquidity | 88 | 0.029133 | 0.476427 | -0.000309 | -0.747 |
 
-Every configuration is net-negative after cost, so no feature set tested clears transaction costs at the 5-day horizon. Removing the two risk features gives the best Rank IC and the least-negative after-cost result; this has not been investigated further. Removing price-limit features is worst on every metric, indicating that group carries information rather than noise.
+The full feature set is now the strongest configuration and two of five clear transaction costs. This reverses the earlier reading: under a 3-date training window, removing features improved Rank IC and `without_risk` led, which suggested the feature set was largely noise. With 63 dates the ranking inverts. The earlier result reflected too little training data to use 99 features, not harmful features.
 
-Note also that Rank IC and after-cost outcome do not move together: excluding volume/liquidity improves Rank IC but worsens after-cost return, plausibly because those features help the optimizer avoid names that are expensive to trade even while adding noise to the raw prediction.
+Removing price-limit or volume/liquidity features is now clearly worse on both Rank IC and after-cost return. `without_herding` is essentially tied with the full set, so herding features remain unproven as an alpha source, consistent with their original purpose as a portfolio risk control.
 
 These numbers come from a fresh run. A stale-cache bug in `src/ablation_tests.py` previously served three-week-old predictions from a 51-feature snapshot, and the conclusions drawn from that run were wrong. The internal cache has been removed.
 
@@ -152,11 +156,11 @@ These numbers come from a fresh run. A stale-cache bug in `src/ablation_tests.py
 
 | Horizon | Rank IC | Top-5 Hit Rate | After-Cost Return | Diagnostic Sharpe | Cumulative After-Cost | Dates |
 |---:|---:|---:|---:|---:|---:|---:|
-| 1d | 0.018752 | 0.467203 | -0.000703 | -0.114101 | -1.749 | 2488 |
-| 5d | 0.019869 | 0.469492 | -0.000481 | -0.025742 | -1.191 | 2478 |
-| 10d | 0.039083 | 0.487130 | 0.000804 | 0.030871 | 1.980 | 2463 |
+| 1d | 0.044204 | 0.482784 | -0.000244 | -0.031919 | -0.593 | 2428 |
+| 5d | 0.033360 | 0.481307 | 0.000076 | 0.003907 | 0.184 | 2418 |
+| 10d | 0.037407 | 0.482147 | 0.001120 | 0.039957 | 2.691 | 2403 |
 
-The 10-day horizon is the only configuration in this project that is after-cost positive. It roughly doubles the Rank IC of the shorter horizons and has the lowest turnover. The 1-day horizon is the clearest failure: daily noise and execution frictions dominate any signal at that frequency.
+The 10-day horizon remains strongest after cost, and the 5-day horizon has crossed from negative to marginally positive. The 1-day horizon now has the highest Rank IC of the three yet is still the only net-negative one, which locates its failure in rebalancing cost rather than in prediction.
 
 ### Baseline comparison
 
@@ -164,24 +168,24 @@ The 10-day horizon is the only configuration in this project that is after-cost 
 
 | Strategy | Active Return per 5d Period | Basis | Names Held |
 |---|---:|---|---:|
-| top5_momentum | 0.002310 | before cost | 5 |
-| ML sector_diversified / normal | 0.000341 | after cost | 25.8 |
-| ML sector_diversified / price_limit_aware | 0.000102 | after cost | 25.8 |
-| ML normal / price_limit_aware | -0.000481 | after cost | 13.2 |
+| top5_momentum | 0.002264 | before cost | 5 |
+| ML sector_diversified / normal | 0.000930 | after cost | 12.9 |
+| ML sector_diversified / price_limit_aware | 0.000696 | after cost | 12.9 |
+| ML normal / price_limit_aware | 0.000076 | after cost | 6.3 |
 
-`top5_momentum` sorts on a single feature — trailing 10-day return — and holds the top five. It beats every ML portfolio variant, and five of the eight ML variants are outright negative.
+`top5_momentum` sorts on a single feature — trailing 10-day return — and holds the top five. It still beats every ML portfolio variant, though all eight ML variants are now positive after cost, where five of eight were negative under the previous training window.
 
 The cost basis differs (baselines are before cost, ML is after), so this is not a like-for-like table. Recomputing each model's own top-5 pick on a matched basis — same concentration, same relative-to-VN30 target, before any cost or portfolio construction — gives:
 
 | Selection Rule | Top-5 Active Return, Before Cost |
 |---|---:|
-| top5_momentum (`return_10d` only) | 0.002310 |
-| random_forest top-5 | 0.001433 |
-| elastic_net top-5 | 0.001351 |
-| gradient_boosting top-5 | 0.000998 |
-| ridge top-5 | 0.000786 |
+| top5_momentum (`return_10d` only) | 0.002264 |
+| elastic_net top-5 | 0.001992 |
+| ridge top-5 | 0.001478 |
+| gradient_boosting top-5 | 0.001080 |
+| random_forest top-5 | 0.001030 |
 
-Every trained model picks worse top-5 baskets than a single trailing-return sort, and `return_10d` is already one of their input features. This is unresolved.
+Every trained model still picks worse top-5 baskets than a single trailing-return sort, and `return_10d` is already one of their input features. The margin narrowed from 1.6x to 1.14x when the training window was widened, so part of the original gap was undertraining rather than a property of the signal. The remainder is unresolved.
 
 ## 11. Foreign Flow Experiment
 

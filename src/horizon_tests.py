@@ -16,6 +16,7 @@ from src.tree_models import (
     predict_tree_models_for_windows,
 )
 from src.walk_forward_split import (
+    DEFAULT_TRAIN_SIZE,
     build_walk_forward_date_windows,
     get_sorted_dates,
 )
@@ -92,7 +93,7 @@ def build_horizon_predictions() -> pd.DataFrame:
 
         windows = build_walk_forward_date_windows(
             dates=dates,
-            train_size=3,
+            train_size=DEFAULT_TRAIN_SIZE,
             validation_size=1,
             test_size=1,
             purge_size=horizon,

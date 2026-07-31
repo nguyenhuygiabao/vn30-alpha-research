@@ -12,10 +12,10 @@ Regression models are compared using Rank IC, top-5 hit rate, top-minus-bottom s
 
 ```text
        model_name  evaluated_dates  average_rank_ic  average_hit_rate  average_top_minus_bottom_spread  average_gross_top_n_return  average_after_cost_return  sharpe_ratio  max_drawdown  average_turnover  average_transaction_cost
-      elastic_net             2478         0.021737          0.476513                         0.003250                    0.001351                   0.000437      0.342716     -0.714492          0.915301                  0.000915
-gradient_boosting             2478         0.019869          0.469492                         0.003010                    0.000998                   0.000006      0.004154     -0.826714          0.992814                  0.000992
-    random_forest             2478         0.018015          0.471429                         0.003039                    0.001433                   0.000551      0.405961     -0.738247          0.882519                  0.000882
-            ridge             2478         0.017905          0.470056                         0.002297                    0.000786                  -0.000197     -0.157276     -0.858161          0.983448                  0.000983
+      elastic_net             2418         0.036697          0.490157                         0.004160                    0.001992                   0.001409      1.076748     -0.808193          0.583368                  0.000583
+            ridge             2418         0.036075          0.485277                         0.003742                    0.001478                   0.000779      0.628199     -0.879017          0.699545                  0.000699
+gradient_boosting             2418         0.033360          0.481307                         0.002682                    0.001073                   0.000444      0.352768     -0.783934          0.628713                  0.000628
+    random_forest             2418         0.031098          0.480562                         0.002669                    0.001076                   0.000507      0.385638     -0.866005          0.568804                  0.000569
 ```
 
 ## Classification model comparison
@@ -24,7 +24,7 @@ The logistic regression model is evaluated separately because it predicts top-qu
 
 ```text
          model_name  evaluated_dates  average_precision  average_recall  average_selected_return  sharpe_ratio  max_drawdown
-logistic_regression             2478           0.220823        0.184019                 0.001006      0.799103      -0.55947
+logistic_regression             2418           0.241522        0.201268                 0.001811      1.372052     -0.707662
 ```
 
 ## Baseline strategy comparison
@@ -45,50 +45,50 @@ Feature importance shows which variables the tree models used most often for spl
 
 ```text
        model_name                       feature  average_importance  importance_observations
-gradient_boosting                    return_60d            0.059645                     2478
-gradient_boosting                      drawdown            0.056539                     2478
-gradient_boosting               rolling_vol_20d            0.055500                     2478
-gradient_boosting      average_daily_volume_20d            0.043067                     2478
-gradient_boosting  foreign_flow_return_corr_20d            0.031661                     2478
-gradient_boosting foreign_buy_downday_share_20d            0.027678                     2478
-gradient_boosting                    return_10d            0.026065                     2478
-gradient_boosting       average_daily_value_20d            0.025843                     2478
-gradient_boosting               reference_price            0.024049                     2478
-gradient_boosting       estimated_ceiling_price            0.023279                     2478
-gradient_boosting         estimated_floor_price            0.022967                     2478
-gradient_boosting         distance_from_20d_low            0.021841                     2478
-gradient_boosting  foreign_sell_value_share_20d            0.021830                     2478
-gradient_boosting                     return_3d            0.020435                     2478
-gradient_boosting        distance_from_20d_high            0.020435                     2478
-gradient_boosting    foreign_flow_imbalance_20d            0.019109                     2478
-gradient_boosting   foreign_net_value_share_20d            0.018927                     2478
-gradient_boosting         foreign_net_value_20d            0.018903                     2478
-gradient_boosting   foreign_buy_value_share_20d            0.017378                     2478
-gradient_boosting                    return_20d            0.016893                     2478
-    random_forest                    return_60d            0.059848                     2478
-    random_forest               rolling_vol_20d            0.057690                     2478
-    random_forest                      drawdown            0.052306                     2478
-    random_forest      average_daily_volume_20d            0.042446                     2478
-    random_forest  foreign_flow_return_corr_20d            0.030357                     2478
-    random_forest                    return_10d            0.027316                     2478
-    random_forest foreign_buy_downday_share_20d            0.026637                     2478
-    random_forest               reference_price            0.024838                     2478
-    random_forest         distance_from_20d_low            0.023660                     2478
-    random_forest       estimated_ceiling_price            0.022023                     2478
-    random_forest       average_daily_value_20d            0.021891                     2478
-    random_forest         estimated_floor_price            0.020907                     2478
-    random_forest        distance_from_20d_high            0.020833                     2478
-    random_forest  foreign_sell_value_share_20d            0.020291                     2478
-    random_forest                     return_3d            0.019990                     2478
-    random_forest    foreign_flow_imbalance_20d            0.018910                     2478
-    random_forest         foreign_net_value_20d            0.018466                     2478
-    random_forest   foreign_net_value_share_20d            0.017446                     2478
-    random_forest                    return_20d            0.017050                     2478
-    random_forest            rolling_return_20d            0.016980                     2478
+gradient_boosting                    return_60d            0.077856                     2418
+gradient_boosting                      drawdown            0.075066                     2418
+gradient_boosting      average_daily_volume_20d            0.057009                     2418
+gradient_boosting               rolling_vol_20d            0.056798                     2418
+gradient_boosting       average_daily_value_20d            0.053787                     2418
+gradient_boosting       estimated_ceiling_price            0.028252                     2418
+gradient_boosting               reference_price            0.027500                     2418
+gradient_boosting    foreign_flow_imbalance_20d            0.026892                     2418
+gradient_boosting         estimated_floor_price            0.026586                     2418
+gradient_boosting                    return_10d            0.026407                     2418
+gradient_boosting  foreign_flow_return_corr_20d            0.024516                     2418
+gradient_boosting        foreign_sell_value_20d            0.024488                     2418
+gradient_boosting   foreign_net_value_share_20d            0.023592                     2418
+gradient_boosting         foreign_net_value_20d            0.022605                     2418
+gradient_boosting foreign_buy_downday_share_20d            0.021294                     2418
+gradient_boosting  foreign_sell_value_share_20d            0.020494                     2418
+gradient_boosting         foreign_buy_value_20d            0.019834                     2418
+gradient_boosting                     return_3d            0.018742                     2418
+gradient_boosting   foreign_buy_value_share_20d            0.018548                     2418
+gradient_boosting        distance_from_20d_high            0.018308                     2418
+    random_forest                    return_60d            0.083584                     2418
+    random_forest                      drawdown            0.071677                     2418
+    random_forest      average_daily_volume_20d            0.057549                     2418
+    random_forest               rolling_vol_20d            0.054459                     2418
+    random_forest       average_daily_value_20d            0.054437                     2418
+    random_forest        value_traded_estimated            0.030826                     2418
+    random_forest       estimated_ceiling_price            0.028220                     2418
+    random_forest               reference_price            0.028056                     2418
+    random_forest                    return_10d            0.026292                     2418
+    random_forest    foreign_flow_imbalance_20d            0.025565                     2418
+    random_forest         estimated_floor_price            0.025190                     2418
+    random_forest                     return_3d            0.025032                     2418
+    random_forest        foreign_sell_value_20d            0.023177                     2418
+    random_forest         foreign_net_value_20d            0.022656                     2418
+    random_forest   foreign_net_value_share_20d            0.022501                     2418
+    random_forest        distance_from_20d_high            0.021314                     2418
+    random_forest  foreign_sell_value_share_20d            0.019135                     2418
+    random_forest  foreign_flow_return_corr_20d            0.017279                     2418
+    random_forest         foreign_buy_value_20d            0.017232                     2418
+    random_forest foreign_buy_downday_share_20d            0.016634                     2418
 ```
 
 ## Provisional model choice
 
-Best provisional regression model: elastic_net with average Rank IC 0.021737 and average after-cost top-5 return 0.000437.
+Best provisional regression model: elastic_net with average Rank IC 0.036697 and average after-cost top-5 return 0.001409.
 
 The final model should be chosen using out-of-sample ranking quality and after-cost portfolio behavior, not in-sample fit. With real data, a model with slightly lower raw return but lower turnover may be preferable after transaction costs.

@@ -14,6 +14,7 @@ from src.modeling_utils import (
     get_model_feature_columns,
 )
 from src.walk_forward_split import (
+    DEFAULT_TRAIN_SIZE,
     build_walk_forward_date_windows,
     get_sorted_dates,
     split_window_data,
@@ -237,7 +238,7 @@ def predict_models_for_windows(
 
 
 def build_linear_model_predictions(
-    train_size: int = 3,
+    train_size: int = DEFAULT_TRAIN_SIZE,
     validation_size: int = 1,
     test_size: int = 1,
     purge_size: int = 5,

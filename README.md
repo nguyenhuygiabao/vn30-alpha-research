@@ -10,35 +10,35 @@ Forecast horizon comparison, gradient boosting, price-limit-aware execution:
 
 | Horizon | Rank IC | Top-5 Hit Rate | After-Cost Return / Period | Diagnostic Sharpe | Evaluated Dates |
 |---:|---:|---:|---:|---:|---:|
-| 1d | 0.018752 | 0.467203 | -0.000703 | -0.114101 | 2488 |
-| 5d | 0.019869 | 0.469492 | -0.000481 | -0.025742 | 2478 |
-| 10d | 0.039083 | 0.487130 | 0.000804 | 0.030871 | 2463 |
+| 1d | 0.044204 | 0.482784 | -0.000244 | -0.031919 | 2428 |
+| 5d | 0.033360 | 0.481307 | 0.000076 | 0.003907 | 2418 |
+| 10d | 0.037407 | 0.482147 | 0.001120 | 0.039957 | 2403 |
 
-The 10-day horizon is the only after-cost positive configuration.
+The 5-day and 10-day horizons are after-cost positive; the 1-day horizon is not.
 
 Feature ablation, 5-day horizon:
 
 | Configuration | Features | Rank IC | After-Cost Return / Period |
 |---|---:|---:|---:|
-| Excluding risk features | 97 | 0.025746 | -0.000321 |
-| Excluding volume/liquidity | 88 | 0.021549 | -0.000540 |
-| Excluding herding | 89 | 0.020276 | -0.000572 |
-| All features | 99 | 0.019869 | -0.000481 |
-| Excluding price limit | 84 | 0.013470 | -0.000664 |
+| All features | 99 | 0.033360 | 0.000076 |
+| Excluding risk | 97 | 0.033263 | -0.000347 |
+| Excluding herding | 89 | 0.033124 | 0.000081 |
+| Excluding price limit | 84 | 0.029790 | -0.000202 |
+| Excluding volume/liquidity | 88 | 0.029133 | -0.000309 |
 
-No configuration clears transaction costs at the 5-day horizon.
+The full feature set is now the strongest configuration, and two of five clear transaction costs.
 
 Baseline comparison, top-5 selection, before cost, matched concentration and target:
 
 | Selection Rule | Top-5 Active Return / 5d Period |
 |---|---:|
-| Trailing 10-day return (`top5_momentum`) | 0.002310 |
-| random_forest | 0.001433 |
-| elastic_net | 0.001351 |
-| gradient_boosting | 0.000998 |
-| ridge | 0.000786 |
+| Trailing 10-day return (`top5_momentum`) | 0.002264 |
+| elastic_net | 0.001992 |
+| ridge | 0.001478 |
+| gradient_boosting | 0.001080 |
+| random_forest | 0.001030 |
 
-A single-feature momentum rule outperforms every trained model. `return_10d` is already an input feature to all five models.
+A single-feature momentum rule still outperforms every trained model, though the gap has narrowed: the best model now reaches 88 percent of the baseline, against 62 percent before the training window was widened. `return_10d` is already an input feature to all five models.
 
 Foreign buy/sell features were tested against a decision rule fixed before results were seen (paired block bootstrap on daily Rank IC, 222 non-overlapping signals, promote only if the 95 percent confidence interval excludes zero). Mean difference -0.002608, CI [-0.013314, +0.008297]. Not promoted.
 
