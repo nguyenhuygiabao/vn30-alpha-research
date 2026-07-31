@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 
 from src.features_foreign_flow import (
     ALL_FOREIGN_FLOW_LEARNING_FEATURES,
@@ -649,6 +649,134 @@ def _new_frozen_model() -> object:
     return models[FROZEN_MODEL_NAME]
 
 
+def _iter_prepared_signals(
+    modeling_sample: pd.DataFrame,
+    runnable_signals: Sequence[PaperHorizonSignal],
+    target_column: str,
+):
+    """Yield the per-signal training and test slices, in signal order.
+
+    Slicing and label validation stay on the calling process so that error
+    messages and their ordering are unchanged, and so only the frames for
+    signals actually being fitted are ever built.
+    """
+    for completed_count, signal in enumerate(
+        runnable_signals,
+        start=1,
+    ):
+        training = modeling_sample.loc[
+            modeling_sample["date"].le(
+                signal.training_cutoff
+            )
+        ].copy()
+        test = modeling_sample.loc[
+            modeling_sample["date"].eq(signal.signal_date)
+        ].copy()
+
+        if training.empty or test.empty:
+            continue
+
+        y_train = pd.to_numeric(
+            training[target_column],
+            errors="raise",
+        ).astype("float64")
+
+        if not np.isfinite(y_train).all():
+            raise ValueError(
+                f"Signal {signal.signal_id} has invalid training labels"
+            )
+
+        if y_train.nunique() < 2:
+            raise ValueError(
+                f"Signal {signal.signal_id} has constant training labels"
+            )
+
+        yield completed_count, signal, training, test, y_train
+
+
+def _fit_signal_feature_sets(
+    completed_count: int,
+    signal: PaperHorizonSignal,
+    training: pd.DataFrame,
+    test: pd.DataFrame,
+    y_train: pd.Series,
+    feature_sets: Mapping[str, Sequence[str]],
+    requested_feature_sets: Sequence[str],
+    target_column: str,
+    create_model: Callable[[], object],
+) -> tuple[int, PaperHorizonSignal, list[tuple[pd.DataFrame, pd.DataFrame]]]:
+    """Fit every requested feature set for a single signal.
+
+    Executed in a worker process when `max_workers != 1`. Each signal refits
+    from scratch on the history up to its own training cutoff and carries no
+    state across signals, so evaluating them concurrently and reassembling in
+    submission order reproduces the sequential result exactly. The model
+    itself is unchanged; only where the fitting happens differs.
+    """
+    signal_results: list[tuple[pd.DataFrame, pd.DataFrame]] = []
+
+    for feature_set_name in requested_feature_sets:
+        feature_columns = list(
+            feature_sets[feature_set_name]
+        )
+        predictions, fitted_pipeline = (
+            fit_predict_tree_model(
+                model=create_model(),
+                x_train=training[feature_columns],
+                y_train=y_train,
+                x_test=test[feature_columns],
+            )
+        )
+        predicted_values = np.asarray(
+            predictions,
+            dtype="float64",
+        )
+
+        if not np.isfinite(predicted_values).all():
+            raise ValueError(
+                f"{feature_set_name} produced non-finite "
+                f"predictions for {signal.signal_date.date()}"
+            )
+
+        prediction_frame = test[
+            KEY_COLUMNS + [target_column]
+        ].copy()
+        prediction_frame = prediction_frame.rename(
+            columns={target_column: "actual_return"}
+        )
+        prediction_frame["predicted_return"] = (
+            predicted_values
+        )
+        prediction_frame["feature_set"] = feature_set_name
+        prediction_frame["model_name"] = FROZEN_MODEL_NAME
+        prediction_frame["signal_id"] = signal.signal_id
+        prediction_frame["training_cutoff"] = (
+            signal.training_cutoff
+        )
+        prediction_frame["training_date_count"] = int(
+            training["date"].nunique()
+        )
+        prediction_frame["training_row_count"] = len(training)
+        prediction_frame["feature_count"] = len(
+            feature_columns
+        )
+
+        importance = extract_feature_importance(
+            fitted_pipeline=fitted_pipeline,
+            feature_columns=feature_columns,
+            model_name=FROZEN_MODEL_NAME,
+        )
+        importance["feature_set"] = feature_set_name
+        importance["signal_id"] = signal.signal_id
+        importance["signal_date"] = signal.signal_date
+        importance["training_cutoff"] = (
+            signal.training_cutoff
+        )
+        signal_results.append((prediction_frame, importance))
+
+    return completed_count, signal, signal_results
+
+
 def run_foreign_flow_paper_horizon(
     modeling_sample: pd.DataFrame,
     eligible_signal_dates: pd.DatetimeIndex,
@@ -689,123 +817,51 @@ def run_foreign_flow_paper_horizon(
     importance_frames: list[pd.DataFrame] = []
     create_model = model_factory or _new_frozen_model
 
-    for completed_count, signal in enumerate(
-        runnable_signals,
-        start=1,
-    ):
-        training = modeling_sample.loc[
-            modeling_sample["date"].le(
-                signal.training_cutoff
-            )
-        ].copy()
-        test = modeling_sample.loc[
-            modeling_sample["date"].eq(signal.signal_date)
-        ].copy()
+    requested_feature_sets = [
+        feature_set_name
+        for feature_set_name in FOREIGN_FLOW_FEATURE_SET_ORDER
+        if feature_set_name in feature_sets
+    ]
 
-        if training.empty or test.empty:
-            continue
+    # Signals are dispatched lazily so only the in-flight training slices are
+    # held in memory. Under an expanding window the later slices approach the
+    # full history, so materializing all of them at once would be costly.
+    jobs = (
+        delayed(_fit_signal_feature_sets)(
+            completed_count,
+            signal,
+            training,
+            test,
+            y_train,
+            feature_sets,
+            requested_feature_sets,
+            target_column,
+            create_model,
+        )
+        for completed_count, signal, training, test, y_train in (
+            _iter_prepared_signals(
+                modeling_sample=modeling_sample,
+                runnable_signals=runnable_signals,
+                target_column=target_column,
+            )
+        )
+    )
 
-        y_train = pd.to_numeric(
-            training[target_column],
-            errors="raise",
-        ).astype("float64")
+    if max_workers == 1:
+        completed_jobs = (
+            function(*args, **keyword_arguments)
+            for function, args, keyword_arguments in jobs
+        )
+    else:
+        # return_as="generator" preserves submission order while releasing
+        # each result as it finishes, so progress reporting stays in order
+        # and the assembled frames match the sequential path exactly.
+        completed_jobs = Parallel(
+            n_jobs=max_workers,
+            return_as="generator",
+        )(jobs)
 
-        if not np.isfinite(y_train).all():
-            raise ValueError(
-                f"Signal {signal.signal_id} has invalid training labels"
-            )
-
-        if y_train.nunique() < 2:
-            raise ValueError(
-                f"Signal {signal.signal_id} has constant training labels"
-            )
-
-        requested_feature_sets = [
-            feature_set_name
-            for feature_set_name in FOREIGN_FLOW_FEATURE_SET_ORDER
-            if feature_set_name in feature_sets
-        ]
-
-        def fit_feature_set(
-            feature_set_name: str,
-        ) -> tuple[pd.DataFrame, pd.DataFrame]:
-            feature_columns = list(
-                feature_sets[feature_set_name]
-            )
-            predictions, fitted_pipeline = (
-                fit_predict_tree_model(
-                    model=create_model(),
-                    x_train=training[feature_columns],
-                    y_train=y_train,
-                    x_test=test[feature_columns],
-                )
-            )
-            predicted_values = np.asarray(
-                predictions,
-                dtype="float64",
-            )
-
-            if not np.isfinite(predicted_values).all():
-                raise ValueError(
-                    f"{feature_set_name} produced non-finite "
-                    f"predictions for {signal.signal_date.date()}"
-                )
-
-            prediction_frame = test[
-                KEY_COLUMNS + [target_column]
-            ].copy()
-            prediction_frame = prediction_frame.rename(
-                columns={target_column: "actual_return"}
-            )
-            prediction_frame["predicted_return"] = (
-                predicted_values
-            )
-            prediction_frame["feature_set"] = feature_set_name
-            prediction_frame["model_name"] = FROZEN_MODEL_NAME
-            prediction_frame["signal_id"] = signal.signal_id
-            prediction_frame["training_cutoff"] = (
-                signal.training_cutoff
-            )
-            prediction_frame["training_date_count"] = int(
-                training["date"].nunique()
-            )
-            prediction_frame["training_row_count"] = len(training)
-            prediction_frame["feature_count"] = len(
-                feature_columns
-            )
-
-            importance = extract_feature_importance(
-                fitted_pipeline=fitted_pipeline,
-                feature_columns=feature_columns,
-                model_name=FROZEN_MODEL_NAME,
-            )
-            importance["feature_set"] = feature_set_name
-            importance["signal_id"] = signal.signal_id
-            importance["signal_date"] = signal.signal_date
-            importance["training_cutoff"] = (
-                signal.training_cutoff
-            )
-            return prediction_frame, importance
-
-        if max_workers == 1 or len(requested_feature_sets) == 1:
-            signal_results = [
-                fit_feature_set(feature_set_name)
-                for feature_set_name in requested_feature_sets
-            ]
-        else:
-            with ThreadPoolExecutor(
-                max_workers=min(
-                    max_workers,
-                    len(requested_feature_sets),
-                )
-            ) as executor:
-                signal_results = list(
-                    executor.map(
-                        fit_feature_set,
-                        requested_feature_sets,
-                    )
-                )
-
+    for completed_count, signal, signal_results in completed_jobs:
         for prediction_frame, importance in signal_results:
             prediction_frames.append(prediction_frame)
             importance_frames.append(importance)

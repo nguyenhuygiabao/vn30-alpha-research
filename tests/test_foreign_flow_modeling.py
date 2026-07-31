@@ -696,3 +696,88 @@ def test_rebuild_script_writes_guarded_development_outputs(
         FEATURE_SET_ENHANCED_FB_FS,
     }
     assert predictions["date"].max() <= dates[-1]
+
+
+def test_parallel_signal_fitting_matches_sequential_exactly() -> None:
+    # Signals are independent refits, so distributing them across worker
+    # processes must not change a single value. This guards the parallel
+    # path against silently reordering or perturbing published results.
+    modeling = comparison_frame(date_count=48)
+    feature_sets = build_foreign_flow_feature_sets(modeling)
+    sample, eligible_dates, _ = build_modeling_sample(
+        modeling,
+        feature_sets,
+        horizon_days=10,
+    )
+    signals = build_paper_horizon_signal_schedule(
+        pd.DatetimeIndex(modeling["date"].drop_duplicates()),
+        horizon_days=10,
+        minimum_training_dates=8,
+        signal_step_days=10,
+    )
+    selected_sets = {
+        name: feature_sets[name]
+        for name in (
+            FEATURE_SET_MARKET_BASELINE,
+            FEATURE_SET_FROZEN_FOREIGN,
+            FEATURE_SET_ENHANCED_FB_FS,
+        )
+    }
+
+    def run(max_workers: int):
+        return run_foreign_flow_paper_horizon(
+            modeling_sample=sample,
+            eligible_signal_dates=eligible_dates,
+            feature_sets=selected_sets,
+            signals=signals,
+            horizon_days=10,
+            max_workers=max_workers,
+        )
+
+    sequential_predictions, sequential_importance = run(1)
+    parallel_predictions, parallel_importance = run(4)
+
+    pd.testing.assert_frame_equal(
+        sequential_predictions,
+        parallel_predictions,
+    )
+    pd.testing.assert_frame_equal(
+        sequential_importance,
+        parallel_importance,
+    )
+
+
+def test_parallel_signal_fitting_preserves_progress_order() -> None:
+    modeling = comparison_frame(date_count=48)
+    feature_sets = build_foreign_flow_feature_sets(modeling)
+    sample, eligible_dates, _ = build_modeling_sample(
+        modeling,
+        feature_sets,
+        horizon_days=10,
+    )
+    signals = build_paper_horizon_signal_schedule(
+        pd.DatetimeIndex(modeling["date"].drop_duplicates()),
+        horizon_days=10,
+        minimum_training_dates=8,
+        signal_step_days=10,
+    )
+    reported: list[int] = []
+
+    run_foreign_flow_paper_horizon(
+        modeling_sample=sample,
+        eligible_signal_dates=eligible_dates,
+        feature_sets={
+            FEATURE_SET_MARKET_BASELINE: feature_sets[
+                FEATURE_SET_MARKET_BASELINE
+            ]
+        },
+        signals=signals,
+        horizon_days=10,
+        max_workers=4,
+        progress_callback=lambda completed, total, signal: reported.append(
+            completed
+        ),
+    )
+
+    assert reported == sorted(reported)
+    assert reported == list(range(1, len(reported) + 1))

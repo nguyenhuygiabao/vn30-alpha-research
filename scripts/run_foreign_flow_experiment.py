@@ -108,6 +108,15 @@ def parse_args() -> argparse.Namespace:
         default=2_000,
     )
     parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help=(
+            "Worker processes used to fit signals. Defaults to the machine "
+            "CPU count. Results are identical at any worker count."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         default="reports/tables/foreign_flow",
     )
@@ -466,8 +475,12 @@ def main() -> None:
 
     print("\nFULL MATCHED FEATURE-SET COMPARISON")
     print("-" * 80)
-    comparison_workers = min(4, len(feature_sets))
-    print("Parallel feature-set workers:", comparison_workers)
+    # Work is now distributed across signals rather than across the five
+    # feature sets, so the useful worker count is bounded by the number of
+    # signals and the machine, not by len(feature_sets).
+    comparison_workers = args.workers or (os.cpu_count() or 1)
+    comparison_workers = max(1, min(comparison_workers, len(signals)))
+    print("Parallel signal workers:", comparison_workers)
 
     def report_progress(
         completed: int,
