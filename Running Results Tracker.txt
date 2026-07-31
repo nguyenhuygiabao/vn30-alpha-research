@@ -658,3 +658,233 @@ via git status.
 
 TASK 5 COMPLETE. ALL 5 TASKS FROM THIS SESSION'S WORKLIST COMPLETE.
 PS C:\Users\HUY BAO\vn30-alpha-research>
+================================================================================
+7/31/2026 -- SECOND SESSION
+================================================================================
+
+--- REPO CLEANUP AND DOC REWRITE ---
+User flagged that the repo had "a lot of errors" and that the README was
+ChatGPT-written. Both automated audits passed, so the errors were in
+content, not structure. Three classes found in the four hand-written
+reports:
+
+1. False claims. methodology.md named vnstock as the data source, gave the
+   dataset as "46,863 rows across 30 tickers" from 2020, and twice stated
+   the universe was static with survivorship bias. final_results.md
+   repeated that and listed foreign ownership flows as data the project
+   does not use. All untrue since the FiinQuant/point-in-time migration.
+2. Corrupted paths. A Title-Case transformation had broken identifiers into
+   things that cannot resolve: "py -m src.Horizon Tests", "py -m Py
+   Compile", "reports/Final Results.md", "data/processed/Features
+   Combined.parquet", "Horizon Rank Ic.png", and every table link in
+   report_index.md. Also a link to PROJECT_CONTEXT.md, which does not
+   exist -- report_summary.py listed it as a required file too.
+3. Stale numbers. final_results.md carried pre-purge figures (cumulative
+   32.4) and an ablation table with misaligned columns and impossible
+   values (Rank IC 0.338 against 0.019 elsewhere). Dashboard notes cited
+   Vingroup at 40% and a VIC miss at -4.55%; actual values were VPBank
+   18.9% and CTG -1.87%.
+
+All four reports rewritten against the current tables, every number traced
+to a CSV, all relative links verified to resolve. README rewritten as a
+plain results summary. Also found horizon_sample_disclosure.csv was
+generated before the horizon_results.csv rerun, so its date counts
+described the previous run -- regenerated.
+
+User instruction: no editorializing or self-justifying tone in public
+docs. Swept and removed phrases like "the framework's value is that it
+produces them reliably rather than hiding them", "honest", "trustworthy",
+"uncomfortable". Public docs now state facts without characterizing them.
+
+--- ATTRIBUTION REMOVED FROM GIT HISTORY ---
+User reported Claude showing as a GitHub contributor. Root cause: 13
+commits carried "Co-Authored-By: Claude" trailers, which is what GitHub
+reads to build the contributors graph. Commit authorship was already
+nguyenhuygiabao throughout. Stripped the trailers via filter-branch
+(message-only rewrite, file content untouched) and force-pushed with
+lease. Verified: GitHub contributors API returns exactly one entry,
+nguyenhuygiabao. The web page lags because that graph is computed by a
+cached background service.
+
+--- PRE-FIINQUANT CLEANUP ---
+Removed, all verified to have zero remaining consumers:
+- config/vn30_test_universe.csv (6 tickers, yahoo_symbol column, predates
+  even vnstock)
+- scripts/download_vnstock_ohlcv.py (superseded by update_daily_data.py)
+- Dead main() entry points in features_basic.py and features_momentum.py
+  that loaded a hardcoded vnstock path and wrote intermediate parquets
+  nothing consumes. Neither is a pipeline stage; running either would have
+  produced survivorship-biased output from the superseded source.
+
+--- 11 RESEARCH SCRIPTS MIGRATED TO FIINQUANT ---
+Eleven scripts still read data/raw/vnstock/vn30_ohlcv.csv (static 30
+tickers, gitignored, survivorship-biased). Added src/research_market_data.py
+as a shared loader returning canonical raw+adjusted history filtered to
+point-in-time membership. Its output is a strict superset of the old flat
+schema, so no call site needed reshaping.
+
+audit_universe_bias.py needed more than a path swap: it detects
+current-members-only signatures, so it must load UNFILTERED data, and its
+--snapshots default pointed at data/reference/vn30_constituent_snapshots.csv
+which does not exist -- the script could not run at all. Now sources from
+config/vn30_history via a new load_verified_universe_reconstruction
+accessor. Runs and passes: 137,719 rows, 60 tickers, 0 missing intervals,
+no current-only signature.
+
+Verified running: audit_universe_bias, compare_model_candidates,
+evaluate_regime_policy, compare_downside_overlays. Remaining seven
+migrated but NOT yet executed end to end.
+
+--- FOREIGN-FLOW EXPERIMENT PARALLELIZED ---
+The 4-hour FB/FS run held a steady 2.85 of 22 cores. Cause was structural:
+the outer loop over 222 signals ran sequentially while the inner loop over
+5 feature sets used a ThreadPoolExecutor capped at 4, and gradient boosting
+is largely GIL-bound. Signals are independent (fresh model, training = data
+up to their own cutoff, no state carried), so they became the parallel unit
+via joblib processes -- 222 tasks instead of 5.
+
+Model, hyperparameters, random_state, and per-signal fit order unchanged.
+return_as="generator" preserves submission order, which is load-bearing:
+predictions are stable-sorted afterward but the importance frame is not,
+and an unordered pool would have silently reshuffled it. Two new tests
+assert assert_frame_equal between 1 worker and 4 on both output frames.
+Speedup NOT measured end to end -- the benchmark was killed before
+producing a number (see estimation errors below).
+
+--- DRAWDOWN UNITS FIXED ---
+User asked why drawdown showed -170%. Investigated: the dashboard rendered
+max_active_drawdown of -1.8759 as -187.59%. That value is in units of
+SUMMED active return, not percent of capital -- backtester.py computes it
+against the running peak of cumulative_after_cost_active_return, which is
+a plain cumsum (verified to match after_cost_return.cumsum() exactly).
+Summing 2,478 overlapping 5-day periods carries the series from a +0.607
+peak to a -1.269 trough, so a 1.876 fall is proportionate to the sum's
+scale. Individual period returns only range -12.6% to +8.5%.
+
+The code was already inconsistent with itself: cumulative columns were
+labelled "Cumulative active-return sum" and shown as decimals, while the
+drawdown derived from those same units was formatted as a percentage.
+Moved 4 formatting sites from percent_columns to decimal_columns,
+relabelled both drawdown columns, extended the overlapping-sum note to
+cover drawdown, attached it to the model-comparison table which lacked it.
+All 12 published CSVs byte-identical by checksum -- presentation only.
+
+--- TRAINING WINDOW: THE BIG ONE ---
+User asked why Rank IC was ~0.02 when it had been ~0.06. Investigation
+found train_size in build_walk_forward_date_windows counts DATES, not
+blocks, and the value 3 was duplicated across five model modules. Measured
+directly: every window trained on exactly 90 rows (3 dates x 30 tickers)
+against 99 features -- about one row per feature.
+
+Built scripts/diagnose_training_window.py to quantify it. First run
+exposed a methodology bug in my own control: build_walk_forward_date_windows
+strides from each config's own first valid position, and those offsets
+differ by train_size, so with step_size=10 the configs landed on DISJOINT
+test dates and the fair-comparison intersection came back empty. It failed
+loudly, but at step_size=1 the sets would have overlapped and the
+comparison would have looked valid while still scoring configs over
+different periods. Rewrote to build windows backwards from a fixed set of
+shared test positions; verified identical test dates across all five
+configs with both 5-day purge gaps intact.
+
+SWEEP RESULT (223 shared dates, 5-day horizon, GB only):
+
+  train_size  train_rows   rank_ic   hit_rate   top5_return
+           3          90  0.016773   0.482511      0.000002
+          21         630  0.031102   0.489686     -0.001508
+          63        1890  0.028126   0.498655      0.001074
+         126        3779  0.023372   0.480717     -0.000116
+         252        7555 -0.000485   0.449327     -0.002341
+
+This REFUTED my hypothesis. The relationship is an inverted U, not
+monotonic. Rank IC peaks at 21 dates and COLLAPSES to roughly zero at 252.
+More data actively hurts beyond ~63 dates -- consistent with a
+non-stationary market where older observations describe a regime that no
+longer applies, the same instability the FB/FS experiment found when its
+Rank-IC difference flipped sign year to year.
+
+So train_size=3 was suboptimal, but it did NOT explain the 0.02 vs 0.06
+gap. Remaining causes: horizon (the FB/FS experiment is 10-day, where the
+pipeline itself gets 0.039 vs 0.020 at 5-day), curated 51-73 feature lists
+vs 99 auto-discovered, and a different label construction.
+
+CHANGED train_size 3 -> 63 on user instruction. Chose 63 over the
+Rank-IC-optimal 21 because it had the best hit rate and the only clearly
+positive top-5 return, and portfolio construction selects a top-N basket.
+Made it a single constant DEFAULT_TRAIN_SIZE in walk_forward_split.py --
+the duplication across five modules is precisely why it went unexamined.
+Also fixed walk_forward_split.main() using train_size=1 for its diagnostic
+window count, matching none of the models it reported on.
+
+FULL PIPELINE RERUN, 16 stages, 2h25m (14:25 -> 16:51). Stage timings:
+linear 98s, tree 1265s, classification 89s, optimizer 195s, backtester
+63s, ablation 4324s, horizon 2628s. Ablation and horizon dominate because
+each window now fits 1,890 rows instead of 90.
+
+BEFORE -> AFTER:
+  Rank IC 1d                  0.018752 -> 0.044204
+  Rank IC 5d                  0.019869 -> 0.033360
+  Rank IC 10d                 0.039083 -> 0.037407
+  After-cost return 5d       -0.000481 -> 0.000076
+  After-cost return 10d       0.000804 -> 0.001120
+  Best ML portfolio           0.000341 -> 0.000930
+  ML configs positive            3 of 8 -> 8 of 8
+  Ablation configs positive      0 of 5 -> 2 of 5
+  Best model vs momentum            62% -> 88%
+
+THREE FINDINGS CHANGED MATERIALLY:
+1. The 5-day horizon -- the project's baseline and its headline failure --
+   crossed from net-negative to net-positive after cost.
+2. The ablation result REVERSED. all_features is now strongest; previously
+   removing features looked better. That earlier reading was not "the
+   features are noise", it was "90 rows cannot train 99 features". The
+   interpretation has been corrected in both reports.
+3. Linear models now lead clearly. Elastic net beats gradient boosting on
+   Rank IC, hit rate, top-5 return, AND diagnostic Sharpe simultaneously,
+   yet gradient boosting is still what feeds portfolio construction.
+   Flagged as a live question, not changed.
+
+TWO THINGS DID NOT IMPROVE:
+- 10-day Rank IC is marginally lower (0.0391 -> 0.0374) and its hit rate
+  dipped. The sweep only measured the 5-day horizon, so this was not
+  predicted -- a real if small cost.
+- The core finding survives: a single trailing-return sort still beats
+  every trained model (0.002264 vs 0.001992). The gap narrowed from 1.6x
+  to 1.14x, so part of it WAS undertraining, but not all of it.
+
+CAVEAT RECORDED IN THE REPORTS: this parameter was chosen by measuring
+five values against the same history, adding to the multiple-comparisons
+problem already documented. The improvement is consistent across horizons,
+ablations, and portfolio modes, but no confidence interval supports it.
+
+--- ESTIMATION ERRORS MADE THIS SESSION (for calibration) ---
+- Predicted the FB/FS parallelization benchmark at 10-20 min; it was
+  ~85-90 min because I chose the heaviest signals for realism, making the
+  sequential baseline 60 back-to-back fits at ~95s each. Killed it before
+  it produced a number. Speedup remains unmeasured.
+- Predicted the full pipeline at 1.5-2h; actual 2h25m. Cause: assumed
+  GB-only stages would scale at the sweep's 5.6x when tree_models actually
+  scaled 8.8x.
+- Mid-run, predicted 5-10 min remaining when ~40 min remained, by using a
+  soft baseline reconstructed from old timestamps instead of the ablation
+  per-pass rate sitting in front of me.
+
+--- STATE AT END OF SESSION ---
+Working tree clean, local == origin/main, no attribution anywhere in
+history. 344 tests passing. audit_project_state, audit_fiinquant_core, and
+check_public_asset_links all pass. GitHub Pages dashboard live and serving
+current content.
+
+OPEN ITEMS:
+- 7 of 11 migrated scripts not yet executed end to end.
+- backtest_paper_horizon and validate_paper_horizon_stability consume
+  paper_horizon_predictions.parquet, built from the old vnstock data. They
+  will run but mix current market data with stale predictions until
+  build_paper_horizon_predictions is rerun (a multi-hour job).
+- Paper trading's live daily-update path still on vnstock.
+- build_historical_paper_predictions rewrites its ENTIRE checkpoint CSV
+  after every fit (O(n^2) I/O). Flagged, not changed -- it is
+  crash-recovery code on a resumable job.
+- Elastic net now outperforms gradient boosting on every diagnostic;
+  production model choice unresolved.
+- FB/FS parallelization speedup never measured.
