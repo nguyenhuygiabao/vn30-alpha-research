@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VN30 Alpha Research — Results Update</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --ink-1: #0b0b0b;
+    --ink-2: #52514e;
+    --ink-muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6;
+    --good: #006300;
+    --critical: #d03b3b;
+    --neutral-mid: #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --ink-1: #ffffff;
+      --ink-2: #c3c2b7;
+      --ink-muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5;
+      --good: #0ca30c;
+      --critical: #d03b3b;
+      --neutral-mid: #383835;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --page: #0d0d0d;
+    --ink-1: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --good: #0ca30c;
+    --critical: #d03b3b;
+    --neutral-mid: #383835;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--page);
+    color: var(--ink-1);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+    font-size: 15px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; }
+
+  header { margin-bottom: 8px; }
+  h1 { font-size: 1.75rem; line-height: 1.25; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .sub { color: var(--ink-2); margin: 0 0 4px; }
+  .meta { color: var(--ink-muted); font-size: 0.85rem; margin: 0; }
+
+  section {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    margin-top: 22px;
+  }
+  h2 { font-size: 1.12rem; margin: 0 0 4px; letter-spacing: -0.005em; }
+  h3 { font-size: 0.95rem; margin: 22px 0 6px; color: var(--ink-2); font-weight: 600; }
+  .note { color: var(--ink-2); font-size: 0.9rem; margin: 6px 0 0; }
+  .caption { color: var(--ink-muted); font-size: 0.82rem; margin: 8px 0 0; }
+  p { margin: 10px 0 0; }
+
+  /* Stat tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 14px; }
+  .tile { border: 1px solid var(--border); border-radius: 8px; padding: 13px 14px; }
+  .tile .label { font-size: 0.78rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .tile .value { font-size: 1.5rem; font-weight: 600; margin-top: 4px; letter-spacing: -0.01em; }
+  .tile .from { font-size: 0.82rem; color: var(--ink-2); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .tile .delta { font-size: 0.82rem; margin-top: 5px; font-weight: 600; }
+  .up { color: var(--good); }
+  .down { color: var(--critical); }
+  .flat { color: var(--ink-muted); }
+
+  /* Tables */
+  .tablewrap { overflow-x: auto; margin-top: 12px; -webkit-overflow-scrolling: touch; }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 0.88rem; }
+  th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; font-variant-numeric: normal; }
+  thead th { color: var(--ink-2); font-weight: 600; border-bottom: 1px solid var(--axis); font-size: 0.82rem; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.highlight td { background: color-mix(in srgb, var(--series-1) 8%, transparent); }
+  caption { caption-side: top; text-align: left; color: var(--ink-2); font-size: 0.86rem; padding-bottom: 6px; }
+  .grouphead th { border-bottom: none; color: var(--ink-muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.04em; padding-bottom: 2px; }
+
+  ul { margin: 10px 0 0; padding-left: 20px; }
+  li { margin: 5px 0; }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.86em; background: var(--neutral-mid); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--neutral-mid); padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: 0.84rem; margin-top: 10px; }
+  pre code { background: none; padding: 0; }
+
+  .callout { border-left: 3px solid var(--axis); padding: 2px 0 2px 14px; margin-top: 14px; color: var(--ink-2); }
+  .callout strong { color: var(--ink-1); }
+
+  figure { margin: 14px 0 0; }
+  svg { display: block; max-width: 100%; height: auto; }
+  footer { color: var(--ink-muted); font-size: 0.82rem; margin-top: 26px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>VN30 Alpha Research — Results Update</h1>
+  <p class="sub">Effect of correcting the walk-forward training window, plus the data-integrity fixes made alongside it.</p>
+  <p class="meta">Generated 31 July 2026 · gradient boosting · point-in-time VN30 membership · after transaction costs</p>
+</header>
+
+<section>
+  <h2>Headline</h2>
+  <p class="note">
+    Every model module set <code>train_size = 3</code>. That parameter counts trading <em>dates</em>, not blocks of
+    dates, so each walk-forward window fitted 99 features on about 90 rows. The value was duplicated across five
+    modules and was never revisited as the dataset grew. It is now <code>DEFAULT_TRAIN_SIZE = 63</code>, defined once.
+  </p>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="label">Rank IC · 5-day</div>
+      <div class="value">0.0334</div>
+      <div class="from">from 0.0199</div>
+      <div class="delta up">↑ +68% · better</div>
+    </div>
+    <div class="tile">
+      <div class="label">After-cost return · 5d</div>
+      <div class="value">+0.000076</div>
+      <div class="from">from −0.000481</div>
+      <div class="delta up">↑ crossed to positive</div>
+    </div>
+    <div class="tile">
+      <div class="label">Portfolio modes positive</div>
+      <div class="value">8 of 8</div>
+      <div class="from">from 3 of 8</div>
+      <div class="delta up">↑ +5 · better</div>
+    </div>
+    <div class="tile">
+      <div class="label">Best model vs momentum</div>
+      <div class="value">88%</div>
+      <div class="from">from 62%</div>
+      <div class="delta up">↑ gap narrowed</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>The core finding did not change.</strong> A single-feature momentum rule still beats every trained model.
+    The gap narrowed from 1.6× to 1.14×, so part of it was undertraining — but not all of it. Nothing here supports
+    an alpha claim.
+  </div>
+</section>
+
+<section>
+  <h2>Why 63 dates</h2>
+  <p class="note">
+    Five training-window sizes were measured on an identical set of 223 evaluation dates. The relationship is an
+    inverted U, not monotonic: Rank IC peaks at 21 dates and collapses to roughly zero at 252, which is what one
+    would expect if long windows average across market regimes that no longer apply.
+  </p>
+
+  <figure>
+    <svg viewBox="0 0 660 260" role="img" aria-label="Bar chart of average Rank IC by training window size: 3 dates 0.0168, 21 dates 0.0311, 63 dates 0.0281, 126 dates 0.0234, 252 dates minus 0.0005.">
+      <!-- gridlines -->
+      <line x1="66" y1="30"  x2="640" y2="30"  stroke="var(--grid)" stroke-width="1"/>
+      <line x1="66" y1="80"  x2="640" y2="80"  stroke="var(--grid)" stroke-width="1"/>
+      <line x1="66" y1="130" x2="640" y2="130" stroke="var(--grid)" stroke-width="1"/>
+      <line x1="66" y1="180" x2="640" y2="180" stroke="var(--grid)" stroke-width="1"/>
+      <!-- y labels -->
+      <text x="58" y="34"  text-anchor="end" fill="var(--ink-muted)" font-size="11">0.04</text>
+      <text x="58" y="84"  text-anchor="end" fill="var(--ink-muted)" font-size="11">0.03</text>
+      <text x="58" y="134" text-anchor="end" fill="var(--ink-muted)" font-size="11">0.02</text>
+      <text x="58" y="184" text-anchor="end" fill="var(--ink-muted)" font-size="11">0.01</text>
+      <text x="58" y="234" text-anchor="end" fill="var(--ink-muted)" font-size="11">0</text>
+      <!-- zero baseline -->
+      <line x1="66" y1="230" x2="640" y2="230" stroke="var(--axis)" stroke-width="2"/>
+
+      <!-- bars: y = 230 - value*5000 ; 4px rounded top -->
+      <!-- 3 dates: 0.016773 -> h 83.9 -->
+      <rect x="96"  y="146.1" width="66" height="83.9" rx="4" ry="4" fill="var(--series-1)" opacity="0.55"/>
+      <text x="129" y="139" text-anchor="middle" fill="var(--ink-2)" font-size="11.5" font-weight="600">0.0168</text>
+      <text x="129" y="248" text-anchor="middle" fill="var(--ink-muted)" font-size="11.5">3</text>
+
+      <!-- 21: 0.031102 -> h 155.5 -->
+      <rect x="206" y="74.5" width="66" height="155.5" rx="4" ry="4" fill="var(--series-1)" opacity="0.55"/>
+      <text x="239" y="67" text-anchor="middle" fill="var(--ink-2)" font-size="11.5" font-weight="600">0.0311</text>
+      <text x="239" y="248" text-anchor="middle" fill="var(--ink-muted)" font-size="11.5">21</text>
+
+      <!-- 63: 0.028126 -> h 140.6  (chosen) -->
+      <rect x="316" y="89.4" width="66" height="140.6" rx="4" ry="4" fill="var(--series-1)"/>
+      <text x="349" y="82" text-anchor="middle" fill="var(--ink-1)" font-size="11.5" font-weight="700">0.0281</text>
+      <text x="349" y="248" text-anchor="middle" fill="var(--ink-1)" font-size="11.5" font-weight="700">63</text>
+      <text x="349" y="200" text-anchor="middle" fill="var(--surface-1)" font-size="10" font-weight="700">chosen</text>
+
+      <!-- 126: 0.023372 -> h 116.9 -->
+      <rect x="426" y="113.1" width="66" height="116.9" rx="4" ry="4" fill="var(--series-1)" opacity="0.55"/>
+      <text x="459" y="106" text-anchor="middle" fill="var(--ink-2)" font-size="11.5" font-weight="600">0.0234</text>
+      <text x="459" y="248" text-anchor="middle" fill="var(--ink-muted)" font-size="11.5">126</text>
+
+      <!-- 252: -0.000485 -> h 2.4 below baseline -->
+      <rect x="536" y="230" width="66" height="2.4" rx="1" ry="1" fill="var(--series-1)" opacity="0.55"/>
+      <text x="569" y="223" text-anchor="middle" fill="var(--ink-2)" font-size="11.5" font-weight="600">−0.0005</text>
+      <text x="569" y="248" text-anchor="middle" fill="var(--ink-muted)" font-size="11.5">252</text>
+
+      <text x="353" y="17" text-anchor="middle" fill="var(--ink-2)" font-size="12">Average Rank IC by training window size (trading dates)</text>
+    </svg>
+    <figcaption class="caption">
+      223 shared evaluation dates, gradient boosting, 5-day horizon. All configurations scored on identical dates.
+      Source: <code>reports/tables/training_window_diagnostic.csv</code>
+    </figcaption>
+  </figure>
+
+  <div class="tablewrap">
+    <table>
+      <caption>Full sweep result</caption>
+      <thead>
+        <tr><th>Training window</th><th>Train rows</th><th>Rank IC</th><th>Top-5 hit rate</th><th>Top-5 return</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>3 dates <span class="flat">(was)</span></td><td>90</td><td>0.016773</td><td>0.482511</td><td>0.000002</td></tr>
+        <tr><td>21 dates</td><td>630</td><td>0.031102</td><td>0.489686</td><td>−0.001508</td></tr>
+        <tr class="highlight"><td>63 dates <strong>(chosen)</strong></td><td>1,890</td><td>0.028126</td><td>0.498655</td><td>0.001074</td></tr>
+        <tr><td>126 dates</td><td>3,779</td><td>0.023372</td><td>0.480717</td><td>−0.000116</td></tr>
+        <tr><td>252 dates</td><td>7,555</td><td>−0.000485</td><td>0.449327</td><td>−0.002341</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">
+    63 was chosen over the Rank-IC-optimal 21 because it has the best hit rate and the only clearly positive top-5
+    return, and portfolio construction selects a top-N basket rather than trading the full ranking.
+  </p>
+</section>
+
+<section>
+  <h2>Forecast horizon</h2>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr class="grouphead">
+          <th></th><th colspan="2">Rank IC</th><th colspan="2">After-cost return</th><th colspan="2">Cumulative sum</th>
+        </tr>
+        <tr>
+          <th>Horizon</th><th>before</th><th>after</th><th>before</th><th>after</th><th>before</th><th>after</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>1 day</td><td>0.018752</td><td>0.044204</td><td>−0.000703</td><td>−0.000244</td><td>−1.749</td><td>−0.593</td></tr>
+        <tr><td>5 day</td><td>0.019869</td><td>0.033360</td><td>−0.000481</td><td class="up">+0.000076</td><td>−1.191</td><td class="up">+0.184</td></tr>
+        <tr><td>10 day</td><td>0.039083</td><td class="down">0.037407</td><td>0.000804</td><td>0.001120</td><td>1.980</td><td>2.691</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">
+    The 5-day horizon — the project's baseline and its headline failure — crossed to positive. The 1-day horizon now
+    has the <em>highest</em> Rank IC of the three yet is still the only net-negative one, which locates its failure in
+    rebalancing cost rather than in prediction.
+  </p>
+  <p class="note">
+    <strong>The 10-day Rank IC got marginally worse</strong> (↓ from 0.0391). The sweep only measured the 5-day
+    horizon, so this was not predicted and is a real, if small, cost of the change.
+  </p>
+</section>
+
+<section>
+  <h2>Feature ablation</h2>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr class="grouphead"><th></th><th></th><th colspan="2">Rank IC</th><th colspan="2">After-cost return</th></tr>
+        <tr><th>Configuration</th><th>Features</th><th>before</th><th>after</th><th>before</th><th>after</th></tr>
+      </thead>
+      <tbody>
+        <tr class="highlight"><td>All features</td><td>99</td><td>0.019869</td><td><strong>0.033360</strong></td><td>−0.000481</td><td class="up">+0.000076</td></tr>
+        <tr><td>Excluding risk</td><td>97</td><td>0.025746</td><td>0.033263</td><td>−0.000321</td><td>−0.000347</td></tr>
+        <tr><td>Excluding herding</td><td>89</td><td>0.020276</td><td>0.033124</td><td>−0.000572</td><td class="up">+0.000081</td></tr>
+        <tr><td>Excluding price limit</td><td>84</td><td>0.013470</td><td>0.029790</td><td>−0.000664</td><td>−0.000202</td></tr>
+        <tr><td>Excluding volume/liquidity</td><td>88</td><td>0.021549</td><td>0.029133</td><td>−0.000540</td><td>−0.000309</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <strong>This result reversed.</strong> Previously, removing features improved Rank IC and <code>without_risk</code>
+    led the table, which read as "the feature set is mostly noise". With 63 dates of training the ranking inverts and
+    the full feature set leads. The earlier reading reflected too little training data to use 99 features — not
+    harmful features. That interpretation has been corrected in the reports.
+  </div>
+</section>
+
+<section>
+  <h2>Model comparison</h2>
+  <div class="tablewrap">
+    <table>
+      <caption>Equal-weight top-5 by model score · diagnostic only</caption>
+      <thead>
+        <tr class="grouphead"><th></th><th colspan="2">Rank IC</th><th colspan="2">Top-5 return / 5d</th></tr>
+        <tr><th>Model</th><th>before</th><th>after</th><th>before</th><th>after</th></tr>
+      </thead>
+      <tbody>
+        <tr class="highlight"><td>elastic_net</td><td>0.021737</td><td><strong>0.036697</strong></td><td>0.001351</td><td><strong>0.001992</strong></td></tr>
+        <tr><td>ridge</td><td>0.017905</td><td>0.036075</td><td>0.000786</td><td>0.001478</td></tr>
+        <tr><td>gradient_boosting <span class="flat">(production)</span></td><td>0.019869</td><td>0.033360</td><td>0.000998</td><td>0.001073</td></tr>
+        <tr><td>random_forest</td><td>0.018015</td><td>0.031098</td><td>0.001433</td><td>0.001076</td></tr>
+        <tr><td>classification</td><td>0.018657</td><td>0.020905</td><td>0.001006</td><td>0.001811</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <strong>The production model is no longer the best one.</strong> Elastic net now beats gradient boosting on Rank IC,
+    hit rate, top-5 return and diagnostic Sharpe simultaneously. Gradient boosting remains what feeds portfolio
+    construction, for continuity. Changing it would move every portfolio number again, so it is flagged as an open
+    question rather than switched.
+  </div>
+</section>
+
+<section>
+  <h2>Baseline comparison</h2>
+  <p class="note">
+    Matched basis: top-5 selection, before cost, same relative-to-VN30 target, same 2,418 evaluated dates.
+  </p>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Selection rule</th><th>before</th><th>after</th><th>vs momentum</th></tr>
+      </thead>
+      <tbody>
+        <tr class="highlight"><td>Trailing 10-day return (<code>top5_momentum</code>)</td><td>0.002310</td><td><strong>0.002264</strong></td><td>—</td></tr>
+        <tr><td>elastic_net</td><td>0.001351</td><td>0.001992</td><td>88%</td></tr>
+        <tr><td>ridge</td><td>0.000786</td><td>0.001478</td><td>65%</td></tr>
+        <tr><td>gradient_boosting</td><td>0.000998</td><td>0.001080</td><td>48%</td></tr>
+        <tr><td>random_forest</td><td>0.001433</td><td>0.001030</td><td>45%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">
+    A one-feature rule still wins. <code>return_10d</code> is an input feature to all five models, so they are not
+    missing the information. The best model moved from 62% to 88% of the baseline, meaning part of the original gap
+    was undertraining — and part of it was not.
+  </p>
+</section>
+
+<section>
+  <h2>Portfolio backtest</h2>
+  <p class="note">Four optimizer modes × two execution modes, 5-day horizon, after cost.</p>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr class="grouphead"><th></th><th></th><th colspan="2">Active return / period</th><th colspan="2">Cumulative sum</th></tr>
+        <tr><th>Optimizer</th><th>Execution</th><th>before</th><th>after</th><th>before</th><th>after</th></tr>
+      </thead>
+      <tbody>
+        <tr class="highlight"><td>sector_diversified</td><td>normal</td><td>0.000341</td><td><strong>0.000930</strong></td><td>0.844</td><td>2.249</td></tr>
+        <tr><td>sector_diversified</td><td>price_limit_aware</td><td>0.000102</td><td>0.000696</td><td>0.254</td><td>1.682</td></tr>
+        <tr><td>herding_aware</td><td>normal</td><td>0.000036</td><td>0.000512</td><td>0.088</td><td>1.238</td></tr>
+        <tr><td>sector_aware</td><td>normal</td><td>−0.000080</td><td class="up">+0.000488</td><td>−0.198</td><td>1.181</td></tr>
+        <tr><td>normal</td><td>normal</td><td>−0.000064</td><td class="up">+0.000419</td><td>−0.158</td><td>1.014</td></tr>
+        <tr><td>herding_aware</td><td>price_limit_aware</td><td>−0.000280</td><td class="up">+0.000205</td><td>−0.692</td><td>0.496</td></tr>
+        <tr><td>sector_aware</td><td>price_limit_aware</td><td>−0.000445</td><td class="up">+0.000089</td><td>−1.104</td><td>0.216</td></tr>
+        <tr><td>normal</td><td>price_limit_aware</td><td>−0.000481</td><td class="up">+0.000076</td><td>−1.191</td><td>0.184</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">
+    All eight are now positive, where five of eight were negative. But the most conservative configuration
+    (<code>normal</code> + <code>price_limit_aware</code>) clears cost by 0.000076 per period at a diagnostic Sharpe of
+    0.004 — statistically indistinguishable from zero. Wider diversification still outperforms concentration, which
+    remains evidence that the ranking signal is weak.
+  </p>
+  <p class="caption">
+    Cumulative figures sum overlapping forecast-period active returns. They are not compounded portfolio returns.
+    Drawdown, where reported elsewhere, is measured on that same summed series and is not a percentage of capital.
+  </p>
+</section>
+
+<section>
+  <h2>Paper-horizon predictions rebuilt</h2>
+  <p class="note">
+    Separate from the training-window change. <code>paper_horizon_predictions.parquet</code> had been built from the
+    static 30-ticker universe, so it contained predictions for names on dates they were not index constituents. Under
+    point-in-time filtering those rows correctly vanish, and only fully covered dates survive — which left two scripts
+    reporting on three observations.
+  </p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Measure</th><th>before</th><th>after</th></tr></thead>
+      <tbody>
+        <tr><td>Prediction rows</td><td>7,932</td><td>12,480</td></tr>
+        <tr><td>Prediction dates</td><td>136</td><td>208</td></tr>
+        <tr><td>Tickers</td><td>30</td><td>54</td></tr>
+        <tr><td>Date range</td><td>2021-01-15 → 2026-06-22</td><td>2017-08-09 → 2026-07-01</td></tr>
+        <tr class="highlight"><td>Dates at full point-in-time coverage</td><td>3 of 136</td><td><strong>208 of 208</strong></td></tr>
+        <tr><td>Rebalance dates in both scripts</td><td>3</td><td>208</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">
+    54 tickers rather than 60 is correct: six former constituents (FLC, HAG, HCM, HNG, ITA, PPC) left the index before
+    2017-08-09, the first date a prediction could be made after the 252-date training warm-up.
+  </p>
+</section>
+
+<section>
+  <h2>What did not improve</h2>
+  <ul>
+    <li><strong>A one-feature momentum baseline still beats every trained model</strong> — 0.002264 against 0.001992. Narrowed, unresolved.</li>
+    <li><strong>The 10-day horizon got marginally worse</strong> on Rank IC (0.0391 → 0.0374) and on top-5 hit rate.</li>
+    <li><strong>Margins remain thin.</strong> The most conservative portfolio configuration clears cost at a diagnostic Sharpe of 0.004.</li>
+    <li><strong>Concentration still reduces performance</strong>, which is what a weak ranking signal looks like.</li>
+    <li><strong>Foreign buy/sell features remain unpromoted.</strong> Pre-registered test: mean Rank-IC difference −0.002608, 95% CI [−0.013314, +0.008297]. The interval spans zero and the point estimate is negative.</li>
+  </ul>
+  <div class="callout">
+    <strong>Multiple comparisons.</strong> This parameter was chosen by measuring five values against the same history,
+    on top of three horizons, five ablation configurations, four optimizer modes, two execution modes and five
+    foreign-flow feature sets already tested against it. The improvement is consistent across horizons, ablations and
+    portfolio modes, which makes selection noise unlikely — but no confidence interval supports that judgement, and
+    none of the figures above carry one except the foreign-flow test.
+  </div>
+</section>
+
+<section>
+  <h2>Reproduce</h2>
+  <pre><code>py .\scripts\diagnose_training_window.py    # the sweep behind the 63-date choice
+py .\scripts\run_full_pipeline.py          # 16 stages, ~2h25m at train_size=63
+py -m pytest -q                            # 344 tests</code></pre>
+  <p class="caption">
+    Sources: <code>reports/tables/horizon_results.csv</code>, <code>ablation_results.csv</code>,
+    <code>benchmark_results.csv</code>, <code>model_comparison_results.csv</code>,
+    <code>training_window_diagnostic.csv</code>. Full detail in <code>reports/final_results.md</code> §11 and
+    <code>reports/methodology.md</code> §7.
+  </p>
+</section>
+
+<footer>
+  Research framework, not a live trading system. Not investment advice.
+</footer>
+
+</div>
+</body>
+</html>
