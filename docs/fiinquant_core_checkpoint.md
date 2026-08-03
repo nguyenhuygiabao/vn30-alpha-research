@@ -1,7 +1,7 @@
 # FiinQuant core checkpoint
 
 This checkpoint isolates the production FiinQuant data path from unrelated
-dashboard and research work.
+reporting and research work.
 
 ## Included
 
@@ -20,7 +20,7 @@ zero foreign-flow value remains zero; missing vendor data remains missing.
 
 ## Deliberately excluded
 
-- Dashboard changes and generated reports
+- Reporting changes and generated reports
 - FiinQuant probe scripts and entitlement experiments
 - Trial comparison and one-off diagnostic scripts
 - ZIP archives, patch files, and root-level source copies

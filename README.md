@@ -84,7 +84,7 @@ reports/data_quality_report.md
 docs/enhanced_fb_fs_checkpoint.md   foreign-flow experiment and result
 ```
 
-Dashboard: [nguyenhuygiabao.github.io/vn30-alpha-research/reports/dashboard.html](https://nguyenhuygiabao.github.io/vn30-alpha-research/reports/dashboard.html) (repository copy at `reports/dashboard.html`)
+Report page: [nguyenhuygiabao.github.io/vn30-alpha-research](https://nguyenhuygiabao.github.io/vn30-alpha-research/) (repository copy at `reports/reportpage.html`, regenerated from `reports/tables/` by `scripts/build_report_page.py` on every pipeline run)
 
 ## Usage
 

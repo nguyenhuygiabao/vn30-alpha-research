@@ -85,9 +85,9 @@ PIPELINE_STEPS = [
         description="Run forecast-horizon tests.",
     ),
     PipelineStep(
-        name="dashboard_tables",
-        command=[str(ROOT / "scripts" / "build_dashboard_tables.py")],
-        description="Build dashboard helper tables from existing processed outputs.",
+        name="report_tables",
+        command=[str(ROOT / "scripts" / "build_report_tables.py")],
+        description="Build report result tables from existing processed outputs.",
     ),
     PipelineStep(
         name="model_report",
@@ -100,14 +100,9 @@ PIPELINE_STEPS = [
         description="Regenerate report figures.",
     ),
     PipelineStep(
-        name="interactive_charts",
-        command=[str(ROOT / "scripts" / "build_interactive_charts.py")],
-        description="Regenerate interactive dashboard charts.",
-    ),
-    PipelineStep(
-        name="html_dashboard",
-        command=[str(ROOT / "scripts" / "build_html_report.py")],
-        description="Regenerate the HTML dashboard.",
+        name="report_page",
+        command=[str(ROOT / "scripts" / "build_report_page.py")],
+        description="Regenerate the HTML report page from the result tables.",
     ),
     PipelineStep(
         name="report_summary",

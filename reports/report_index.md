@@ -4,7 +4,7 @@ Links to the main outputs of the VN30 Alpha Research Framework.
 
 ## Start here
 
-- [HTML Dashboard](dashboard.html) — visual dashboard with rankings, portfolio weights, figures, and metric glossary.
+- [Report Page](reportpage.html) — headline results, before/after comparisons, and the training-window sweep. Generated from `reports/tables/` on every pipeline run.
 - [Final Results](final_results.md) — main findings, backtest results, horizon and ablation tests, baseline comparison, limitations.
 - [Methodology](methodology.md) — universe, data contract, labels, features, models, validation, optimizer, costs, bias controls.
 - [Audit](final_audit.md) — automated audit output, test suite, reproducibility and consistency checks, known gaps.
@@ -39,7 +39,6 @@ Links to the main outputs of the VN30 Alpha Research Framework.
 - [Horizon Diagnostic Sharpe](figures/horizon_diagnostic_sharpe.png)
 - [Horizon Rank IC](figures/horizon_rank_ic.png)
 
-Interactive charts covering cumulative return, active drawdown, turnover, rolling diagnostic Sharpe, and optimizer cap hits are in [`interactive/`](interactive/).
 
 ## Current summary
 

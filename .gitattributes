@@ -1,4 +1,3 @@
 # Generated report artifacts.
-# Keep these committed for the dashboard, but exclude them from GitHub language stats.
-reports/dashboard.html linguist-generated=true
-reports/interactive/*.html linguist-generated=true
+# Keep these committed for the published report, but exclude them from GitHub language stats.
+reports/reportpage.html linguist-generated=true

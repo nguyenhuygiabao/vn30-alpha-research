@@ -174,7 +174,7 @@ reports/figures/horizon_diagnostic_sharpe.png
 reports/figures/horizon_rank_ic.png
 ```
 
-Interactive charts covering cumulative return, active drawdown, turnover, rolling diagnostic Sharpe, and optimizer cap hits are in `reports/interactive/`, and the assembled dashboard is `reports/dashboard.html`.
+The assembled report page is `reports/reportpage.html`, generated from `reports/tables/` by `scripts/build_report_page.py` so its figures cannot drift from the tables.
 
 ## 10. Weaknesses
 

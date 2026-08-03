@@ -6,7 +6,7 @@ This file records the reproducibility and consistency checks run against the rep
 
 ## 2. Automated Audits
 
-Three audit scripts are maintained in `scripts/`. All three currently pass.
+Four audit scripts are maintained in `scripts/`. All four currently pass.
 
 ### Project state audit
 
@@ -77,7 +77,7 @@ Verifies that reconstructed VN30 membership resolves to exactly 30 constituents 
 py -m pytest -q
 ```
 
-342 tests, all passing. Coverage of note:
+349 tests, all passing. Coverage of note:
 
 - **Leakage guards** — appending future rows must leave every already-computed feature value bit-identical, asserted with `pd.testing.assert_frame_equal`.
 - **Parallelism equivalence** — parallel walk-forward output must equal sequential output exactly, so process-based fitting is a speed change only.
@@ -87,13 +87,13 @@ py -m pytest -q
 
 ## 4. Pipeline Reproducibility
 
-The full pipeline runs 19 stages:
+The full pipeline runs 18 stages:
 
 ```powershell
 py .\scripts\run_full_pipeline.py
 ```
 
-Stage order: data quality, features, labels, walk-forward checks, linear models, tree models, classification models, baseline portfolios, risk model, optimizer, backtester, ablation tests, horizon tests, dashboard tables, model report, figures, interactive charts, HTML dashboard, report summary.
+Stage order: data quality, features, labels, walk-forward checks, linear models, tree models, classification models, baseline portfolios, risk model, optimizer, backtester, ablation tests, horizon tests, report tables, model report, figures, report page, report summary.
 
 Cache behaviour: `--reuse-existing-ml` skips expensive model stages only when their outputs exist and are newer than their dependency files. `src/ablation_tests.py` and `src/horizon_tests.py` previously carried a separate internal cache with no freshness check, which served stale predictions indefinitely; that cache has been removed and both stages now always rebuild when invoked directly.
 
@@ -101,19 +101,19 @@ Cache behaviour: `--reuse-existing-ml` skips expensive model stages only when th
 
 Two independently regenerated outputs are cross-checked for agreement:
 
-- `horizon_results.csv` at the 5-day horizon and `ablation_results.csv` for `all_features` describe the same configuration (gradient boosting, all features, price-limit-aware execution) and agree exactly: Rank IC 0.019869, after-cost return -0.000481, cumulative -1.191474.
-- `ablation_results.csv` for `all_features` and `benchmark_results.csv` for `ml_normal_price_limit_aware` agree at -0.000481. The ablation backtest applies price-limit execution unconditionally, so it corresponds to the `price_limit_aware` benchmark row, not the `normal` one.
+- `horizon_results.csv` at the 5-day horizon and `ablation_results.csv` for `all_features` describe the same configuration (gradient boosting, all features, price-limit-aware execution) and agree exactly: Rank IC 0.033360, after-cost return 0.000076, cumulative 0.183687.
+- `ablation_results.csv` for `all_features` and `benchmark_results.csv` for `ml_normal_price_limit_aware` agree at 0.000076. The ablation backtest applies price-limit execution unconditionally, so it corresponds to the `price_limit_aware` benchmark row, not the `normal` one.
 
 ## 6. Known Gaps
 
 - **Paper-trading data source.** The live daily-update path (`scripts/update_daily_data.py`, `config/paper_trading_config.yaml`, `src/paper_trading/data_update.py`) still uses vnstock rather than FiinQuant, and has not been reconciled against the research pipeline. This does not affect research or backtest results, which run entirely on FiinQuant data.
 - **Issuer-group and sector metadata provenance.** `config/vn30_universe.csv` covers all 60 historical constituents, but the issuer-group and sector labels for the 30 alumni tickers were compiled manually rather than sourced from a vendor classification file. They should be verified against an authoritative source.
-- **Unreferenced script.** `scripts/download_vnstock_ohlcv.py` has no remaining references in code, README, or docs, and appears superseded by `scripts/update_daily_data.py`. It has been left in place pending confirmation.
 - **Corporate-action adjustment quality.** Verified only to the extent that raw and adjusted files agree on volume and traded value. A dedicated split and stock-dividend audit has not been run.
 - **Confidence intervals.** Only the foreign-flow comparison reports bootstrap confidence intervals. Horizon, ablation, and portfolio metrics are point estimates.
+- **Frozen baseline in the report page.** `scripts/build_report_page.py` reads every current figure from `reports/tables/`, but the `train_size = 3` comparison column is a hardcoded historical record, since no current table contains that configuration. It is labelled as such in the script.
 
 ## 7. Status
 
-Automated audits pass, the test suite passes at 342 tests, and independently regenerated outputs agree where they describe the same configuration. Research results are documented in `reports/final_results.md`, methodology in `reports/methodology.md`, and the foreign-flow experiment in `docs/enhanced_fb_fs_checkpoint.md`.
+Automated audits pass, the test suite passes at 349 tests, and independently regenerated outputs agree where they describe the same configuration. Research results are documented in `reports/final_results.md`, methodology in `reports/methodology.md`, and the foreign-flow experiment in `docs/enhanced_fb_fs_checkpoint.md`.
 
 This repository is a research framework. It is not a live trading system and the reports are historical diagnostics, not investment recommendations.
