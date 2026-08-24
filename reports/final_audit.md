@@ -77,13 +77,14 @@ Verifies that reconstructed VN30 membership resolves to exactly 30 constituents 
 py -m pytest -q
 ```
 
-349 tests, all passing. Coverage of note:
+379 tests, all passing. Coverage of note:
 
 - **Leakage guards** — appending future rows must leave every already-computed feature value bit-identical, asserted with `pd.testing.assert_frame_equal`.
 - **Parallelism equivalence** — parallel walk-forward output must equal sequential output exactly, so process-based fitting is a speed change only.
 - **Data-contract enforcement** — raw/adjusted mismatch, missing traded value on non-exempt tickers, and infinite feature values must all raise.
 - **Feature-set freeze guards** — the four published foreign-flow feature sets must remain at exactly 51/60/64/73 features so committed comparisons stay reproducible.
 - **Execution coverage classification** — membership-exit filtering, each execution-status category, and the rule that a flagged estimate does not block date completeness.
+- **Daily-update price basis** — the FiinQuant daily provider must return raw prices in `close` and adjusted prices in `adjusted_close`, converted from whole VND to thousands. Collapsing the two, or missing the conversion, is asserted against directly.
 
 ## 4. Pipeline Reproducibility
 
@@ -106,7 +107,7 @@ Two independently regenerated outputs are cross-checked for agreement:
 
 ## 6. Known Gaps
 
-- **Paper-trading data source.** The live daily-update path (`scripts/update_daily_data.py`, `config/paper_trading_config.yaml`, `src/paper_trading/data_update.py`) still uses vnstock rather than FiinQuant, and has not been reconciled against the research pipeline. This does not affect research or backtest results, which run entirely on FiinQuant data.
+- **Paper-trading account history predates the price-basis correction.** The paper-trading OHLCV file was previously downloaded from vnstock, which serves a single back-adjusted series: every price column held adjusted prices and `adjusted_close` merely repeated `close`. Because back-adjustment is anchored at the present, the most recent bar was correct but history was restated by later corporate actions. The file has been rebuilt from the canonical FiinQuant history with raw prices in the OHLC columns and a genuine adjusted close (`scripts/build_paper_trading_ohlcv.py`). Row coverage is unchanged at 47,343 and the last date is bit-identical, so the live account is unaffected, but 41,279 historical closes changed. Any account replay produced before this rebuild used the old basis.
 - **Issuer-group and sector metadata provenance.** `config/vn30_universe.csv` covers all 60 historical constituents, but the issuer-group and sector labels for the 30 alumni tickers were compiled manually rather than sourced from a vendor classification file. They should be verified against an authoritative source.
 - **Corporate-action adjustment quality.** Verified only to the extent that raw and adjusted files agree on volume and traded value. A dedicated split and stock-dividend audit has not been run.
 - **Confidence intervals.** Only the foreign-flow comparison reports bootstrap confidence intervals. Horizon, ablation, and portfolio metrics are point estimates.

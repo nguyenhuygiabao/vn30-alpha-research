@@ -34,6 +34,7 @@ KEY_FILES = [
     ROOT / "scripts" / "reconcile_paper_account.py",
     ROOT / "scripts" / "validate_paper_trading_timing.py",
     ROOT / "scripts" / "update_daily_data.py",
+    ROOT / "scripts" / "build_paper_trading_ohlcv.py",
     ROOT / "scripts" / "run_daily_data_update.py",
     ROOT / "scripts" / "score_daily_signals.py",
     ROOT / "scripts" / "preview_daily_targets.py",
@@ -43,7 +44,7 @@ KEY_FILES = [
 
 GENERATED_PATH_PREFIXES = [
     "data/processed/",
-    "data/raw/vnstock/",
+    "data/raw/",
 ]
 
 

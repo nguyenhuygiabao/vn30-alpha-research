@@ -127,13 +127,13 @@ Tests:
 py -m pytest -q
 ```
 
-344 tests.
+379 tests.
 
 ## Paper Trading
 
 A settlement-aware paper-trading layer exists for signal timing, T+2 settlement, order sizing under concentration and liquidity constraints, and local account ledgers. No real orders are placed.
 
-Its live daily-update path still uses vnstock rather than FiinQuant and has not been reconciled against the research pipeline. This does not affect the results above, which run entirely on FiinQuant data.
+The live daily-update path runs on FiinQuant, the same vendor as the research pipeline. It downloads the current index members for the trailing overlap window, checks the overlap against the local file before replacing anything, and writes through a staging file.
 
 ```powershell
 py .\scripts\validate_paper_trading_timing.py
@@ -142,11 +142,22 @@ py .\scripts\score_daily_signals.py
 py .\scripts\preview_daily_targets.py
 ```
 
-On Python 3.14, install the vnstock core dependencies without the optional chart package:
+The daily update needs the FiinQuantX vendor wheel, which lives in its own
+environment. `run_daily_data_update.py` finds that interpreter automatically:
 
 ```powershell
-py -m pip install pydantic openpyxl importlib-metadata tenacity "vnai>=2.4.8"
-py -m pip install --no-deps "vnstock==4.0.4"
+py -m venv .venv-fiinquant
+.\.venv-fiinquant\Scripts\python.exe -m pip install FiinQuantX pandas pyarrow PyYAML
+```
+
+Credentials are read from `FIINQUANT_USERNAME` and `FIINQUANT_PASSWORD`, and
+prompted for interactively when either is unset.
+
+The paper-trading price file can be rebuilt from the canonical FiinQuant
+history at any time:
+
+```powershell
+py .\scripts\build_paper_trading_ohlcv.py --dry-run
 ```
 
 Generated paper-account ledgers are local state and are not tracked.

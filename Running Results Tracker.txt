@@ -888,3 +888,83 @@ OPEN ITEMS:
 - Elastic net now outperforms gradient boosting on every diagnostic;
   production model choice unresolved.
 - FB/FS parallelization speedup never measured.
+
+================================================================================
+2026-08-24 (session 4) -- VNSTOCK REMOVED: DAILY UPDATE MIGRATED TO FIINQUANT
+================================================================================
+
+GOAL: remove the last vnstock dependency so one vendor feeds both research
+and paper trading.
+
+WHAT MOVED
+- New src/paper_trading/fiinquant_provider.py. Serves the daily update from
+  FiinQuant. Batch-oriented: one raw request and one adjusted request per
+  window for all 30 tickers, instead of 30 per-ticker vnstock calls.
+- scripts/update_daily_data.py now builds a FiinQuant client through the
+  existing get_credentials / create_fiinquant_client seam and refuses to run
+  unless data_update.source reads FIINQUANT.
+- scripts/run_daily_data_update.py preflights FiinQuantX instead of vnstock
+  Quote, and resolves the interpreter itself: FiinQuantX is a vendor wheel
+  installed only in .venv-fiinquant, so the launcher runs the update with
+  that interpreter and falls back to the current one when it is absent.
+- config/vn30_universe.csv column vnstock_symbol -> provider_symbol.
+- config/paper_trading_config.yaml: source KBS -> FIINQUANT, and both data
+  paths moved from data/raw/vnstock/ to data/raw/fiinquant/paper_trading/.
+- data/raw/vnstock/ deleted after the replacement passed tests.
+- requirements.txt no longer pins vnstock.
+
+TWO DEFECTS FOUND WHILE MIGRATING, BOTH FIXED
+
+1. THE PAPER FILE HELD ADJUSTED PRICES IN ITS EXECUTION COLUMNS.
+   vnstock's Quote.history serves a single back-adjusted series, so open/
+   high/low/close were all adjusted and adjusted_close merely repeated
+   close. Back-adjustment is anchored at the present, so the newest bar was
+   right and everything behind it had been restated by later corporate
+   actions. Measured against the canonical FiinQuant raw history: closes on
+   the last date matched exactly (ratio 1000.000 for all 30 tickers), but
+   96% of 2020 rows did not.
+   Fixed by scripts/build_paper_trading_ohlcv.py, which rebuilds the file
+   from the canonical history with the same contract the research pipeline
+   uses -- raw OHLC for execution, adjusted close for returns.
+   Result: same 47,343 rows, same per-ticker coverage, zero change on the
+   last date, 41,279 historical closes corrected. The live account window
+   (2026-07-10 onward) moved on 5 rows of 270, by at most 1.2%.
+   The provider now fetches both series so appends keep the two apart.
+
+2. THE DAILY UPDATE WOULD HAVE ASKED FOR 60 TICKERS.
+   Extending config/vn30_universe.csv to all 60 historical constituents in
+   session 2 silently broke the daily update, which reads that file as its
+   download list. It would have requested delisted tickers and then failed
+   completeness validation against a 30-ticker file. Nobody noticed because
+   the update had not been run since.
+   Fixed with restrict_universe_to_members, which intersects the metadata
+   against constituents_on_date before downloading.
+
+VERIFICATION
+- 379 tests passing, up from 349. 30 new: provider price scaling, the
+  raw/adjusted split, batching, cache behaviour on failure, the membership
+  filter, the rebuild script, and interpreter resolution.
+- End-to-end dry run of the wired path against a fake vendor client: 2
+  requests for 30 tickers, 47,343 -> 47,373 rows, coverage 30/30, all audit
+  rows ok, adjusted_close preserved distinctly on the new bar.
+- Rebuilt file verified column by column against the canonical CSVs:
+  max |paper*1000 - vendor_vnd| = 0.000000 for open/high/low/close,
+  volume identical, adjusted_close matching to 3e-11.
+- audit_project_state, audit_fiinquant_core --require-data,
+  audit_execution_coverage and check_public_asset_links all pass.
+
+NOT DONE
+- No live vendor call was made. The migrated path was exercised against a
+  fake client only, because the FiinQuant login needs interactive
+  credentials. The first real run should be
+  py .\scripts\run_daily_data_update.py --dry-run
+- .venv-vnstock-audit is still on disk. It is gitignored and unused; left
+  alone rather than deleted.
+- yfinance is still in requirements.txt and data/raw/yahoo still exists.
+  Neither is vnstock, so both were left as they were.
+
+CORRECTION TO AN EARLIER CHECK
+While verifying the rebuild I reported "max |close - raw| = 274725" and
+briefly read it as data corruption. The comparison was wrong, not the data:
+the canonical CSV stores whole VND and the rebuilt file stores thousands.
+Re-run in matching units the difference is exactly zero.
