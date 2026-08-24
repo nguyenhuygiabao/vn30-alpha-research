@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
-
-import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,40 +12,32 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.download_fiinquant_history import (
+    create_fiinquant_client,
+    get_credentials,
+)
 from src.data_loader import load_ohlcv_csv
 from src.paper_trading.config import load_paper_trading_config
 from src.paper_trading.data_update import (
     build_daily_update,
     load_universe_metadata,
+    restrict_universe_to_members,
     write_staged_update,
 )
+from src.paper_trading.fiinquant_provider import FiinQuantDailyProvider
+from src.vn30_universe import constituents_on_date
 
 
-class VnstockDailyProvider:
-    def __init__(self, source: str) -> None:
-        self.source = source.strip().upper()
+EXPECTED_SOURCE = "FIINQUANT"
 
-    def history(
-        self,
-        ticker: str,
-        provider_symbol: str,
-        start_date: date,
-        end_date: date,
-    ) -> pd.DataFrame:
-        try:
-            from vnstock import Quote
-        except ImportError as error:
-            raise RuntimeError(
-                "vnstock Quote is required. See the Python setup instructions "
-                "in README.md."
-            ) from error
 
-        quote = Quote(symbol=provider_symbol, source=self.source)
+def require_fiinquant_source(source: str) -> None:
+    """Refuse to run against a configuration that still names another vendor."""
 
-        return quote.history(
-            start=start_date.isoformat(),
-            end=end_date.isoformat(),
-            interval="d",
+    if str(source).strip().upper() != EXPECTED_SOURCE:
+        raise ValueError(
+            f"data_update source must be {EXPECTED_SOURCE}, got {source!r}. "
+            "The daily update and the research pipeline must use one vendor."
         )
 
 
@@ -72,13 +62,25 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     config = load_paper_trading_config(args.config)
+    update_config = config["data_update"]
+    require_fiinquant_source(update_config["source"])
+
     timezone = ZoneInfo(config["timing"]["timezone"])
     generated_at = datetime.now(timezone)
     data_path = config["model"]["raw_ohlcv_path"]
     existing = load_ohlcv_csv(data_path)
-    universe = load_universe_metadata(config["model"]["universe_path"])
-    update_config = config["data_update"]
-    provider = VnstockDailyProvider(update_config["source"])
+    # The metadata file covers every historical constituent. Only current
+    # members still trade, so only those are downloaded and validated.
+    universe = restrict_universe_to_members(
+        load_universe_metadata(config["model"]["universe_path"]),
+        constituents_on_date(generated_at.date()),
+    )
+
+    username, password = get_credentials()
+    provider = FiinQuantDailyProvider(
+        client=create_fiinquant_client(username, password),
+        symbols=universe["provider_symbol"].tolist(),
+    )
     result = build_daily_update(
         existing_data=existing,
         universe=universe,
@@ -109,6 +111,7 @@ def main() -> None:
     print()
     print("DAILY DATA UPDATE VALIDATION PASSED")
     print("=" * 80)
+    print(f"Vendor: {EXPECTED_SOURCE}")
     print(f"Mode: {'dry run' if args.dry_run else 'updated local file'}")
     print(f"Update window: {result.update_start_date} to {result.update_end_date}")
     print(f"Data as of date: {timing.data_asof_date}")

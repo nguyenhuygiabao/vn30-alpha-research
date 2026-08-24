@@ -10,15 +10,38 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CommandRunner = Callable[..., subprocess.CompletedProcess[str]]
 
-PYTHON_314_INSTALL_HELP = """Python 3.14 setup:
-  py -m pip install pydantic openpyxl importlib-metadata tenacity \"vnai>=2.4.8\"
-  py -m pip install --no-deps \"vnstock==4.0.4\""""
+# FiinQuantX is a vendor wheel and is not installed in the interpreter that
+# runs the research pipeline. It lives in a dedicated environment, so the
+# download step is launched with that interpreter when it is present.
+FIINQUANT_INSTALL_HELP = """FiinQuant setup:
+  py -m venv .venv-fiinquant
+  .\\.venv-fiinquant\\Scripts\\python.exe -m pip install FiinQuantX pandas pyarrow PyYAML
+
+Credentials are read from the FIINQUANT_USERNAME and FIINQUANT_PASSWORD
+environment variables, and prompted for interactively when either is unset."""
 
 
-def check_vnstock_quote(
+def resolve_python_executable(root: Path = ROOT) -> str:
+    """Return the interpreter that can import FiinQuantX."""
+
+    candidates = (
+        root / ".venv-fiinquant" / "Scripts" / "python.exe",
+        root / ".venv-fiinquant" / "bin" / "python",
+    )
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+
+    return sys.executable
+
+
+def check_fiinquant_client(
     runner: CommandRunner = subprocess.run,
+    python_executable: str | None = None,
 ) -> None:
-    command = [sys.executable, "-c", "from vnstock import Quote"]
+    executable = python_executable or resolve_python_executable()
+    command = [executable, "-c", "from FiinQuantX import FiinSession"]
     completed = runner(
         command,
         cwd=ROOT,
@@ -31,16 +54,20 @@ def check_vnstock_quote(
         return
 
     detail = (completed.stderr or completed.stdout or "").strip()
-    message = "Vnstock Quote preflight failed."
+    message = "FiinQuant client preflight failed."
 
     if detail:
         message = f"{message}\n{detail}"
 
-    raise RuntimeError(f"{message}\n\n{PYTHON_314_INSTALL_HELP}")
+    raise RuntimeError(f"{message}\n\n{FIINQUANT_INSTALL_HELP}")
 
 
-def build_update_command(dry_run: bool) -> list[str]:
-    command = [sys.executable, str(ROOT / "scripts" / "update_daily_data.py")]
+def build_update_command(
+    dry_run: bool,
+    python_executable: str | None = None,
+) -> list[str]:
+    executable = python_executable or resolve_python_executable()
+    command = [executable, str(ROOT / "scripts" / "update_daily_data.py")]
 
     if dry_run:
         command.append("--dry-run")
@@ -52,8 +79,12 @@ def run_daily_data_update(
     dry_run: bool,
     runner: CommandRunner = subprocess.run,
 ) -> None:
-    check_vnstock_quote(runner=runner)
-    command = build_update_command(dry_run=dry_run)
+    executable = resolve_python_executable()
+    check_fiinquant_client(runner=runner, python_executable=executable)
+    command = build_update_command(
+        dry_run=dry_run,
+        python_executable=executable,
+    )
     completed = runner(command, cwd=ROOT, check=False)
 
     if completed.returncode != 0:
@@ -82,7 +113,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("VN30 ONE-CLICK DAILY DATA UPDATE")
     print("=" * 80)
     print(f"Project root: {ROOT}")
-    print(f"Python executable: {sys.executable}")
+    print(f"Launcher interpreter: {sys.executable}")
+    print(f"FiinQuant interpreter: {resolve_python_executable()}")
     print(f"Mode: {'dry run' if args.dry_run else 'validated file update'}")
     print("No paper orders or real orders will be placed.")
     print()

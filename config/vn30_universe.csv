@@ -1,4 +1,4 @@
-ticker,vnstock_symbol,issuer_group,sector
+ticker,provider_symbol,issuer_group,sector
 ACB,ACB,ACB,Banks
 BCM,BCM,Becamex,Real Estate
 BID,BID,BIDV,Banks

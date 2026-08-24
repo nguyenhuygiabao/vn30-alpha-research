@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -95,7 +96,7 @@ def normalize_provider_ohlcv(data: pd.DataFrame, ticker: str) -> pd.DataFrame:
 
 def load_universe_metadata(path: str | Path) -> pd.DataFrame:
     universe = pd.read_csv(path)
-    required = {"ticker", "vnstock_symbol", "issuer_group"}
+    required = {"ticker", "provider_symbol", "issuer_group"}
     missing = sorted(required.difference(universe.columns))
 
     if missing:
@@ -103,17 +104,45 @@ def load_universe_metadata(path: str | Path) -> pd.DataFrame:
 
     universe = universe.copy()
     universe["ticker"] = universe["ticker"].astype(str).str.strip().str.upper()
-    universe["vnstock_symbol"] = (
-        universe["vnstock_symbol"].astype(str).str.strip().str.upper()
+    universe["provider_symbol"] = (
+        universe["provider_symbol"].astype(str).str.strip().str.upper()
     )
 
     if universe["ticker"].duplicated().any():
         raise ValueError("Universe contains duplicate tickers")
 
-    if universe["ticker"].eq("").any() or universe["vnstock_symbol"].eq("").any():
+    if universe["ticker"].eq("").any() or universe["provider_symbol"].eq("").any():
         raise ValueError("Universe contains empty ticker or provider symbol")
 
     return universe.sort_values("ticker").reset_index(drop=True)
+
+
+def restrict_universe_to_members(
+    universe: pd.DataFrame,
+    members: Sequence[str],
+) -> pd.DataFrame:
+    """Keep only the tickers that are index members on the update date.
+
+    The metadata file covers every historical constituent, including delisted
+    ones, so the daily update has to be told which of them are still in the
+    index. Downloading the full alumni list would ask the vendor for tickers
+    that no longer trade and would fail completeness validation.
+    """
+
+    wanted = {str(member).strip().upper() for member in members}
+
+    if not wanted:
+        raise ValueError("Index membership cannot be empty")
+
+    available = set(universe["ticker"])
+    missing = sorted(wanted.difference(available))
+
+    if missing:
+        raise ValueError(f"Universe metadata is missing index members: {missing}")
+
+    restricted = universe.loc[universe["ticker"].isin(wanted)]
+
+    return restricted.sort_values("ticker").reset_index(drop=True)
 
 
 def choose_update_window(
@@ -157,7 +186,7 @@ def download_update_rows(
             try:
                 downloaded = provider.history(
                     ticker=row.ticker,
-                    provider_symbol=row.vnstock_symbol,
+                    provider_symbol=row.provider_symbol,
                     start_date=start_date,
                     end_date=end_date,
                 )
@@ -174,7 +203,7 @@ def download_update_rows(
             audit_rows.append(
                 {
                     "ticker": row.ticker,
-                    "provider_symbol": row.vnstock_symbol,
+                    "provider_symbol": row.provider_symbol,
                     "status": "error",
                     "rows": 0,
                     "start_date": "",
@@ -188,7 +217,7 @@ def download_update_rows(
             audit_rows.append(
                 {
                     "ticker": row.ticker,
-                    "provider_symbol": row.vnstock_symbol,
+                    "provider_symbol": row.provider_symbol,
                     "status": "ok",
                     "rows": len(normalized),
                     "start_date": normalized["date"].min().date().isoformat(),

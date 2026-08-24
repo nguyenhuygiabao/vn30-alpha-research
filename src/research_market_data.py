@@ -1,10 +1,9 @@
 """Shared FiinQuant market-data loading for research and validation scripts.
 
-Scripts under `scripts/` historically read a single flat vnstock CSV
-(`data/raw/vnstock/vn30_ohlcv.csv`) with `pandas.read_csv`. That file holds
-only the current 30 VN30 tickers applied backward through time, so any
-result computed from it carries survivorship bias and does not match the
-production pipeline.
+Scripts under `scripts/` historically read a single flat CSV holding only
+the current 30 VN30 tickers applied backward through time, so any result
+computed from it carried survivorship bias and did not match the production
+pipeline. That file is gone; this module replaced it.
 
 This module gives those scripts the same data the pipeline uses: the
 FiinQuant canonical raw + adjusted history, optionally filtered to

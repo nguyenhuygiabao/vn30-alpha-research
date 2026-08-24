@@ -11,4 +11,6 @@ cvxpy>=1.4,<2.0
 jupyter>=1.0,<2.0
 pytest>=8.0,<9.0
 plotly
-vnstock>=4.0.4,<5.0; python_version < "3.14"
+
+# FiinQuantX is a vendor wheel and is installed in its own environment
+# (.venv-fiinquant), not here. See the Data section of README.md.

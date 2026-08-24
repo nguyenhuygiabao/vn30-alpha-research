@@ -22,13 +22,13 @@ market_data:
   price_multiplier_to_vnd: 1000
 
 data_update:
-  source: KBS
+  source: FIINQUANT
   overlap_calendar_days: 14
   request_interval_seconds: 4
   max_attempts: 3
   overlap_close_tolerance: 0.05
   suspicious_return_threshold: 0.15
-  audit_path: data/raw/vnstock/daily_update_audit.csv
+  audit_path: data/raw/fiinquant/paper_trading/daily_update_audit.csv
 
 portfolio:
   target_holdings: 8
@@ -62,7 +62,7 @@ model:
   model_name: gradient_boosting
   predictions_path: data/processed/tree_model_predictions.parquet
   universe_path: config/vn30_universe.csv
-  raw_ohlcv_path: data/raw/vnstock/vn30_ohlcv.csv
+  raw_ohlcv_path: data/raw/fiinquant/paper_trading/vn30_ohlcv.csv
 
 output:
   directory: paper_trading

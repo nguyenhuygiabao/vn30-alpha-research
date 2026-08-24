@@ -12,6 +12,7 @@ from src.paper_trading.data_update import (
     build_daily_update,
     merge_incremental_data,
     normalize_provider_ohlcv,
+    restrict_universe_to_members,
     validate_overlap_consistency,
     write_staged_update,
 )
@@ -65,7 +66,7 @@ def universe() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "ticker": list(TICKERS),
-            "vnstock_symbol": list(TICKERS),
+            "provider_symbol": list(TICKERS),
             "issuer_group": list(TICKERS),
         }
     )
@@ -262,3 +263,43 @@ def test_validated_update_replaces_files_without_staging_residue(tmp_path) -> No
     assert len(audit) == 3
     assert not Path(str(output_path) + ".staging").exists()
     assert not Path(str(audit_path) + ".staging").exists()
+
+
+def test_membership_filter_drops_alumni_tickers() -> None:
+    metadata = pd.DataFrame(
+        {
+            "ticker": ["FLC", "FPT", "ROS", "VCB"],
+            "provider_symbol": ["FLC", "FPT", "ROS", "VCB"],
+            "issuer_group": ["FLC Group", "FPT", "FLC Group", "VCB"],
+        }
+    )
+
+    restricted = restrict_universe_to_members(metadata, ["VCB", "FPT"])
+
+    assert restricted["ticker"].tolist() == ["FPT", "VCB"]
+
+
+def test_membership_filter_rejects_an_unknown_member() -> None:
+    metadata = pd.DataFrame(
+        {
+            "ticker": ["FPT"],
+            "provider_symbol": ["FPT"],
+            "issuer_group": ["FPT"],
+        }
+    )
+
+    with pytest.raises(ValueError, match="missing index members.*VCB"):
+        restrict_universe_to_members(metadata, ["FPT", "VCB"])
+
+
+def test_membership_filter_rejects_empty_membership() -> None:
+    metadata = pd.DataFrame(
+        {
+            "ticker": ["FPT"],
+            "provider_symbol": ["FPT"],
+            "issuer_group": ["FPT"],
+        }
+    )
+
+    with pytest.raises(ValueError, match="membership cannot be empty"):
+        restrict_universe_to_members(metadata, [])
