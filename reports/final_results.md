@@ -21,6 +21,9 @@ Pipeline components: point-in-time VN30 membership, an enforced raw/adjusted pri
 
 Every cumulative figure below sums overlapping forecast-period active returns. It is not a compounded portfolio return and should not be read as a track record. Max active drawdown is measured on that same summed series, so it is reported as a plain number in summed-return units, not as a percentage of capital.
 
+Compounded as a portfolio instead, the strategy is not deployable. Section 12
+gives the figures.
+
 ## 2. Main Portfolio Backtest
 
 Four optimizer modes crossed with two execution modes, at the 5-day horizon, after cost:
@@ -224,8 +227,57 @@ One caveat carried forward: this is a parameter chosen by measuring five values 
 
 ## 12. Conclusion
 
-The results still do not support an alpha claim, though they are materially better than before the training window was corrected. Two horizons out of three are after-cost positive, the full feature set clears cost, and every portfolio configuration is positive — but the best of them earns 0.000930 per 5-day period at a diagnostic Sharpe of 0.07, and a single-feature momentum rule continues to outperform every trained model on a matched basis.
+**The strategy is not deployable on VN30 over this sample.** The per-period
+figures above are after-cost positive, but they are sums of overlapping
+forecast periods, and the property that decides deployability is what happens
+when the same returns are compounded as a portfolio.
 
-Two open questions follow from this run. Why does a trailing-return sort still beat a 99-feature model that receives that feature as an input, now that undertraining has been ruled out as the main cause? And should gradient boosting remain the production model when elastic net beats it on every diagnostic measured here?
+Taking non-overlapping 5-day periods for the production configuration
+(`normal` optimizer, price-limit-aware execution) gives 484 independent
+periods, and a result that depends on which of the five overlap phases the
+curve starts on:
 
-Neither is answered by adding features. Each further configuration tested against the same history increases the multiple-comparisons problem described in section 10, and none of these figures carry confidence intervals.
+| Starting phase | Mean per period | Final equity | Max drawdown |
+|---:|---:|---:|---:|
+| 0 | -0.000463 | 0.7256 | -43.15% |
+| 1 | -0.000244 | 0.8062 | -40.03% |
+| 2 | +0.000861 | 1.3938 | -25.29% |
+| 3 | -0.000171 | 0.8392 | -43.05% |
+| 4 | +0.000398 | 1.1095 | -31.82% |
+
+The five phase means average to +0.0000762, which reconciles exactly with the
++0.000076 in section 3. Nothing is wrong with the headline arithmetic. But an
+outcome ranging from 0.73 to 1.39 on the choice of starting weekday is not an
+edge that survives contact with implementation, and the drawdown expressed in
+capital terms is 25 to 43 percent rather than the summed-unit figures reported
+elsewhere in this document.
+
+Three further results point the same way. A single-feature momentum rule
+outperforms every trained model on a matched basis. The best portfolio
+configuration earns 0.000930 per 5-day period at a diagnostic Sharpe of 0.07.
+Foreign buy/sell features failed a pre-registered test. None of the figures in
+this document carry confidence intervals, and each additional configuration
+tested against the same history compounds the multiple-comparisons problem in
+section 10.
+
+### What this does not establish
+
+This is a negative result about a specification, not about the market. Two
+things remain untested and would have to be ruled out before concluding that
+no tradable structure exists in VN30:
+
+- Features enter the models as raw levels, standardised only over the pooled
+  training window and never within a date, while the target is demeaned
+  against the index by construction. The market-wide component of every
+  feature is therefore orthogonal to the target but still shapes split
+  thresholds and coefficients. A within-date sort, which is what the momentum
+  baseline performs, cancels that component exactly. Whether this explains the
+  baseline gap has not been measured.
+- Drawdown has never been evaluated against an exposure control matched on
+  average exposure, so the existing downside-overlay results cannot separate
+  risk timing from holding less risk.
+
+Adding features answers neither question, and each attempt costs
+multiple-comparisons budget against a history already used for three horizons,
+five ablations, four optimizer modes, two execution modes, and five
+foreign-flow feature sets.

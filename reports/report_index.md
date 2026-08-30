@@ -44,7 +44,22 @@ Links to the main outputs of the VN30 Alpha Research Framework.
 
 Point-in-time VN30 membership across 60 historical constituents, FiinQuant raw and adjusted price data, and foreign-flow data, evaluated with purged walk-forward validation and after transaction costs and price-limit execution rules.
 
-Of the three tested horizons, only the 10-day horizon is after-cost positive (Rank IC 0.039, after-cost return +0.000804). The 1-day and 5-day horizons are net-negative. No feature-ablation configuration clears transaction costs at the 5-day horizon. A single-feature trailing-return rule (`top5_momentum`, 0.002310 before cost) outperforms every trained model's top-5 basket on a matched basis, the best of which returns 0.001433. Foreign buy/sell features did not clear their pre-registered confidence-interval criterion and are not promoted.
+**The strategy is not deployable over this sample.** Compounding
+non-overlapping 5-day periods for the production configuration gives a final
+equity between 0.73 and 1.39 depending only on which of the five overlap
+phases the curve starts on, with a maximum drawdown of 25 to 43 percent of
+capital. The per-period figures below are correct; they simply do not survive
+being compounded as a portfolio. See section 12 of the final results.
+
+Of the three tested horizons, the 5-day and 10-day horizons are after-cost
+positive and the 1-day horizon is not. Two of five feature-ablation
+configurations clear transaction costs. A single-feature trailing-return rule
+(`top5_momentum`, 0.002264 before cost) outperforms every trained model's
+top-5 basket on a matched basis, the best of which returns 0.001992. Foreign
+buy/sell features did not clear their pre-registered confidence-interval
+criterion and are not promoted.
+
+These figures reflect a walk-forward training window of 63 trading dates.
 
 This is a research framework, not a live trading strategy.
 

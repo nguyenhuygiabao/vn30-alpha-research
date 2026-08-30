@@ -44,6 +44,35 @@ Foreign buy/sell features were tested against a decision rule fixed before resul
 
 Cumulative return figures in this repository sum overlapping forecast-period active returns and are not compounded portfolio returns. Drawdown is measured on that same summed series, so it is reported in summed-return units rather than as a percentage of capital.
 
+### Deployability
+
+Compounded as a portfolio rather than summed, the strategy is not deployable
+on VN30 over this sample.
+
+Taking non-overlapping 5-day periods and compounding them, the production
+configuration (`normal` optimizer, price-limit-aware execution) gives a final
+equity that depends on which of the five overlap phases the curve starts on:
+
+| Starting phase | Mean per period | Final equity | Max drawdown |
+|---:|---:|---:|---:|
+| 0 | -0.000463 | 0.7256 | -43.15% |
+| 1 | -0.000244 | 0.8062 | -40.03% |
+| 2 | +0.000861 | 1.3938 | -25.29% |
+| 3 | -0.000171 | 0.8392 | -43.05% |
+| 4 | +0.000398 | 1.1095 | -31.82% |
+
+The five phase means average to +0.0000762, reconciling with the +0.000076
+reported above, so the arithmetic of the headline figure is correct. But over
+484 independent periods the compounded result ranges from losing 27 percent to
+gaining 39 percent on nothing but the choice of starting weekday. An edge that
+cannot survive that choice is not distinguishable from noise at this sample
+size, and the drawdown in capital terms is 25 to 43 percent.
+
+This is a statement about the configuration measured here, not about the VN30
+market. The models are fitted on features in raw levels while the target is
+demeaned against the index, and no within-date standardisation is applied;
+whether that specification handicaps them is untested.
+
 ## Data
 
 FiinQuant daily data, 137,719 rows across 60 tickers, 2016-07-26 to 2026-07-22. After point-in-time universe filtering and lag construction, 74,910 rows reach the modeling stage.
