@@ -26,10 +26,10 @@ zero foreign-flow value remains zero; missing vendor data remains missing.
 - ZIP archives, patch files, and root-level source copies
 - Generated raw data and feature artifacts
 
-The reusable `fiinquant_adapter` module is retained as the tested API
-normalization boundary for a future incremental updater. The old trial
-downloader is excluded because the canonical historical downloader supersedes
-it.
+The reusable `fiinquant_adapter` module is the tested API normalization
+boundary. `src/paper_trading/fiinquant_provider.py`, the incremental
+updater it was kept for, now sits on top of it. The old trial downloader
+is excluded because the canonical historical downloader supersedes it.
 
 ## Validation gates
 
