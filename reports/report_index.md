@@ -44,12 +44,14 @@ Links to the main outputs of the VN30 Alpha Research Framework.
 
 Point-in-time VN30 membership across 60 historical constituents, FiinQuant raw and adjusted price data, and foreign-flow data, evaluated with purged walk-forward validation and after transaction costs and price-limit execution rules.
 
-**The strategy is not deployable over this sample.** Compounding
-non-overlapping 5-day periods for the production configuration gives a final
-equity between 0.73 and 1.39 depending only on which of the five overlap
-phases the curve starts on, with a maximum drawdown of 25 to 43 percent of
-capital. The per-period figures below are correct; they simply do not survive
-being compounded as a portfolio. See section 12 of the final results.
+**Three of the four optimizer modes are not deployable over this sample.**
+Compounding non-overlapping 5-day periods, the `normal`, `sector_aware` and
+`herding_aware` modes give a final equity between 0.73 and 1.48 depending only
+on which of the five overlap phases the curve starts on, with drawdowns of 25
+to 43 percent of capital. `sector_diversified` is positive in all five phases
+but has had no out-of-sample test. The per-period figures below are correct;
+they simply do not survive being compounded as a portfolio. See section 12 of
+the final results.
 
 Of the three tested horizons, the 5-day and 10-day horizons are after-cost
 positive and the 1-day horizon is not. Two of five feature-ablation
