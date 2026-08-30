@@ -194,7 +194,7 @@ The assembled report page is `reports/reportpage.html`, generated from `reports/
 
 **Data scope.** Daily bars only: no intraday queue priority, order-book depth, or hidden liquidity. No fundamentals, macro, or news. Foreign ownership room is not modeled.
 
-**Paper trading runs on a different data source** (vnstock) than the research pipeline (FiinQuant) and has not been reconciled against it.
+**The live daily-update path has never made a vendor call.** It now reads the same FiinQuant history as the research pipeline, on the same raw-for-execution, adjusted-for-returns contract, but since the migration it has only been exercised against a stub client.
 
 ## 11. Training Window Change
 

@@ -3,8 +3,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Local environments
-.venv/
+# Local environments, including the FiinQuant SDK environment
+.venv*/
 venv/
 
 # Generated data outputs
@@ -18,6 +18,3 @@ paper_trading/.account.lock
 
 # Mutable daily recommendation outputs
 reports/daily/
-
-# Local FiinQuant SDK environment
-.venv-fiinquant/

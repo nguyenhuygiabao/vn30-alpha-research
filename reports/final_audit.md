@@ -115,6 +115,6 @@ Two independently regenerated outputs are cross-checked for agreement:
 
 ## 7. Status
 
-Automated audits pass, the test suite passes at 349 tests, and independently regenerated outputs agree where they describe the same configuration. Research results are documented in `reports/final_results.md`, methodology in `reports/methodology.md`, and the foreign-flow experiment in `docs/enhanced_fb_fs_checkpoint.md`.
+Automated audits pass, the test suite passes at 379 tests, and independently regenerated outputs agree where they describe the same configuration. Research results are documented in `reports/final_results.md`, methodology in `reports/methodology.md`, and the foreign-flow experiment in `docs/enhanced_fb_fs_checkpoint.md`.
 
 This repository is a research framework. It is not a live trading system and the reports are historical diagnostics, not investment recommendations.

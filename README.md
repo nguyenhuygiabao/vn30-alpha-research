@@ -46,7 +46,7 @@ Cumulative return figures in this repository sum overlapping forecast-period act
 
 ## Data
 
-FiinQuant daily data, 137,719 rows across 60 tickers, 2016-07-26 to 2026-07-15. After point-in-time universe filtering and lag construction, 74,910 rows reach the modeling stage.
+FiinQuant daily data, 137,719 rows across 60 tickers, 2016-07-26 to 2026-07-22. After point-in-time universe filtering and lag construction, 74,910 rows reach the modeling stage.
 
 ```text
 data/raw/fiinquant/canonical/raw_market_history.csv
@@ -88,7 +88,7 @@ Report page: [nguyenhuygiabao.github.io/vn30-alpha-research](https://nguyenhuygi
 
 ## Usage
 
-Full pipeline, 19 stages, from existing local raw data:
+Full pipeline, 18 stages, from existing local raw data:
 
 ```powershell
 py .\scripts\run_full_pipeline.py

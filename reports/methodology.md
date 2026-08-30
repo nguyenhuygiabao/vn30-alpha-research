@@ -35,7 +35,7 @@ data/raw/fiinquant/canonical/adjusted_market_history.csv
 data/raw/fiinquant/canonical/foreign_flow_history.csv
 ```
 
-The dataset holds **137,719 daily rows across 60 tickers from 2016-07-26 to 2026-07-15**. After point-in-time universe filtering and lag construction, **74,910 rows** reach the modeling stage.
+The dataset holds **137,719 daily rows across 60 tickers from 2016-07-26 to 2026-07-22**. The latest date carrying a complete 5-day forward label, and therefore the latest signal date, is 2026-07-15. After point-in-time universe filtering and lag construction, **74,910 rows** reach the modeling stage.
 
 ### Raw versus adjusted price contract
 
@@ -230,7 +230,7 @@ The reason is not that the model ignores them. The two strongest new features ra
 
 **No fundamental, macro, or news data.** Features are derived from price, volume, and foreign flow.
 
-**Paper trading runs on a different data source.** The live daily-update path still uses vnstock rather than FiinQuant, and has not been reconciled against the research pipeline.
+**The live daily-update path has never made a vendor call.** It reads the same FiinQuant history as the research pipeline and applies the same raw/adjusted contract, but since the migration it has only been exercised against a stub client, so vendor-side failures are untested.
 
 **Corporate-action adjustment quality has not been fully audited** beyond the raw/adjusted consistency checks in the loader.
 
