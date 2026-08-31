@@ -187,36 +187,51 @@ def optional_table(name: str) -> pd.DataFrame | None:
     return pd.read_csv(path)
 
 
-def deployability_section(phases: pd.DataFrame) -> str:
-    """What the per-period figures look like compounded as a portfolio.
+def deployability_section(tranche: pd.DataFrame) -> str:
+    """What a portfolio running this strategy would actually have done.
 
-    The headline figures are means over overlapping forecast periods, which a
-    portfolio cannot hold. Sampling non-overlapping periods can be done five
-    ways at a 5-day horizon, and the spread across those five is the result.
+    Every per-period figure on the page is a mean over overlapping forecast
+    periods, which a portfolio cannot hold. The strategy signals daily and
+    holds five days, so what it trades is five overlapping tranches. That
+    construction holds every phase at once and has no free parameters, unlike
+    sampling every fifth date, where the starting offset moves the answer more
+    than the strategy does.
     """
-    limited = phases[phases["execution_mode"] == "price_limit_aware"]
+    limited = tranche[
+        tranche["execution_mode"] == "price_limit_aware_tranche"
+    ].sort_values("active_final_equity_after_cost", ascending=False)
 
-    ordered = sorted(
-        limited["optimization_mode"].unique(),
-        key=lambda mode: limited.loc[
-            limited["optimization_mode"] == mode, "final_equity"
-        ].min(),
-    )
+    benchmark = float(limited["benchmark_final_equity"].iloc[0])
+    years = float(limited["years"].iloc[0])
+    best = float(limited["final_equity_after_cost"].max())
 
     rows: list[str] = []
-    for mode in ordered:
-        group = limited[limited["optimization_mode"] == mode]
-        positive = int((group["final_equity"] > 1.0).sum())
-        # Marked in text, not by colour alone.
-        verdict = "fragile" if positive < len(group) else "positive throughout"
+    for _, row in limited.iterrows():
+        active = float(row["active_final_equity_after_cost"])
+        # Stated in words, not by colour alone.
+        verdict = "behind the index" if active < 1.0 else "ahead of the index"
         rows.append(
             "<tr>"
-            f"<td><code>{mode}</code></td>"
-            f"<td>{positive} of {len(group)} · {verdict}</td>"
-            f"<td>{group['final_equity'].min():.4f} to "
-            f"{group['final_equity'].max():.4f}</td>"
-            f"<td>{MINUS}{abs(group['max_drawdown_percent'].min()):.1f}% to "
-            f"{MINUS}{abs(group['max_drawdown_percent'].max()):.1f}%</td>"
+            f"<td><code>{row['optimization_mode']}</code></td>"
+            f"<td>{row['final_equity_after_cost']:.4f}</td>"
+            f"<td>{benchmark:.4f}</td>"
+            f"<td>{active:.4f} · {verdict}</td>"
+            f"<td>{MINUS}"
+            f"{abs(float(row['max_drawdown_percent_after_cost'])):.1f}%</td>"
+            f"<td>{MINUS}"
+            f"{abs(float(row['active_max_drawdown_percent_after_cost'])):.1f}%"
+            "</td>"
+            "</tr>"
+        )
+
+    spread_rows: list[str] = []
+    for _, row in limited.iterrows():
+        spread_rows.append(
+            "<tr>"
+            f"<td><code>{row['optimization_mode']}</code></td>"
+            f"<td>{float(row['phase_final_equity_spread']):.4f}</td>"
+            f"<td>{float(row['offset_final_equity_spread']):.4f}</td>"
+            f"<td>{float(row['phase_to_offset_spread_ratio']):.0f}×</td>"
             "</tr>"
         )
 
@@ -225,34 +240,46 @@ def deployability_section(phases: pd.DataFrame) -> str:
             "<section>",
             "<h2>Deployability</h2>",
             '<p class="note">Every per-period figure on this page is a mean '
-            "over <em>overlapping</em> forecast periods. A portfolio cannot "
-            "hold an overlapping period. Sampling non-overlapping 5-day "
-            "periods instead gives 484 independent periods, and five ways to "
-            "do it depending on which date the sampling starts from. The "
-            "spread across those five phases is the result.</p>",
+            "over <em>overlapping</em> forecast periods, and a portfolio "
+            "cannot hold an overlapping period. The strategy signals daily "
+            "and holds five days, so what it trades is five overlapping "
+            "tranches: one fifth of capital rebalances into each day's "
+            "targets. That construction holds every phase at once and has no "
+            "free parameters.</p>",
             '<div class="tablewrap"><table>',
-            "<caption>Compounded outcome by overlap phase, price-limit-aware "
-            "execution</caption>",
-            "<thead><tr><th>Optimizer</th><th>Phases positive</th>"
-            "<th>Final equity</th><th>Max drawdown</th></tr></thead>",
+            f"<caption>Overlapping-tranche portfolio, after cost, "
+            f"price-limit-aware execution, {years:.2f} years</caption>",
+            "<thead><tr><th>Optimizer</th><th>Strategy equity</th>"
+            "<th>VN30 benchmark</th><th>Active</th><th>Strategy drawdown</th>"
+            "<th>Active drawdown</th></tr></thead>",
             "<tbody>",
             *rows,
             "</tbody></table></div>",
-            '<div class="callout"><strong>Three of the four optimizer modes '
-            "are not deployable.</strong> Their compounded outcome swings "
-            "from a 27% loss to a 48% gain on nothing but the choice of "
-            "starting weekday, which is not an edge distinguishable from "
-            "noise at 484 periods. Drawdown in capital terms is 20% to 43%, "
-            "not the summed-unit figures reported elsewhere. "
-            "<code>sector_diversified</code> is positive in all five phases, "
-            "but it is one of four configurations measured against the same "
-            "history: selecting it because it survived is itself a comparison "
-            "these figures do not adjust for, and it has no out-of-sample "
-            "validation.</div>",
+            '<div class="callout"><strong>No optimizer mode beats buying and '
+            "holding the index.</strong> Every active equity is below 1.0. "
+            f"The best configuration turns 1.0 into {best:.4f} while the VN30 "
+            f"itself turns it into {benchmark:.4f}, and takes a 53% "
+            "peak-to-trough drawdown along the way. The other three finish 20% "
+            "to 35% behind the index.</div>",
+            '<p class="note">Sampling every fifth date also gives '
+            "non-overlapping periods, and its per-period means reconcile "
+            "exactly with the figures above. But it leaves the starting "
+            "offset as a free parameter, and that choice moves the answer "
+            "more than the strategy does. One offset makes "
+            "<code>sector_diversified</code> look positive throughout, which "
+            "is a property of the sampling rather than of the strategy.</p>",
+            '<div class="tablewrap"><table>',
+            "<caption>Final-equity spread: sampling phase versus tranche "
+            "start offset</caption>",
+            "<thead><tr><th>Optimizer</th><th>Across 5 sampling phases</th>"
+            "<th>Across tranche start offsets</th><th>Ratio</th></tr></thead>",
+            "<tbody>",
+            *spread_rows,
+            "</tbody></table></div>",
             '<p class="caption">Source: '
-            "<code>reports/tables/compounded_phase_sensitivity.csv</code>, "
-            "generated by <code>scripts/diagnose_compounded_returns.py</code>."
-            "</p>",
+            "<code>reports/tables/tranche_portfolio_diagnostic.csv</code>, "
+            "generated by "
+            "<code>scripts/diagnose_tranche_drawdown.py</code>.</p>",
             "</section>",
         ]
     )
@@ -430,9 +457,9 @@ def build_page() -> str:
     # --- Deployability ------------------------------------------------------
     # Optional: written by scripts/diagnose_compounded_returns.py, which is not
     # a pipeline stage. Skip the section rather than fail the page build.
-    phases = optional_table("compounded_phase_sensitivity.csv")
-    if phases is not None:
-        add(deployability_section(phases))
+    tranche = optional_table("tranche_portfolio_diagnostic.csv")
+    if tranche is not None:
+        add(deployability_section(tranche))
 
     # --- Headline -----------------------------------------------------------
     add("<section>")
