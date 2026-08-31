@@ -240,7 +240,7 @@ Tests:
 py -m pytest -q
 ```
 
-379 tests.
+409 tests.
 
 ## Paper Trading
 

@@ -968,3 +968,126 @@ While verifying the rebuild I reported "max |close - raw| = 274725" and
 briefly read it as data corruption. The comparison was wrong, not the data:
 the canonical CSV stores whole VND and the rebuilt file stores thousands.
 Re-run in matching units the difference is exactly zero.
+
+================================================================================
+2026-08-30 (session 5) -- DEPLOYABILITY MEASURED; REPOSITORY FINALIZED
+================================================================================
+
+GOAL: clean the repository to one vendor, rerun the model on current data,
+and state honestly whether the strategy is deployable.
+
+THE HEADLINE RESULT IS NEGATIVE
+
+Run as the overlapping-tranche portfolio the strategy would actually trade
+-- one fifth of capital rebalancing into each day's targets and held for the
+five-day horizon -- no optimizer mode beats buying and holding the index.
+Over 9.58 years after cost, price-limit-aware execution:
+
+  sector_diversified  2.6252 vs benchmark 2.6918  active 0.9828  DD -53.1%
+  normal              2.1042 vs benchmark 2.6918  active 0.8021  DD -58.9%
+  herding_aware       2.1172 vs benchmark 2.6918  active 0.7704  DD -52.4%
+  sector_aware        1.7880 vs benchmark 2.6918  active 0.6526  DD -57.4%
+
+Every active equity is below 1.0.
+
+TWO CORRECTIONS I MADE TO MY OWN PUBLISHED VERDICT
+
+1. First version cited only the `normal` optimizer, which is positive in 2 of
+   5 overlap phases, and generalised from it to "the strategy". That was
+   cherry-picking the worst of four modes. Corrected to cover all four.
+
+2. The corrected version then reported that sector_diversified was positive
+   in all five phases, which was arithmetically true and misleading. Sampling
+   every fifth date leaves the starting offset as a free parameter, and the
+   offset moves the answer more than the strategy does: final equity spreads
+   0.48 to 1.06 across phases against 0.023 to 0.030 across tranche start
+   offsets, a factor of 20 to 45. sector_diversified looking positive
+   throughout was a property of the sampling. On the tranche construction,
+   which has no such parameter, it still finishes behind the index.
+
+The reports now lead with the tranche portfolio. The phase table is kept only
+as the evidence for why it is the wrong instrument.
+
+WHY THE OLD DRAWDOWN FIGURE WAS UNREADABLE
+max_active_drawdown is a running-peak difference on a cumsum of overlapping
+5-day active returns, so it is in summed-return units. Published values ran
+-1.03 to -1.78. In capital terms the same strategies draw down 52 to 59
+percent absolute, 26 to 46 percent active.
+
+VENDOR CONSTRAINT DISCOVERED
+FiinQuant serves only the last 3650 days. The canonical history starts
+2016-07-26 and was downloaded 2026-07-24, the last day that date was inside
+the window. A full refetch now fails with TimeFrameLimitFailed, so the local
+files are the only copy of the early history. download_fiinquant_history.py
+writes only what it fetched with no merge, so narrowing its --from-date would
+have replaced ten years with the fetched slice. scripts/
+extend_fiinquant_history.py merges instead, and rescales stored adjusted
+prices by the measured per-ticker restatement factor so the series stays on
+one adjustment basis.
+
+The post-2026-07-22 window was never opened. The failed download wrote
+nothing, and the decision was then taken to stay on the existing data. It
+remains an untouched holdout, fetchable once as a genuine out-of-sample test.
+
+CLEANUP
+- Dropped yfinance, cvxpy, statsmodels, plotly and jupyter from
+  requirements.txt. Nothing imported any of them; the optimizer is plain
+  pandas, not a convex solver. Added joblib, which tree_models imports
+  directly.
+- Deleted configs/config.yaml (nothing read it, and it pointed at a
+  sample_data/ path that does not exist), data/raw/yahoo/, and the unused
+  178MB .venv-vnstock-audit.
+- Corrected stale claims: final_results.md and methodology.md still said
+  paper trading ran on vnstock; report_index.md still carried pre-training-
+  window figures claiming only the 10-day horizon cleared cost; README said
+  19 pipeline stages and a data end of 2026-07-15 when the values are 18 and
+  2026-07-22; final_audit.md gave the test count as 349 in one section and
+  379 in another.
+- Stripped UTF-8 BOMs from 17 source files, each verified to compile to
+  identical code object names and constants.
+- README gained a full Method section: feature-group sizes derived from the
+  ablation feature counts, model hyperparameters, validation scheme,
+  portfolio constraints, cost model, and the invariants the tests enforce.
+
+VERIFICATION
+- 409 tests passing, up from 379.
+- All four audits pass.
+- The full pipeline reruns byte-identical from --clean-first. git status
+  reported no modification to any tracked file, which is the control that
+  makes the before/after comparisons meaningful.
+- The tranche diagnostic and the phase diagnostic are independent
+  implementations and agree to the digit where they overlap. Both confirmed
+  deterministic across reruns.
+- Phase means weighted by period count recover the published overlapping
+  mean to machine zero.
+
+A FAILING TEST THAT WAS THE TEST'S FAULT
+test_costs_are_charged_to_one_horizon_th_of_capital asserted every live date
+pays a tranche cost. The final live date sits past the last rebalance,
+because the fixture's weight series ends while both sleeves are still
+holding, so no tranche opens and nothing is charged. The implementation was
+right. The test now asserts that tail explicitly.
+
+RESEARCH AGENT TEAM
+Three agent definitions added under .claude/agents: quant-ideas proposes
+mechanisms, quant-qa gates them on HOSE feasibility and research validity,
+quant-dev implements only what has been approved. The workflow stops at the
+owner before any idea becomes code, and requires a search ledger and a
+pre-registered decision rule, because a generate-and-test loop against this
+history would manufacture false positives faster than they can be reviewed.
+
+NOT DONE
+- quant-qa never ran. Both agent runs died on a session rate limit. Two
+  proposals are unreviewed, including a claim that the existing downside-
+  overlay results lack a matched-average-exposure control arm and therefore
+  cannot separate risk timing from holding less risk. If true that is a
+  defect in already-published work.
+- The strongest unreviewed proposal: features are standardised over the
+  pooled training window and never within a date, while the target is
+  demeaned against the index by construction, so each feature's market-wide
+  component is orthogonal to the target yet still sets split thresholds.
+  Measured: 30.5 percent of return_10d's variance is the date mean. This is
+  the most plausible mechanical explanation for why a within-date sort beats
+  a model that receives the same column, and it is untested.
+- config/vn30_history/ is verified only through the 2026-05-13 review.
+- The live daily-update path has still never made a real vendor call.

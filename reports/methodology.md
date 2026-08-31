@@ -222,6 +222,8 @@ The reason is not that the model ignores them. The two strongest new features ra
 
 **Cumulative returns are sums, not compounded.** Every cumulative figure in this project sums overlapping forecast-period active returns. At the 10-day horizon, 2,463 evaluated dates correspond to roughly 246 genuinely non-overlapping periods. Read cumulative figures as diagnostics, not portfolio track records. Drawdown is computed on that same summed series and is therefore also in summed-return units, not a percentage of capital.
 
+For figures that are in capital terms, see the overlapping-tranche portfolio in section 12 of `reports/final_results.md`, built by `src/tranche_portfolio.py`. It holds one horizon-th of capital in each of the five phases simultaneously, which is what a daily-signal, five-day-hold strategy actually trades, and so produces a single equity curve with no free starting parameter. Drawdown on that curve is a genuine percentage of capital.
+
 **Multiple comparisons are not corrected.** This project has tested three horizons, five ablation configurations, four optimizer modes, two execution modes, and five foreign-flow feature sets against the same history. Only the foreign-flow comparison carries a confidence interval, and even that one does not adjust for being the fifth feature set on the same development data. The best-looking number in this repository is partly a product of search.
 
 **Most metrics are point estimates.** Rank IC, diagnostic Sharpe, drawdown, and return figures outside the foreign-flow experiment have no confidence intervals. Extending bootstrap intervals to the horizon and ablation results would materially strengthen or weaken those conclusions.

@@ -22,3 +22,8 @@ reports/daily/
 # Local Claude Code session state (agent definitions in .claude/agents are tracked)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Local working notes, not repository content
+/Current Project State.txt
+/prompt for next agent.txt
+/prompt for agent team.txt
