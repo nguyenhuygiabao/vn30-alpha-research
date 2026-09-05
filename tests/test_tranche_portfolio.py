@@ -7,7 +7,9 @@ import pytest
 from src.backtester import (
     COMMISSION_RATE,
     LIQUIDITY_PENALTY_RATE,
+    SELL_TAX_RATE,
     SLIPPAGE_RATE,
+    TRADED_LEGS_PER_UNIT_TURNOVER,
 )
 from src.tranche_portfolio import (
     build_daily_total_returns,
@@ -335,15 +337,66 @@ def test_tranche_costs_use_the_backtester_cost_model() -> None:
         horizon=2,
     )
 
-    expected_liquid = 0.5 * (COMMISSION_RATE + SLIPPAGE_RATE)
+    # Turnover is one-way, so a rebalance of `t` sells `t` and buys `t`.
+    # Commission and slippage fall on both legs; the transfer tax on the sale
+    # leg alone.
+    legs = TRADED_LEGS_PER_UNIT_TURNOVER
+
+    expected_liquid = 0.5 * (
+        legs * COMMISSION_RATE + legs * SLIPPAGE_RATE + SELL_TAX_RATE
+    )
     expected_illiquid = 0.5 * (
-        COMMISSION_RATE + SLIPPAGE_RATE + 1.0 * LIQUIDITY_PENALTY_RATE
+        legs * COMMISSION_RATE
+        + legs * SLIPPAGE_RATE
+        + SELL_TAX_RATE
+        + legs * 1.0 * LIQUIDITY_PENALTY_RATE
     )
 
     np.testing.assert_allclose(
         costs["tranche_cost"].to_numpy(),
         [expected_liquid, expected_illiquid],
     )
+
+
+def test_a_round_trip_costs_what_the_paper_account_charges() -> None:
+    """The backtest and the live harness must price the same trade alike.
+
+    `config/paper_trading_config.yaml` charges 0.1 percent commission and 0.1
+    percent slippage on each side and a 0.1 percent transfer tax on sales, so a
+    round trip of one unit of notional costs 0.5 percent. A filled buy in
+    `paper_trading/executions.csv` confirms the per-side charging: 5,900,000
+    VND gross carries commission 5,900 and slippage 5,900.
+
+    Before 2026-09-05 the backtest charged 0.2 percent for the same round trip,
+    a 2.5x undercharge, because it applied both rates to one-way turnover and
+    omitted the tax. This test exists so that cannot silently return.
+    """
+    weights = pd.DataFrame(
+        {
+            "date": [CALENDAR[0], CALENDAR[1]],
+            "ticker": ["AAA", "BBB"],
+            "weight": [1.0, 1.0],
+        }
+    )
+    liquidity = pd.DataFrame(
+        {
+            "date": [CALENDAR[0], CALENDAR[1]],
+            "ticker": ["AAA", "BBB"],
+            "is_low_liquidity": [False, False],
+        }
+    )
+
+    costs = calculate_tranche_costs(
+        weights=weights,
+        liquidity=liquidity,
+        horizon=2,
+    )
+
+    # Fully replacing the holding is one-way turnover of 1.0 and a round trip
+    # of 1.0 of notional. Turnover here is 0.5, so half that.
+    cost_per_unit_round_trip = costs["tranche_cost"].iloc[0] / 0.5
+
+    assert cost_per_unit_round_trip == pytest.approx(0.005)
 
 
 def test_costs_are_charged_to_one_horizon_th_of_capital() -> None:
