@@ -6,6 +6,17 @@ Research framework, not a live trading system. Not investment advice.
 
 ## Results
 
+> **Stale as of 2026-09-05.** The cost model was corrected in commit `bfdabcf`
+> — commission and slippage now charge both legs of a trade and the statutory
+> transfer tax is applied to sales, so a round trip costs 0.5 percent rather
+> than 0.2. **Every "After-Cost Return" and "Diagnostic Sharpe" figure in this
+> section was computed at 2.5x too little cost and is wrong.** Rank IC and hit
+> rate do not depend on the cost model and are unaffected.
+>
+> The Deployability table below has been regenerated and is correct. These two
+> have not been, because regenerating them re-runs the walk-forward. Do not
+> cite them until they are.
+
 Forecast horizon comparison, gradient boosting, price-limit-aware execution:
 
 | Horizon | Rank IC | Top-5 Hit Rate | After-Cost Return / Period | Diagnostic Sharpe | Evaluated Dates |
@@ -58,15 +69,32 @@ after costs, under price-limit-aware execution:
 
 | Optimizer | Strategy equity | VN30 benchmark | Active | Active drawdown |
 |---|---:|---:|---:|---:|
-| `sector_diversified` | 2.6252 | 2.6918 | 0.9828 | -26.3% |
-| `normal` | 2.1042 | 2.6918 | 0.8021 | -37.5% |
-| `herding_aware` | 2.1172 | 2.6918 | 0.7704 | -36.9% |
-| `sector_aware` | 1.7880 | 2.6918 | 0.6526 | -45.7% |
+| `sector_diversified` | 1.4850 | 2.6918 | 0.5557 | -50.3% |
+| `normal` | 1.1699 | 2.6918 | 0.4458 | -61.7% |
+| `herding_aware` | 1.1945 | 2.6918 | 0.4345 | -61.4% |
+| `sector_aware` | 1.0105 | 2.6918 | 0.3687 | -66.1% |
 
 **No optimizer mode beats buying and holding the index.** Every active equity
-is below 1.0: the best configuration turns 1.0 into 2.6252 while the VN30
-itself turns it into 2.6918, and it takes a 53 percent peak-to-trough drawdown
-along the way. The three other modes end 20 to 35 percent behind the index.
+is below 1.0: the best configuration turns 1.0 into 1.4850 while the VN30
+itself turns it into 2.6918, and the active drawdown reaches 50 percent. The
+three other modes end 55 to 63 percent behind the index.
+
+These figures were regenerated on 2026-09-05 after a correction to the cost
+model, and they are substantially worse than the ones published before that
+date — `sector_diversified` previously read 2.6252 and an active 0.9828.
+Nothing about the strategy changed. What changed is that it is now charged what
+it would actually pay.
+
+`portfolio_turnover` is one-way, so a rebalance of `t` sells `t` and buys `t`
+and trades `2t` of notional. The backtester applied commission and slippage to
+`t` rather than `2t`, and omitted Vietnam's statutory 0.1 percent transfer tax
+on sale proceeds altogether. A round trip was therefore priced at 0.2 percent
+while `config/paper_trading_config.yaml` charged 0.5 percent for the same
+trade — visible in `paper_trading/executions.csv`, where a 5,900,000 VND buy
+carries commission 5,900 and slippage 5,900, both per side. The live harness was
+right and the backtest was not. See commit `bfdabcf`.
+
+The earlier figures understated cost by a factor of 2.5 and should not be cited.
 
 Sampling non-overlapping periods instead leaves the starting offset as a free
 parameter, and that choice moves the answer more than the strategy does: final
