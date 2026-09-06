@@ -6,16 +6,20 @@ Research framework, not a live trading system. Not investment advice.
 
 ## Results
 
-> **Stale as of 2026-09-05.** The cost model was corrected in commit `bfdabcf`
-> — commission and slippage now charge both legs of a trade and the statutory
-> transfer tax is applied to sales, so a round trip costs 0.5 percent rather
-> than 0.2. **Every "After-Cost Return" and "Diagnostic Sharpe" figure in this
-> section was computed at 2.5x too little cost and is wrong.** Rank IC and hit
-> rate do not depend on the cost model and are unaffected.
+> **Partly stale as of 2026-09-05.** The cost model was corrected in commit
+> `bfdabcf` — commission and slippage now charge both legs of a trade and the
+> statutory transfer tax is applied to sales, so a round trip costs 0.5 percent
+> rather than 0.2. Rank IC and hit rate do not depend on the cost model and are
+> unaffected anywhere.
 >
-> The Deployability table below has been regenerated and is correct. These two
-> have not been, because regenerating them re-runs the walk-forward. Do not
-> cite them until they are.
+> | Table | State |
+> |---|---|
+> | Deployability | **Regenerated**, correct |
+> | Feature ablation | **Regenerated**, correct |
+> | Horizon comparison *(immediately below)* | **STALE** — its "After-Cost Return" and "Diagnostic Sharpe" were computed at 2.5x too little cost and are wrong. Do not cite them. |
+>
+> The horizon table needs a walk-forward rerun per horizon, which has not been
+> done. Regenerate it with `.\run_model.ps1 -Mode costs`.
 
 Forecast horizon comparison, gradient boosting, price-limit-aware execution:
 
@@ -27,17 +31,23 @@ Forecast horizon comparison, gradient boosting, price-limit-aware execution:
 
 The 5-day and 10-day horizons are after-cost positive; the 1-day horizon is not.
 
-Feature ablation, 5-day horizon:
+Feature ablation, 5-day horizon. **Regenerated 2026-09-05 under the corrected
+cost model** (`bfdabcf`):
 
 | Configuration | Features | Rank IC | After-Cost Return / Period |
 |---|---:|---:|---:|
-| All features | 99 | 0.033360 | 0.000076 |
-| Excluding risk | 97 | 0.033263 | -0.000347 |
-| Excluding herding | 89 | 0.033124 | 0.000081 |
-| Excluding price limit | 84 | 0.029790 | -0.000202 |
-| Excluding volume/liquidity | 88 | 0.029133 | -0.000309 |
+| All features | 99 | 0.033360 | **-0.000822** |
+| Excluding risk | 97 | 0.033263 | -0.001244 |
+| Excluding herding | 89 | 0.033124 | -0.000818 |
+| Excluding price limit | 84 | 0.029790 | -0.001127 |
+| Excluding volume/liquidity | 88 | 0.029133 | -0.001224 |
 
-The full feature set is now the strongest configuration, and two of five clear transaction costs.
+The full feature set is still the strongest configuration, and **none of the
+five clears transaction costs.** Before the cost correction two of five appeared
+to; that was an artifact of charging a round trip 0.2 percent instead of 0.5.
+
+Rank IC is unchanged, as expected — it does not depend on the cost model. Only
+the after-cost columns moved.
 
 Baseline comparison, top-5 selection, before cost, matched concentration and target:
 
