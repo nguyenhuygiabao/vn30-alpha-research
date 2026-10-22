@@ -4,7 +4,7 @@ Links to the main outputs of the VN30 Alpha Research Framework.
 
 ## Start here
 
-- [Report Page](reportpage.html) — headline results, before/after comparisons, and the training-window sweep. Generated from `reports/tables/` on every pipeline run.
+- [Report Page](reportpage.html) — headline results, the training-window sweep, and the deployability table. Generated from `reports/tables/` on every pipeline run.
 - [Final Results](final_results.md) — main findings, backtest results, horizon and ablation tests, baseline comparison, limitations.
 - [Methodology](methodology.md) — universe, data contract, labels, features, models, validation, optimizer, costs, bias controls.
 - [Audit](final_audit.md) — automated audit output, test suite, reproducibility and consistency checks, known gaps.
@@ -49,8 +49,7 @@ the overlapping-tranche portfolio the strategy would actually trade, the best
 configuration turns 1.0 into 1.4850 over 9.58 years against the index's
 2.6918, with a 58 percent peak-to-trough fall in capital; the other three
 finish 55 to 63 percent behind the index on compounded active return.
-These are the figures under the corrected cost model of commit `bfdabcf`; before
-that correction the same row read 2.6252 and a 53.1 percent drawdown. The per-period figures below are correct; they simply do not
+The per-period figures below are correct; they simply do not
 survive being compounded as a portfolio. See section 12 of the final
 results.
 

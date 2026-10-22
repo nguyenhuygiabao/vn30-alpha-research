@@ -6,24 +6,7 @@ Research framework, not a live trading system. Not investment advice.
 
 ## Results
 
-> **Partly stale as of 2026-09-05.** The cost model was corrected in commit
-> `bfdabcf` — commission and slippage now charge both legs of a trade and the
-> statutory transfer tax is applied to sales, so a round trip costs 0.5 percent
-> rather than 0.2. Rank IC and hit rate do not depend on the cost model and are
-> unaffected anywhere.
->
-> | Table | State |
-> |---|---|
-> | Deployability | **Regenerated**, correct |
-> | Feature ablation | **Regenerated**, correct |
-> | Horizon comparison *(immediately below)* | **Regenerated 2026-10-21**, correct |
-> | Benchmark / portfolio comparison | **Regenerated 2026-10-21**, correct |
->
-> Every table in this README is now on the corrected cost model. Rank IC and
-> hit rate do not depend on the cost model and never moved.
-
-Forecast horizon comparison, gradient boosting, price-limit-aware execution.
-**Regenerated 2026-10-21 under the corrected cost model:**
+Forecast horizon comparison, gradient boosting, price-limit-aware execution:
 
 | Horizon | Rank IC | Top-5 Hit Rate | After-Cost Return / Period | Diagnostic Sharpe | Evaluated Dates |
 |---:|---:|---:|---:|---:|---:|
@@ -33,8 +16,7 @@ Forecast horizon comparison, gradient boosting, price-limit-aware execution.
 
 The 10-day horizon is after-cost positive; the 1-day and 5-day horizons are not.
 
-Feature ablation, 5-day horizon. **Regenerated 2026-09-05 under the corrected
-cost model** (`bfdabcf`):
+Feature ablation, 5-day horizon:
 
 | Configuration | Features | Rank IC | After-Cost Return / Period |
 |---|---:|---:|---:|
@@ -44,18 +26,23 @@ cost model** (`bfdabcf`):
 | Excluding price limit | 84 | 0.029790 | -0.001127 |
 | Excluding volume/liquidity | 88 | 0.029133 | -0.001224 |
 
-The full feature set is still the strongest configuration, and **none of the
-five clears transaction costs.** Before the cost correction two of five appeared
-to; that was an artifact of charging a round trip 0.2 percent instead of 0.5.
+The full feature set is the strongest configuration on Rank IC, which is a
+separate claim from paying for itself: **none of the five clears transaction
+costs.** Removing the price-limit or volume/liquidity groups costs the most
+Rank IC, which is what one would expect of features built around the mechanics
+of the exchange.
 
-The same correction moves the portfolio comparison: 2 of
-8 optimizer/execution configurations are after-cost positive per
-period, where the pre-correction tables showed 8 of 8.
+**2 of 8 optimizer/execution configurations have positive after-cost active
+return per period**, and every one of the eight has a 95 percent bootstrap
+interval on that mean which spans zero.
 
-Every row of `benchmark_results.csv` now carries a 95 percent moving-block bootstrap interval on its mean after-cost active return (2,000 resamples, blocked at the 5-day horizon so the overlap between consecutive period returns stays inside a block). The best configuration, `sector_diversified_normal`, has mean 0.000225 with interval [-0.000624, 0.001085], which spans zero. The most conservative, `normal` + `price_limit_aware`, has mean -0.000822 with interval [-0.002056, 0.000462], which spans zero. This replaces the earlier description of a near-zero Sharpe as "statistically indistinguishable from zero", which was an assertion with no test behind it.
-
-Rank IC is unchanged, as expected — it does not depend on the cost model. Only
-the after-cost columns moved.
+Every row of `benchmark_results.csv` carries a 95 percent moving-block
+bootstrap interval on its mean after-cost active return (2,000 resamples,
+blocked at the 5-day horizon so the overlap between consecutive period returns
+stays inside a block). The strongest configuration, `sector_diversified` +
+`normal`, has mean 0.000225 with interval [-0.000624, 0.001085]. The most
+conservative, `normal` + `price_limit_aware`, has mean -0.000822 with interval
+[-0.002056, 0.000462]. Both span zero.
 
 Baseline comparison, top-5 selection, before cost, matched concentration and target:
 
@@ -68,25 +55,19 @@ Baseline comparison, top-5 selection, before cost, matched concentration and tar
 | random_forest | 0.001076 | 2418 |
 | gradient_boosting | 0.001073 | 2418 |
 
-A single-feature momentum rule still outperforms every trained model, though
-the gap has narrowed. `return_10d` is already an input feature to all five
-models.
+**A single-feature momentum rule outperforms every trained model.**
+`top5_momentum` returns 0.002264 per 5-day period before cost; the strongest
+trained model, `elastic_net`, returns 0.001992 on the same dates, which is 88
+percent of the baseline. `return_10d` is an input feature to all five models,
+so none of them is missing the information the baseline uses.
 
-**The 62 and 88 percent figures are the best model at each stage, and that is
-not the same model at each stage.** Before the training window was widened the
-leader was `random_forest` at 0.001433 against a 0.002310 baseline, which is 62
-percent. After widening it is `elastic_net` at 0.001992 against 0.002264, which
-is 88 percent. Like for like, `elastic_net` itself went from 58 percent to 88
-percent. Both readings are reported so neither can be mistaken for the other.
-
-**The momentum baseline moves from 0.002310 to 0.002264 even though the rule
-never changed.** It is a fixed, untrained rule reported before cost, so neither
-the training window nor the cost model can touch it. What changed is the sample:
-a walk-forward window cannot predict until it has `train_size` dates behind it,
-so going from 3 to 63 dates consumes 60 more dates of warm-up. The baseline is a
-mean over 2,478 dates before and 2,418 after — 2,478 − 2,418 = 60 = 63 − 3. The
-dates left the sample; the rule did not move. Every before/after pair in this
-README has that same 60-date difference between its two columns.
+`top5_momentum` is also the only row in `benchmark_results.csv` whose 95
+percent bootstrap interval excludes zero: [0.000710, 0.003691], measured before
+cost. Every after-cost portfolio configuration spans zero. The baseline is
+measured before cost and the portfolios after it, so this is not a
+like-for-like contest — but it is the shape of the result: a detectable signal
+in a one-feature rule, and nothing detectable left once the models and the
+trading costs are added.
 
 Foreign buy/sell features were tested against a decision rule fixed before results were seen (paired block bootstrap on daily Rank IC, 222 non-overlapping signals, promote only if the 95 percent confidence interval excludes zero). Mean difference -0.002608, CI [-0.013314, +0.008297]. Not promoted.
 
@@ -126,18 +107,16 @@ two differ — compounding a difference of returns is not the same as taking a
 ratio of compounded returns, and the gap is the covariance of the two legs, not
 rounding.
 
-**The 53 percent and -26.3 percent drawdowns previously published side by side
-are two different curves, not two readings of one.** 53.1 percent was the
-peak-to-trough fall of `sector_diversified`'s own compounded equity curve —
-capital down 53.1 percent from its high-water mark — while -26.3 percent was
-the peak-to-trough fall of the compounded *active* curve, the long-strategy /
-short-index sleeve. Both are percentages of capital and both are compounded;
-they differ because a portfolio and a hedged version of that portfolio draw
-down at different times and by different amounts. Under the corrected cost
-model the same pair reads -58.3 percent and -50.3 percent. The strategy
-drawdown column answers "how far did the account fall", the active drawdown
-column answers "how far did the bet against the index fall", and neither
-substitutes for the other.
+**The two drawdown columns are two different curves, not two readings of
+one.** `Strategy drawdown` is the peak-to-trough fall of the optimizer's own
+compounded equity curve: -58.3 percent means capital fell 58.3 percent from its
+high-water mark. `Active drawdown` is the peak-to-trough fall of the compounded
+*active* curve, the long-strategy / short-index sleeve, at -50.3 percent. Both
+are compounded and both are percentages of capital; they differ because a
+portfolio and a hedged version of that portfolio fall at different times and by
+different amounts. The strategy column answers "how far did the account fall",
+the active column answers "how far did the bet against the index fall", and
+neither substitutes for the other.
 
 **A third, non-comparable drawdown convention appears in the per-period
 tables.** `max_active_drawdown` in `benchmark_results.csv` is a running-peak
@@ -147,23 +126,13 @@ percentage of capital at all — the conservative configuration's -3.30 there is
 not a 330 percent loss. No number is carried between that convention and the
 two compounded columns above.
 
-These figures were regenerated on 2026-09-05 after a correction to the cost
-model, and they are substantially worse than the ones published before that
-date — `sector_diversified` previously read a strategy equity of 2.6252, an
-active 0.9828, and a 53.1 percent strategy drawdown.
-Nothing about the strategy changed. What changed is that it is now charged what
-it would actually pay.
-
 `portfolio_turnover` is one-way, so a rebalance of `t` sells `t` and buys `t`
-and trades `2t` of notional. The backtester applied commission and slippage to
-`t` rather than `2t`, and omitted Vietnam's statutory 0.1 percent transfer tax
-on sale proceeds altogether. A round trip was therefore priced at 0.2 percent
-while `config/paper_trading_config.yaml` charged 0.5 percent for the same
-trade — visible in `paper_trading/executions.csv`, where a 5,900,000 VND buy
-carries commission 5,900 and slippage 5,900, both per side. The live harness was
-right and the backtest was not. See commit `bfdabcf`.
-
-The earlier figures understated cost by a factor of 2.5 and should not be cited.
+and trades `2t` of notional. Commission and slippage are charged on both legs
+and Vietnam's statutory 0.1 percent transfer tax on sale proceeds on the sale
+leg, so a round trip costs 0.5 percent. That matches
+`config/paper_trading_config.yaml` and the fills in
+`paper_trading/executions.csv`, where a 5,900,000 VND buy carries commission
+5,900 and slippage 5,900, both per side.
 
 Sampling non-overlapping periods instead leaves the starting offset as a free
 parameter, and that choice moves the answer more than the strategy does: final
@@ -336,7 +305,7 @@ reports/data_quality_report.md
 docs/enhanced_fb_fs_checkpoint.md   foreign-flow experiment and result
 ```
 
-Report page: [nguyenhuygiabao.github.io/vn30-alpha-research](https://nguyenhuygiabao.github.io/vn30-alpha-research/) (repository copy at `reports/reportpage.html`, regenerated from `reports/tables/` by `scripts/build_report_page.py` on every pipeline run)
+Report page: [nguyenhuygiabao.github.io/vn30-alpha-research](https://nguyenhuygiabao.github.io/vn30-alpha-research/) (repository copy at `reports/reportpage.html`, built from `reports/tables/` by `scripts/build_report_page.py` on every pipeline run)
 
 ## Usage
 
@@ -417,7 +386,7 @@ Generated paper-account ledgers are local state and are not tracked.
 ## Limitations
 
 - Multiple comparisons are not corrected. Three horizons, five ablation configurations, four optimizer modes, two execution modes, and five foreign-flow feature sets were tested against the same history.
-- Rank IC, hit rate, and the per-horizon and per-ablation figures are point estimates with no interval. Intervals are reported for the foreign-flow comparison (paired block bootstrap) and, since 2026-10-21, for the mean after-cost active return of every row of `benchmark_results.csv` (95 percent moving-block bootstrap, 2,000 resamples, blocked at the 5-day horizon so the overlap between consecutive period returns stays inside a block).
+- Rank IC, hit rate, and the per-horizon and per-ablation figures are point estimates with no interval. Intervals are reported for the foreign-flow comparison (paired block bootstrap) and for the mean after-cost active return of every row of `benchmark_results.csv` (95 percent moving-block bootstrap, 2,000 resamples, blocked at the 5-day horizon so the overlap between consecutive period returns stays inside a block).
 - Cumulative figures sum overlapping periods rather than compounding.
 - Daily bars only: no intraday queue priority, order-book depth, or hidden liquidity. Foreign ownership room is not modeled.
 - No fundamental, macro, or news data.

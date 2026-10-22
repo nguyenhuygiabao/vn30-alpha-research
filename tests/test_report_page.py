@@ -7,12 +7,9 @@ import pandas as pd
 import pytest
 
 from scripts.build_report_page import (
-    ARROW_DOWN,
-    ARROW_UP,
     MINUS,
     TABLES,
     build_page,
-    delta_cell,
     num,
 )
 
@@ -36,24 +33,6 @@ needs_tables = pytest.mark.skipif(
 def test_num_uses_a_true_minus_sign_not_a_hyphen() -> None:
     assert num(-0.000481) == f"{MINUS}0.000481"
     assert "-" not in num(-1.234, 3)
-
-
-def test_delta_cell_carries_a_glyph_in_both_directions() -> None:
-    # Colour alone must never signal direction: the success and critical steps
-    # fail CVD separation against each other, so an improvement and a regression
-    # look identical to a red-green colourblind reader without the arrow.
-    improved = delta_cell(0.03, 0.02)
-    worsened = delta_cell(0.01, 0.02)
-
-    assert ARROW_UP in improved and 'class="up"' in improved
-    assert ARROW_DOWN in worsened and 'class="down"' in worsened
-
-
-def test_delta_cell_omits_the_glyph_when_unchanged() -> None:
-    unchanged = delta_cell(0.02, 0.02)
-
-    assert ARROW_UP not in unchanged
-    assert ARROW_DOWN not in unchanged
 
 
 @needs_tables
@@ -82,14 +61,15 @@ def test_page_renders_figures_from_the_live_tables() -> None:
 
 
 @needs_tables
-def test_every_coloured_value_also_carries_an_arrow() -> None:
+def test_no_value_is_encoded_by_colour_alone() -> None:
+    # The success and critical steps fail CVD separation against each other
+    # (OKLab dE 4.6 protan on the light surface, 4.1 deutan on the dark), so
+    # hue must never be the only carrier of meaning. The page states verdicts
+    # in words and signs with a minus glyph, and colours no value cell.
     html = build_page()
 
-    coloured = re.findall(r'class="(?:up|down)">([^<]*)<', html)
-
-    assert coloured, "expected the page to contain coloured delta cells"
-    for value in coloured:
-        assert value.lstrip().startswith((ARROW_UP, ARROW_DOWN)), value
+    assert not re.findall(r'class="(?:up|down)"', html)
+    assert "behind the index" in html or "ahead of the index" in html
 
 
 @needs_tables
@@ -107,7 +87,10 @@ def test_page_reports_the_training_window_actually_in_use() -> None:
 
     html = build_page()
 
-    assert f"DEFAULT_TRAIN_SIZE = {DEFAULT_TRAIN_SIZE}" in html
+    # Named in the header and in the section that justifies it, so the page
+    # cannot describe one window while the pipeline runs another.
+    assert f"walk-forward training window {DEFAULT_TRAIN_SIZE} trading dates" in html
+    assert f"Why the training window is {DEFAULT_TRAIN_SIZE} dates" in html
 
 
 @needs_tables
