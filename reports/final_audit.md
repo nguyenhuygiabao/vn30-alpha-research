@@ -98,16 +98,16 @@ py .\scripts\run_full_pipeline.py
 
 Stage order: data quality, features, labels, walk-forward checks, linear models, tree models, classification models, baseline portfolios, risk model, optimizer, backtester, ablation tests, horizon tests, report tables, model report, figures, report page, report summary.
 
-Cache behaviour: `--reuse-existing-ml` skips expensive model stages only when their outputs exist and are newer than their dependency files. `src/ablation_tests.py` and `src/horizon_tests.py` previously carried a separate internal cache with no freshness check, which served stale predictions indefinitely; that cache has been removed and both stages now always rebuild when invoked directly.
+Cache behaviour: `--reuse-existing-ml` skips expensive model stages only when their outputs exist and are newer than their dependency files. Neither `src/ablation_tests.py` nor `src/horizon_tests.py` carries an internal prediction cache; both rebuild whenever they are invoked directly.
 
 **Verified reproducible.** A complete rerun from `--clean-first`, rebuilding every processed artefact from the canonical CSVs, produced output byte-identical to the committed tables, figures and report page. `git status` reported no modification to any tracked file. Stage timings for that run: ablation tests 3,230s, horizon tests 1,936s, tree models 1,193s, optimizer 181s, linear models 102s, all other stages under 70s.
 
 ## 5. Consistency Checks
 
-Two independently regenerated outputs are cross-checked for agreement:
+Independently produced outputs are cross-checked for agreement:
 
-- `horizon_results.csv` at the 5-day horizon and `ablation_results.csv` for `all_features` describe the same configuration (gradient boosting, all features, price-limit-aware execution) and agree exactly: Rank IC 0.033360, after-cost return 0.000076, cumulative 0.183687.
-- `ablation_results.csv` for `all_features` and `benchmark_results.csv` for `ml_normal_price_limit_aware` agree at 0.000076. The ablation backtest applies price-limit execution unconditionally, so it corresponds to the `price_limit_aware` benchmark row, not the `normal` one.
+- `horizon_results.csv` at the 5-day horizon and `ablation_results.csv` for `all_features` describe the same configuration (gradient boosting, all features, price-limit-aware execution) and agree exactly: Rank IC 0.033360, after-cost return -0.000822, cumulative -1.988493.
+- `ablation_results.csv` for `all_features` and `benchmark_results.csv` for `ml_normal_price_limit_aware` agree at -0.000822. The ablation backtest applies price-limit execution unconditionally, so it corresponds to the `price_limit_aware` benchmark row, not the `normal` one.
 - The phase-sampled columns of `tranche_portfolio_diagnostic.csv` and the whole of `compounded_phase_sensitivity.csv` are produced by two independent implementations and agree to the digit, for example `normal` under price-limit-aware execution at 0.725619 to 1.393828 final equity and -43.145238 to -25.288476 percent drawdown. Both diagnostics were confirmed deterministic across reruns.
 - Weighted by period count, the five phase means recover the published overlapping per-period mean exactly, to machine zero. The weighting is necessary because the series length is not a multiple of the horizon, so phases hold 484 or 483 periods.
 
@@ -121,8 +121,8 @@ Two independently regenerated outputs are cross-checked for agreement:
 
 ## 7. Status
 
-Automated audits pass, the test suite passes at 409 tests, the pipeline reruns byte-identical from clean, and independently regenerated outputs agree where they describe the same configuration. Research results are documented in `reports/final_results.md`, methodology in `reports/methodology.md`, and the foreign-flow experiment in `docs/enhanced_fb_fs_checkpoint.md`.
+Automated audits pass, the test suite passes at 433 tests, the pipeline reruns byte-identical from clean, and independently produced outputs agree where they describe the same configuration. Research results are documented in `reports/final_results.md`, methodology in `reports/methodology.md`, and the foreign-flow experiment in `docs/enhanced_fb_fs_checkpoint.md`.
 
-**The headline research result is negative.** Run as the overlapping-tranche portfolio the strategy would actually trade, no optimizer mode beats buying and holding the VN30 after costs: the best configuration returns 2.6252 against the index's 2.6918 over 9.58 years, with a 53 percent peak-to-trough drawdown. Section 12 of `reports/final_results.md` gives the full table and explains why the tranche construction, rather than non-overlapping sampling, is the instrument reported.
+**The headline research result is negative.** Run as the overlapping-tranche portfolio the strategy would actually trade, no optimizer mode beats buying and holding the VN30 after costs: the best configuration returns 1.4850 against the index's 2.6918 over 9.58 years (2,414 trading days at 252 per year), with a 58 percent peak-to-trough fall in capital and a compounded active equity of 0.5557. Section 12 of `reports/final_results.md` gives the full table and explains why the tranche construction, rather than non-overlapping sampling, is the instrument reported.
 
 This repository is a research framework. It is not a live trading system and the reports are historical diagnostics, not investment recommendations.

@@ -15,6 +15,26 @@ MODEL_NAME: str = "gradient_boosting"
 COMMISSION_RATE: float = 0.001
 SLIPPAGE_RATE: float = 0.001
 LIQUIDITY_PENALTY_RATE: float = 0.001
+
+# Vietnam levies a 0.1 percent transfer tax on sale proceeds. It is statutory
+# rather than an assumption, and it falls on the sale leg only.
+SELL_TAX_RATE: float = 0.001
+
+# `portfolio_turnover` is one-way: `0.5 * sum |dw|`. A rebalance of turnover
+# `t` therefore sells `t` and buys `t`, and the notional actually traded is
+# `2t`.
+#
+# Commission and slippage are incurred on every trade, so they are charged on
+# both legs. The transfer tax is charged on the sale leg alone.
+#
+# Until 2026-09-05 this module charged commission and slippage on `t` rather
+# than `2t` and omitted the tax entirely, undercharging a round trip by a
+# factor of 2.5. That put the backtest at odds with `src/paper_trading/`, where
+# a filled order is charged per side: a 5,900,000 VND buy in
+# `paper_trading/executions.csv` carries commission 5,900 and slippage 5,900.
+# The paper account is the correct one, and these rates now agree with it.
+TRADED_LEGS_PER_UNIT_TURNOVER: float = 2.0
+
 LOW_LIQUIDITY_QUANTILE: float = 0.20
 MAX_EXECUTION_TURNOVER: float = 0.40
 MIN_EXECUTION_WEIGHT: float = 1e-8
@@ -314,15 +334,24 @@ def calculate_backtest_returns(
     )
 
     daily_returns["commission_cost"] = (
-        daily_returns["portfolio_turnover"] * COMMISSION_RATE
+        daily_returns["portfolio_turnover"]
+        * TRADED_LEGS_PER_UNIT_TURNOVER
+        * COMMISSION_RATE
     )
 
     daily_returns["slippage_cost"] = (
-        daily_returns["portfolio_turnover"] * SLIPPAGE_RATE
+        daily_returns["portfolio_turnover"]
+        * TRADED_LEGS_PER_UNIT_TURNOVER
+        * SLIPPAGE_RATE
+    )
+
+    daily_returns["sell_tax_cost"] = (
+        daily_returns["portfolio_turnover"] * SELL_TAX_RATE
     )
 
     daily_returns["liquidity_penalty"] = (
         daily_returns["portfolio_turnover"]
+        * TRADED_LEGS_PER_UNIT_TURNOVER
         * daily_returns["low_liquidity_weight"]
         * LIQUIDITY_PENALTY_RATE
     )
@@ -330,6 +359,7 @@ def calculate_backtest_returns(
     daily_returns["total_cost"] = (
         daily_returns["commission_cost"]
         + daily_returns["slippage_cost"]
+        + daily_returns["sell_tax_cost"]
         + daily_returns["liquidity_penalty"]
     )
 

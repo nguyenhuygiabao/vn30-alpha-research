@@ -37,7 +37,9 @@ import pandas as pd
 from src.backtester import (
     COMMISSION_RATE,
     LIQUIDITY_PENALTY_RATE,
+    SELL_TAX_RATE,
     SLIPPAGE_RATE,
+    TRADED_LEGS_PER_UNIT_TURNOVER,
 )
 
 HOLD_HORIZON_DAYS: int = 5
@@ -236,10 +238,20 @@ def calculate_tranche_costs(
 
     costs["low_liquidity_weight"] = costs["low_liquidity_weight"].fillna(0.0)
 
-    costs["commission_cost"] = costs["tranche_turnover"] * COMMISSION_RATE
-    costs["slippage_cost"] = costs["tranche_turnover"] * SLIPPAGE_RATE
+    costs["commission_cost"] = (
+        costs["tranche_turnover"]
+        * TRADED_LEGS_PER_UNIT_TURNOVER
+        * COMMISSION_RATE
+    )
+    costs["slippage_cost"] = (
+        costs["tranche_turnover"]
+        * TRADED_LEGS_PER_UNIT_TURNOVER
+        * SLIPPAGE_RATE
+    )
+    costs["sell_tax_cost"] = costs["tranche_turnover"] * SELL_TAX_RATE
     costs["liquidity_penalty"] = (
         costs["tranche_turnover"]
+        * TRADED_LEGS_PER_UNIT_TURNOVER
         * costs["low_liquidity_weight"]
         * LIQUIDITY_PENALTY_RATE
     )
@@ -247,6 +259,7 @@ def calculate_tranche_costs(
     costs["tranche_cost"] = (
         costs["commission_cost"]
         + costs["slippage_cost"]
+        + costs["sell_tax_cost"]
         + costs["liquidity_penalty"]
     )
 

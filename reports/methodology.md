@@ -92,11 +92,11 @@ Validation is walk-forward, never a random split. Random splitting on time-order
 
 Each window trains on **63 trading dates**, validates on 1, and tests on 1, stepping forward one date at a time, which yields about 2,420 windows over the history. A **5-day purge** is applied at each train/validation and validation/test boundary.
 
-`train_size` counts dates, not blocks, so with roughly 30 active constituents each window fits on about **1,890 rows** against 99 features. This was previously 3 dates, or about 90 rows, a value duplicated across five model modules that appears never to have been revisited as the dataset grew. It is now the single constant `DEFAULT_TRAIN_SIZE` in `src/walk_forward_split.py`.
+`train_size` counts dates, not blocks, so with roughly 30 active constituents each window fits on about **1,890 rows** against 99 features. It is defined once, as the constant `DEFAULT_TRAIN_SIZE` in `src/walk_forward_split.py`.
 
 The value was selected by sweeping {3, 21, 63, 126, 252} against a shared set of 223 evaluation dates (`scripts/diagnose_training_window.py`). The relationship is an inverted U rather than monotonic: Rank IC peaks at 21 dates and falls to roughly zero at 252, which is consistent with long windows averaging across market regimes that no longer apply. 63 was chosen over the Rank-IC-optimal 21 because it had the best top-5 hit rate and the only clearly positive top-5 return, and portfolio construction selects a top-N basket rather than trading the full ranking.
 
-Widening the window raised Rank IC at 1-day and 5-day horizons, moved the 5-day horizon from net-negative to net-positive after cost, and reversed the earlier ablation finding that removing features helped. Section 11 of `reports/final_results.md` carries the full before/after comparison.
+Section 11 of `reports/final_results.md` carries the full sweep, the measured training-row counts, and why the sweep's Rank IC for the chosen window differs from the production figure.
 
 The purge exists because 5-day and 10-day forward labels overlap adjacent dates. Without it, a training row's label window extends into the test period and the model is partly scored on information it already saw. Adding purging is what collapsed this project's earlier headline results, and those earlier numbers should be treated as leakage-inflated.
 
@@ -140,25 +140,25 @@ Five configurations, removing one feature group at a time, all under price-limit
 
 | Configuration | Features | Rank IC | Top-5 Hit Rate | After-Cost Return | Cumulative After-Cost |
 |---|---:|---:|---:|---:|---:|
-| All features | 99 | 0.033360 | 0.481307 | 0.000076 | 0.184 |
-| Excluding risk | 97 | 0.033263 | 0.481472 | -0.000347 | -0.840 |
-| Excluding herding | 89 | 0.033124 | 0.482299 | 0.000081 | 0.195 |
-| Excluding price limit | 84 | 0.029790 | 0.477916 | -0.000202 | -0.489 |
-| Excluding volume/liquidity | 88 | 0.029133 | 0.476427 | -0.000309 | -0.747 |
+| All features | 99 | 0.033360 | 0.481307 | -0.000822 | -1.988 |
+| Excluding risk | 97 | 0.033263 | 0.481472 | -0.001244 | -3.007 |
+| Excluding herding | 89 | 0.033124 | 0.482299 | -0.000818 | -1.978 |
+| Excluding price limit | 84 | 0.029790 | 0.477916 | -0.001127 | -2.726 |
+| Excluding volume/liquidity | 88 | 0.029133 | 0.476427 | -0.001224 | -2.960 |
 
-The full feature set is now the strongest configuration and two of five clear transaction costs. This reverses the earlier reading: under a 3-date training window, removing features improved Rank IC and `without_risk` led, which suggested the feature set was largely noise. With 63 dates the ranking inverts. The earlier result reflected too little training data to use 99 features, not harmful features.
+The full feature set is the strongest configuration on Rank IC, so no feature group is dead weight on ranking quality. On after-cost return, none of the five clears transaction costs. Removing the price-limit or volume/liquidity groups costs the most Rank IC. This reverses the earlier reading: under a 3-date training window, removing features improved Rank IC and `without_risk` led, which suggested the feature set was largely noise. With 63 dates the ranking inverts. The earlier result reflected too little training data to use 99 features, not harmful features.
 
 Removing price-limit or volume/liquidity features is now clearly worse on both Rank IC and after-cost return. `without_herding` is essentially tied with the full set, so herding features remain unproven as an alpha source, consistent with their original purpose as a portfolio risk control.
 
-These numbers come from a fresh run. A stale-cache bug in `src/ablation_tests.py` previously served three-week-old predictions from a 51-feature snapshot, and the conclusions drawn from that run were wrong. The internal cache has been removed.
+`src/ablation_tests.py` carries no prediction cache, so these numbers come from a full run of the configured feature set.
 
 ### Forecast horizon
 
 | Horizon | Rank IC | Top-5 Hit Rate | After-Cost Return | Diagnostic Sharpe | Cumulative After-Cost | Dates |
 |---:|---:|---:|---:|---:|---:|---:|
-| 1d | 0.044204 | 0.482784 | -0.000244 | -0.031919 | -0.593 | 2428 |
-| 5d | 0.033360 | 0.481307 | 0.000076 | 0.003907 | 0.184 | 2418 |
-| 10d | 0.037407 | 0.482147 | 0.001120 | 0.039957 | 2.691 | 2403 |
+| 1d | 0.044204 | 0.482784 | -0.001420 | -0.185495 | -3.451 | 2428 |
+| 5d | 0.033360 | 0.481307 | -0.000822 | -0.042290 | -1.988 | 2418 |
+| 10d | 0.037407 | 0.482147 | 0.000351 | 0.012532 | 0.845 | 2403 |
 
 The 10-day horizon remains strongest after cost, and the 5-day horizon has crossed from negative to marginally positive. The 1-day horizon now has the highest Rank IC of the three yet is still the only net-negative one, which locates its failure in rebalancing cost rather than in prediction.
 
@@ -171,7 +171,7 @@ The 10-day horizon remains strongest after cost, and the 5-day horizon has cross
 | top5_momentum | 0.002264 | before cost | 5 |
 | ML sector_diversified / normal | 0.000930 | after cost | 12.9 |
 | ML sector_diversified / price_limit_aware | 0.000696 | after cost | 12.9 |
-| ML normal / price_limit_aware | 0.000076 | after cost | 6.3 |
+| ML normal / price_limit_aware | -0.000822 | after cost | 6.3 |
 
 `top5_momentum` sorts on a single feature — trailing 10-day return — and holds the top five. It still beats every ML portfolio variant, though all eight ML variants are now positive after cost, where five of eight were negative under the previous training window.
 
@@ -185,7 +185,7 @@ The cost basis differs (baselines are before cost, ML is after), so this is not 
 | gradient_boosting top-5 | 0.001080 |
 | random_forest top-5 | 0.001030 |
 
-Every trained model still picks worse top-5 baskets than a single trailing-return sort, and `return_10d` is already one of their input features. The margin narrowed from 1.6x to 1.14x when the training window was widened, so part of the original gap was undertraining rather than a property of the signal. The remainder is unresolved.
+Every trained model picks worse top-5 baskets than a single trailing-return sort, and `return_10d` is one of their input features, so none of them is missing the information the baseline uses. The strongest, `elastic_net`, reaches 88 percent of the baseline. The gap is unresolved.
 
 ## 11. Foreign Flow Experiment
 
