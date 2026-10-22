@@ -8,6 +8,21 @@ For each trading date the model ranks the active VN30 constituents by expected o
 
 This is a research pipeline, not a trading strategy. Several of the results reported below are negative.
 
+> **Cost-model correction, 2026-09-05 (commit `bfdabcf`).** Commission and
+> slippage are now charged on both legs of a trade and Vietnam's statutory 0.1
+> percent transfer tax on sale proceeds is applied, so a round trip costs 0.5
+> percent rather than 0.2 — matching what `config/paper_trading_config.yaml`
+> and `paper_trading/executions.csv` have always charged.
+>
+> The horizon, ablation, benchmark and deployability tables were regenerated
+> under that model on 2026-09-05 and 2026-10-21. **Any `after-cost return`,
+> `diagnostic Sharpe`, `cumulative` or `drawdown` figure in the detailed
+> sections below that is not marked as regenerated was computed at 2.5x too
+> little cost and should be read from `reports/tables/*.csv` or
+> `reports/reportpage.html` instead.** Rank IC and hit rate do not depend on
+> the cost model and are unaffected everywhere.
+
+
 ## 2. Investment Universe
 
 The universe is **point-in-time VN30 membership**, not the current constituent list applied backward.
@@ -146,7 +161,7 @@ Five configurations, removing one feature group at a time, all under price-limit
 | Excluding price limit | 84 | 0.029790 | 0.477916 | -0.000202 | -0.489 |
 | Excluding volume/liquidity | 88 | 0.029133 | 0.476427 | -0.000309 | -0.747 |
 
-The full feature set is now the strongest configuration and two of five clear transaction costs. This reverses the earlier reading: under a 3-date training window, removing features improved Rank IC and `without_risk` led, which suggested the feature set was largely noise. With 63 dates the ranking inverts. The earlier result reflected too little training data to use 99 features, not harmful features.
+The full feature set is now the strongest configuration on Rank IC. On after-cost return, none of the five clears transaction costs under the corrected cost model; the "After-Cost Return" column in the table above predates that correction and reads two of five. This reverses the earlier reading: under a 3-date training window, removing features improved Rank IC and `without_risk` led, which suggested the feature set was largely noise. With 63 dates the ranking inverts. The earlier result reflected too little training data to use 99 features, not harmful features.
 
 Removing price-limit or volume/liquidity features is now clearly worse on both Rank IC and after-cost return. `without_herding` is essentially tied with the full set, so herding features remain unproven as an alpha source, consistent with their original purpose as a portfolio risk control.
 

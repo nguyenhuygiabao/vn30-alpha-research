@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 
@@ -29,6 +30,15 @@ MAX_SINGLE_NAME_WEIGHT = 0.20
 MAX_ISSUER_GROUP_WEIGHT = 0.40
 TOLERANCE = 1e-8
 
+# Signal dates are daily and the forecast period is five trading days, so
+# consecutive period returns share four of their five days. An i.i.d. bootstrap
+# would treat them as independent and understate the interval by roughly the
+# square root of the overlap. Resampling in blocks of the horizon keeps the
+# overlap inside a block.
+BOOTSTRAP_BLOCK_SIZE = 5
+BOOTSTRAP_SAMPLES = 2_000
+BOOTSTRAP_RANDOM_SEED = 42
+
 
 def read_required_parquet(path: Path) -> pd.DataFrame:
     if not path.exists():
@@ -40,6 +50,43 @@ def read_required_parquet(path: Path) -> pd.DataFrame:
         data["date"] = pd.to_datetime(data["date"])
 
     return data
+
+
+def block_bootstrap_mean_interval(
+    returns: pd.Series,
+    block_size: int = BOOTSTRAP_BLOCK_SIZE,
+    bootstrap_samples: int = BOOTSTRAP_SAMPLES,
+    random_seed: int = BOOTSTRAP_RANDOM_SEED,
+) -> tuple[float, float]:
+    """A 95 percent moving-block bootstrap interval for the mean period return.
+
+    Without this, a near-zero mean and a near-zero Sharpe can only be described
+    in words, and "indistinguishable from zero" is an assertion rather than a
+    result. The block size is the forecast horizon, so the overlap between
+    consecutive period returns stays inside a resampled block.
+    """
+    values = np.asarray(returns, dtype=float)
+    values = values[np.isfinite(values)]
+
+    if len(values) < 2:
+        return float("nan"), float("nan")
+
+    block_size = min(block_size, len(values))
+    generator = np.random.default_rng(random_seed)
+    starts = np.arange(len(values) - block_size + 1)
+    blocks_needed = int(np.ceil(len(values) / block_size))
+    sample_means = np.empty(bootstrap_samples)
+
+    for index in range(bootstrap_samples):
+        chosen = generator.choice(starts, size=blocks_needed, replace=True)
+        resampled = np.concatenate(
+            [values[start : start + block_size] for start in chosen]
+        )
+        sample_means[index] = resampled[: len(values)].mean()
+
+    lower, upper = np.quantile(sample_means, [0.025, 0.975])
+
+    return float(lower), float(upper)
 
 
 def diagnostic_sharpe(returns: pd.Series) -> float:
@@ -344,6 +391,9 @@ def build_enhanced_benchmark_results() -> pd.DataFrame:
         optimization_mode, execution_mode = keys
         ordered = group.sort_values("date").copy()
         period_returns = ordered["after_cost_return"]
+        bootstrap_lower, bootstrap_upper = block_bootstrap_mean_interval(
+            period_returns
+        )
 
         rows.append(
             {
@@ -356,6 +406,12 @@ def build_enhanced_benchmark_results() -> pd.DataFrame:
                 "average_return_period_label": "per 5-day forecast period",
                 "return_volatility": period_returns.std(),
                 "diagnostic_sharpe": diagnostic_sharpe(period_returns),
+                "mean_active_return_95pct_lower": bootstrap_lower,
+                "mean_active_return_95pct_upper": bootstrap_upper,
+                "bootstrap_block_size": BOOTSTRAP_BLOCK_SIZE,
+                "bootstrap_interval_excludes_zero": bool(
+                    bootstrap_lower > 0.0 or bootstrap_upper < 0.0
+                ),
                 "max_active_drawdown": max_drawdown_from_period_returns(period_returns),
                 "final_cumulative_active_return_sum": period_returns.cumsum().iloc[-1],
                 "final_cumulative_active_return_note": (
@@ -370,6 +426,9 @@ def build_enhanced_benchmark_results() -> pd.DataFrame:
     for strategy, group in baseline.groupby("strategy"):
         ordered = group.sort_values("date").copy()
         period_returns = ordered["active_return_vs_vn30_5d"]
+        bootstrap_lower, bootstrap_upper = block_bootstrap_mean_interval(
+            period_returns
+        )
 
         rows.append(
             {
@@ -382,6 +441,12 @@ def build_enhanced_benchmark_results() -> pd.DataFrame:
                 "average_return_period_label": "per 5-day forecast period",
                 "return_volatility": period_returns.std(),
                 "diagnostic_sharpe": diagnostic_sharpe(period_returns),
+                "mean_active_return_95pct_lower": bootstrap_lower,
+                "mean_active_return_95pct_upper": bootstrap_upper,
+                "bootstrap_block_size": BOOTSTRAP_BLOCK_SIZE,
+                "bootstrap_interval_excludes_zero": bool(
+                    bootstrap_lower > 0.0 or bootstrap_upper < 0.0
+                ),
                 "max_active_drawdown": max_drawdown_from_period_returns(period_returns),
                 "final_cumulative_active_return_sum": period_returns.cumsum().iloc[-1],
                 "final_cumulative_active_return_note": (

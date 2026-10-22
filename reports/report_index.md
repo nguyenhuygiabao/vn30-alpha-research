@@ -46,15 +46,18 @@ Point-in-time VN30 membership across 60 historical constituents, FiinQuant raw a
 
 **No optimizer mode beats buying and holding the VN30 after costs.** Run as
 the overlapping-tranche portfolio the strategy would actually trade, the best
-configuration turns 1.0 into 2.6252 over 9.58 years against the index's
-2.6918, with a 53 percent drawdown; the other three finish 20 to 35 percent
-behind the index. The per-period figures below are correct; they simply do not
+configuration turns 1.0 into 1.4850 over 9.58 years against the index's
+2.6918, with a 58 percent peak-to-trough fall in capital; the other three
+finish 55 to 63 percent behind the index on compounded active return.
+These are the figures under the corrected cost model of commit `bfdabcf`; before
+that correction the same row read 2.6252 and a 53.1 percent drawdown. The per-period figures below are correct; they simply do not
 survive being compounded as a portfolio. See section 12 of the final
 results.
 
-Of the three tested horizons, the 5-day and 10-day horizons are after-cost
-positive and the 1-day horizon is not. Two of five feature-ablation
-configurations clear transaction costs. A single-feature trailing-return rule
+Of the three tested horizons, 10-day is after-cost
+positive and 1-day and 5-day are not. None of five feature-ablation
+configurations clear transaction costs, and 2 of 8
+optimizer/execution configurations do. A single-feature trailing-return rule
 (`top5_momentum`, 0.002264 before cost) outperforms every trained model's
 top-5 basket on a matched basis, the best of which returns 0.001992. Foreign
 buy/sell features did not clear their pre-registered confidence-interval

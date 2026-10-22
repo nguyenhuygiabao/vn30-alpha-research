@@ -4,18 +4,33 @@
 
 This project ranks VN30 stocks by expected outperformance against the VN30 benchmark, converts those rankings into a constrained long-only portfolio, and measures what survives transaction costs and Vietnam-specific execution frictions.
 
-The main finding remains negative, but by a smaller margin than before:
+
+> **Cost-model correction, 2026-09-05 (commit `bfdabcf`).** Commission and
+> slippage are now charged on both legs of a trade and Vietnam's statutory 0.1
+> percent transfer tax on sale proceeds is applied, so a round trip costs 0.5
+> percent rather than 0.2 — matching what `config/paper_trading_config.yaml`
+> and `paper_trading/executions.csv` have always charged.
+>
+> The horizon, ablation, benchmark and deployability tables were regenerated
+> under that model on 2026-09-05 and 2026-10-21. **Any `after-cost return`,
+> `diagnostic Sharpe`, `cumulative` or `drawdown` figure in the detailed
+> sections below that is not marked as regenerated was computed at 2.5x too
+> little cost and should be read from `reports/tables/*.csv` or
+> `reports/reportpage.html` instead.** Rank IC and hit rate do not depend on
+> the cost model and are unaffected everywhere.
+
+The main finding remains negative:
 
 **A single-feature momentum rule still beats every trained model.** Sorting on trailing 10-day return and holding the top five names returns 0.002264 per 5-day period before cost. The best trained model's top-five basket returns 0.001992 on the same basis. `return_10d` is already an input feature to every model, so the models have strictly more information and still use it worse.
 
 Beyond that:
 
-- The **5-day and 10-day horizons** are now after-cost positive. The 1-day horizon is not.
-- **Two of five feature-ablation configurations** clear transaction costs, and the full feature set is the strongest.
-- **Foreign buy/sell features failed a pre-registered test** and are not promoted.
-- All eight ML portfolio variants now have positive after-cost active return.
+- Of the three tested horizons, only the **10-day horizon** is after-cost positive, at 0.000351 per period. The 1-day and 5-day horizons are not.
+- **None of five feature-ablation configurations** clears transaction costs. The full feature set is the strongest on Rank IC, which is a separate claim from paying for itself.
+- **Foreign buy/sell features failed a pre-registered test** and are not promoted; the 95 percent interval spans zero.
+- **2 of the eight ML portfolio variants** have positive after-cost active return per period, and **all eight have a 95 percent bootstrap interval that spans zero.** The `top5_momentum` baseline is the only row in `benchmark_results.csv` whose interval excludes zero, and it is measured before cost.
 
-These figures reflect a walk-forward training window of 63 trading dates. It was previously 3, which fit about 90 rows against 99 features. See section 11 for the before/after comparison.
+These figures reflect a walk-forward training window of 63 trading dates. It was previously 3, which fit about 90 rows against 99 features. See section 11 for the before/after comparison — noting that its after-cost columns straddle both the window change and the cost correction, while its Rank IC columns isolate the window change because Rank IC does not depend on costs.
 
 Pipeline components: point-in-time VN30 membership, an enforced raw/adjusted price contract, purged walk-forward validation, modeled transaction costs and price limits, and a pre-registered bootstrap test for the foreign-flow feature sets.
 
@@ -237,20 +252,48 @@ would have done.
 The strategy signals daily and holds five days, so it trades five overlapping
 tranches: one fifth of capital rebalances into each day's targets and is held
 for the horizon. That construction holds every phase simultaneously and has no
-free parameters. Over 9.58 years, after costs, price-limit-aware execution:
+free parameters. Over 2,414 trading days, 2016-11-15 to
+2026-07-16 — 9.58 years at 252 trading days per year — after costs,
+price-limit-aware execution:
 
-| Optimizer | Strategy equity | VN30 benchmark | Active | Strategy drawdown | Active drawdown |
-|---|---:|---:|---:|---:|---:|
-| `sector_diversified` | 2.6252 | 2.6918 | 0.9828 | -53.1% | -26.3% |
-| `normal` | 2.1042 | 2.6918 | 0.8021 | -58.9% | -37.5% |
-| `herding_aware` | 2.1172 | 2.6918 | 0.7704 | -52.4% | -36.9% |
-| `sector_aware` | 1.7880 | 2.6918 | 0.6526 | -57.4% | -45.7% |
+| Optimizer | Strategy equity | VN30 benchmark | Active (compounded) | Equity ratio | Strategy drawdown | Active drawdown |
+|---|---:|---:|---:|---:|---:|---:|
+| `sector_diversified` | 1.4850 | 2.6918 | 0.5557 | 0.5517 | -58.3% | -50.3% |
+| `normal` | 1.1699 | 2.6918 | 0.4458 | 0.4346 | -63.5% | -61.7% |
+| `herding_aware` | 1.1945 | 2.6918 | 0.4345 | 0.4437 | -57.7% | -61.4% |
+| `sector_aware` | 1.0105 | 2.6918 | 0.3687 | 0.3754 | -62.1% | -66.1% |
 
 Every active equity is below 1.0. The best configuration turns 1.0 into
-2.6252 against the index's 2.6918, with a 53 percent peak-to-trough drawdown;
-the others finish 20 to 35 percent behind the index. Nothing here is
-deployable, and the ranking among the four modes is a ranking of how far
-behind they finish.
+1.4850 against the index's 2.6918, with a
+58 percent peak-to-trough fall in capital;
+the others finish 55 to 63 percent behind the index on
+compounded active return. Nothing here is deployable, and the ranking among the
+four modes is a ranking of how far behind they finish.
+
+These figures were regenerated on 2026-09-05 under the corrected cost model
+(commit `bfdabcf`). Before that correction the same table read 2.6252 strategy
+equity, 0.9828 active, and -53.1 percent / -26.3 percent drawdowns for
+`sector_diversified`. Nothing about the strategy changed; a round trip is now
+charged 0.5 percent rather than 0.2, which is what the paper account charges.
+
+Three columns here are read wrongly often enough to be worth defining:
+
+- **Active** is the compounded daily active return, the product over trading
+  days of 1 + (strategy return − benchmark return). It is not strategy equity
+  divided by benchmark equity, which is published beside it as **Equity
+  ratio** precisely because the two differ. Compounding a difference of
+  returns is not the same as taking a ratio of compounded returns.
+- **Strategy drawdown** is the worst peak-to-trough fall of the compounded
+  strategy equity curve: a genuine percentage of capital.
+- **Active drawdown** is the same measure on the compounded active curve, so
+  it describes the hedged sleeve rather than the account. The two drawdown
+  columns differ because a portfolio and a hedged version of it fall at
+  different times.
+
+None of the three is the `max_active_drawdown` reported in section 3 and in
+`benchmark_results.csv`, which is a running-peak fall on a `cumsum` of
+overlapping five-day active returns, in summed-return units rather than as a
+percentage of capital.
 
 ### Why not non-overlapping sampling
 
