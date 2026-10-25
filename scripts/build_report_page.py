@@ -488,7 +488,7 @@ def deployability_section(tranche: pd.DataFrame) -> str:
     `Active` is not strategy equity divided by benchmark equity. It is the
     compounded daily active return -- the product over trading days of
     `1 + (strategy return - benchmark return)` -- which is what a
-    daily-rebalanced long-strategy/short-index sleeve would have returned. The
+    daily-rebalanced long-strategy/short-benchmark sleeve would have returned. The
     equity ratio is published beside it precisely because the two differ:
     compounding a difference of returns is not the same as taking a ratio of
     compounded returns.
@@ -519,13 +519,20 @@ def deployability_section(tranche: pd.DataFrame) -> str:
         100.0 * (1.0 - float(row["active_final_equity_after_cost"]))
         for _, row in limited.iloc[1:].iterrows()
     ]
+    phase_low = float(best_row["published_phase_final_equity_min"])
+    phase_high = float(best_row["published_phase_final_equity_max"])
+    phase_side = (
+        ", ahead of the benchmark on some offsets and behind it on others"
+        if phase_low < 1.0 < phase_high
+        else ""
+    )
 
     rows: list[str] = []
     for _, row in limited.iterrows():
         active = float(row["active_final_equity_after_cost"])
         equity = float(row["final_equity_after_cost"])
         # Stated in words, not by colour alone.
-        verdict = "behind the index" if active < 1.0 else "ahead of the index"
+        verdict = "behind the benchmark" if active < 1.0 else "ahead of the benchmark"
         rows.append(
             "<tr>"
             f"<td><code>{row['optimization_mode']}</code></td>"
@@ -592,22 +599,26 @@ def deployability_section(tranche: pd.DataFrame) -> str:
             "<tbody>",
             *rows,
             "</tbody></table></div>",
-            '<div class="callout"><strong>No optimizer mode beats buying and '
-            "holding the index.</strong> Every active equity is below 1.0. "
+            '<div class="callout"><strong>No optimizer mode beats the VN30 '
+            "benchmark.</strong> Every active equity is below 1.0. "
             f"The best configuration, <code>{best_mode}</code>, turns 1.0 "
-            f"into {best:.4f} while the VN30 itself turns it into "
+            f"into {best:.4f} while the VN30 benchmark turns it into "
             f"{benchmark:.4f}. It takes a {best_drawdown:.0f}% peak-to-trough "
             "fall in capital along the way, and "
             f"{best_active_drawdown:.0f}% on the active curve. The other "
             f"three finish {min(behind):.0f}% to {max(behind):.0f}% behind "
-            "the index on compounded active return.</div>",
+            "the benchmark on compounded active return. The benchmark is an "
+            "equal-weight basket of the point-in-time constituents, run "
+            "through the same construction without cost.</div>",
             '<p class="note">Sampling every fifth date also gives '
             "non-overlapping periods, and its per-period means reconcile "
             "exactly with the figures above. But it leaves the starting "
             "offset as a free parameter, and that choice moves the answer "
-            "more than the strategy does. One offset makes "
-            "<code>sector_diversified</code> look positive throughout, which "
-            "is a property of the sampling rather than of the strategy.</p>",
+            "more than the strategy does. On the published active series "
+            f"the offset alone moves <code>{best_mode}</code> between "
+            f"{phase_low:.4f} and {phase_high:.4f} final active equity"
+            f"{phase_side}, which is a property of the sampling rather than "
+            "of the strategy.</p>",
             '<div class="tablewrap"><table>',
             "<caption>Final-equity spread: sampling phase versus tranche "
             "start offset</caption>",
@@ -1219,12 +1230,12 @@ def overview_section(
         f"{dataset['market_history_last_date']}, each counted only while it was "
         f"in the index, this project asks whether {len(models)} machine-learning "
         f"models predicting each stock's {FORWARD_HORIZON_MEDIUM}-day return "
-        f"relative to the index from {feature_count} features, scored "
-        f"walk-forward on a {DEFAULT_TRAIN_SIZE}-date training window with a "
-        f"{PURGE_DAYS}-day purge and turned into constrained long-only "
-        "portfolios, can beat simply holding the index once trading costs and "
-        f"the ±{HOSE_NORMAL_DAILY_LIMIT * 100:.0f}% daily price limit are "
-        "charged."
+        f"relative to the other constituents from {feature_count} features, "
+        f"scored walk-forward on a {DEFAULT_TRAIN_SIZE}-date training window "
+        f"with a {PURGE_DAYS}-day purge and turned into constrained long-only "
+        "portfolios, can beat an equal-weight VN30 benchmark once trading "
+        f"costs and the ±{HOSE_NORMAL_DAILY_LIMIT * 100:.0f}% daily price "
+        "limit are charged."
     )
 
     if limited is None:
@@ -1448,9 +1459,10 @@ def performance_summary_section(
             "under half of" if best_sharpe < benchmark["sharpe"] / 2 else "below"
         )
         callout = (
-            "<strong>Every optimizer mode takes more risk than the index for "
-            f"less return.</strong> All {len(modes)} are more volatile than "
-            "VN30, fall further at their worst and compound more slowly, and "
+            "<strong>Every optimizer mode takes more risk than the VN30 "
+            f"benchmark for less return.</strong> All {len(modes)} are more "
+            "volatile than VN30, fall further at their worst and compound more "
+            "slowly, and "
             "the best Sharpe ratio among them, "
             f"{num(best_sharpe, 2)} for <code>{best_sharpe_mode}</code>, is "
             f"{relation} VN30's {num(benchmark['sharpe'], 2)}."
@@ -2679,9 +2691,10 @@ def build_page() -> str:
         f"<code>{best_model_name}</code>, before cost on matched dates.</li>"
     )
     add(
-        "<li><strong>No optimizer mode beats holding the index.</strong> "
+        "<li><strong>No optimizer mode beats the VN30 benchmark.</strong> "
         "Compounded as the overlapping-tranche portfolio the strategy would "
-        "actually trade, every mode finishes behind the VN30 after costs.</li>"
+        "actually trade, every mode finishes behind the equal-weight VN30 "
+        "benchmark after costs.</li>"
     )
     add(
         "<li><strong>Margins are thin.</strong> The most conservative "
@@ -2699,7 +2712,8 @@ def build_page() -> str:
     add(foreign_flow_item())
     add(
         "<li><strong>Features are fitted in raw levels</strong> while the "
-        "target is demeaned against the index, and no within-date "
+        "target is demeaned against the constituent benchmark, and no "
+        "within-date "
         "standardisation is applied. Whether that specification handicaps the "
         "models is untested.</li>"
     )

@@ -73,7 +73,7 @@ def test_no_value_is_encoded_by_colour_alone() -> None:
     html = build_page()
 
     assert not re.findall(r'class="(?:up|down)"', html)
-    assert "behind the index" in html or "ahead of the index" in html
+    assert "behind the benchmark" in html or "ahead of the benchmark" in html
 
 
 @needs_tables

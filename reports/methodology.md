@@ -58,6 +58,8 @@ Traded value for those tickers is not available from any source. Rather than zer
 
 Labels are forward returns relative to the VN30 benchmark over the same window, at 1-day, 5-day, and 10-day horizons. The primary target is `forward_relative_return_5d`; the horizon test in section 10 compares all three.
 
+The canonical history carries no VN30 index price series, so the benchmark is built from the constituents. For a label it is the equal-weight mean forward return of the other point-in-time constituents on the same date, on adjusted close (a leave-one-out mean, so a stock is never measured against itself). For the compounded portfolio comparison in section 12 of `reports/final_results.md` it is an equal-weight basket of the point-in-time constituents, run through the same five-tranche construction as the strategy, without cost.
+
 Labels are built from the same point-in-time membership and adjusted-price history as the features. An earlier version of the pipeline built labels from a static 30-ticker file while features came from the 60-ticker point-in-time history, so the feature/label merge silently dropped every former-constituent row and made the membership filtering a no-op. The merge is now 1:1 with zero unmatched rows.
 
 Features use only information available strictly before the prediction date. Forward labels are never fed back in as inputs.
@@ -80,7 +82,7 @@ Features use only information available strictly before the prediction date. For
 
 ## 6. Models
 
-Five models are run through identical walk-forward machinery: ridge and elastic-net regression, random forest, gradient boosting, and a gradient-boosting classifier over a binary outperformance label.
+Five models are run through identical walk-forward machinery: ridge and elastic-net regression, random forest, gradient boosting, and a class-balanced logistic regression on standardised features that predicts whether a stock finishes in the top fifth of that date's 5-day relative return. The logistic regression ranks stocks by its predicted probability of that outcome.
 
 Gradient boosting (`n_estimators=100`, `max_depth=2`) is the model carried into portfolio construction, for continuity with earlier versions of the project rather than because it dominates. On the current data it does not: its Rank IC is 0.0334 against elastic net at 0.0367 and ridge at 0.0361, and elastic net also leads on hit rate, top-5 return, and diagnostic Sharpe. Reconsidering the production model is a live question, not a formality.
 
@@ -123,12 +125,20 @@ The optimizer refuses to run if any prediction row lacks issuer-group or sector 
 
 ## 9. Costs and Execution Frictions
 
-The backtester applies commission (10 bps), slippage (10 bps), a sell-side tax (10 bps), and a liquidity penalty scaled to how large an order is against 20-day average daily value. Trades are capped at 5 percent of ADV and rounded to 100-share lots. Settlement is T+2, so sale proceeds are not immediately available for reinvestment.
+The backtest charges, on every rebalance with one-way turnover `t`:
+
+- commission of 10 bps and slippage of 10 bps per side, on both legs (`2t`);
+- the statutory 10 bps sell tax, on the sale leg only (`t`);
+- a liquidity penalty of 10 bps per side on both legs, scaled by the portfolio's weight in low-liquidity names: those whose 20-day average daily traded value is at or below the 20th percentile of that date's constituents.
+
+A rebalance therefore costs 0.50 percent of `t` before the liquidity penalty. Turnover is capped per rebalance by the optimizer (40 percent one-way, 25 percent for `sector_diversified`) and again at 40 percent by price-limit-aware execution. Trades are assumed to fill at the signal date's close. Each tranche of the compounded portfolio is held five trading days, so no share is sold before T+2 settlement, but settlement itself is not modelled and sale proceeds are reinvested on the day of the sale.
+
+Board lots (100 shares), a 5 percent ADV participation cap and T+2 settlement are implemented only in the paper-trading engine, `src/paper_trading/`, configured by `config/paper_trading_config.yaml`. No backtest figure uses them.
 
 Two execution modes are compared:
 
 - `normal` — assumes intended trades fill
-- `price_limit_aware` — blocks buys into a ceiling close and sells into a floor close, then recomputes feasible trades
+- `price_limit_aware` — blocks a buy when the signal-date close is at or above the ±7 percent HOSE ceiling (previous close × 1.07, rounded down to the tick) and a sell when it is at or below the floor (× 0.93, rounded up), keeps the blocked name at its previous weight, then recomputes feasible trades
 
 Price-limit-aware execution is consistently worse than normal execution. The gap between the two measures how much of the result depends on fills that HOSE's daily bands would not have allowed.
 
@@ -160,7 +170,7 @@ Removing price-limit or volume/liquidity features is now clearly worse on both R
 | 5d | 0.033360 | 0.481307 | -0.000822 | -0.042290 | -1.988 | 2418 |
 | 10d | 0.037407 | 0.482147 | 0.000351 | 0.012532 | 0.845 | 2403 |
 
-The 10-day horizon remains strongest after cost, and the 5-day horizon has crossed from negative to marginally positive. The 1-day horizon now has the highest Rank IC of the three yet is still the only net-negative one, which locates its failure in rebalancing cost rather than in prediction.
+Only the 10-day horizon is positive after cost. The 1-day horizon has the highest Rank IC of the three and the most negative after-cost return, which locates its failure in rebalancing cost rather than in prediction.
 
 ### Baseline comparison
 
@@ -169,11 +179,11 @@ The 10-day horizon remains strongest after cost, and the 5-day horizon has cross
 | Strategy | Active Return per 5d Period | Basis | Names Held |
 |---|---:|---|---:|
 | top5_momentum | 0.002264 | before cost | 5 |
-| ML sector_diversified / normal | 0.000930 | after cost | 12.9 |
-| ML sector_diversified / price_limit_aware | 0.000696 | after cost | 12.9 |
+| ML sector_diversified / normal | 0.000225 | after cost | 12.9 |
+| ML sector_diversified / price_limit_aware | 0.000003 | after cost | 12.9 |
 | ML normal / price_limit_aware | -0.000822 | after cost | 6.3 |
 
-`top5_momentum` sorts on a single feature — trailing 10-day return — and holds the top five. It still beats every ML portfolio variant, though all eight ML variants are now positive after cost, where five of eight were negative under the previous training window.
+`top5_momentum` sorts on a single feature — trailing 10-day return — and holds the top five. It beats every ML portfolio variant. Two of the eight ML variants are positive after cost, and all eight have a 95 percent bootstrap interval on mean active return that spans zero.
 
 The cost basis differs (baselines are before cost, ML is after), so this is not a like-for-like table. Recomputing each model's own top-5 pick on a matched basis — same concentration, same relative-to-VN30 target, before any cost or portfolio construction — gives:
 
@@ -213,7 +223,7 @@ The reason is not that the model ignores them. The two strongest new features ra
 - Walk-forward validation with horizon-aware purging at every boundary.
 - Past-only feature construction, with a leakage test asserting that appending future rows leaves already-computed feature values bit-identical.
 - Raw versus adjusted price separation enforced at the loader.
-- Transaction costs, liquidity penalties, ADV caps, lot sizes, and T+2 settlement in the backtest.
+- Commission, slippage, sell tax, a liquidity penalty and turnover caps in the backtest; board lots, an ADV participation cap and T+2 settlement in the paper-trading engine.
 - Price-limit-aware execution reported alongside frictionless execution rather than instead of it.
 - Estimated traded value flagged per row, never silently substituted.
 - Pre-registered decision rule and paired bootstrap confidence intervals for the foreign-flow comparison.

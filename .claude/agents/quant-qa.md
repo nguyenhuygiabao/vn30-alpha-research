@@ -35,9 +35,11 @@ authoritative local sources are `src/exchange_rules.py`, `src/price_limit.py`,
   implicitly assume unlimited foreign capacity.
 - **Lot size and ticks.** 100-share board lots, and tick sizes vary by price
   band. Weights that cannot be expressed in whole lots at the traded price will
-  be rounded, which matters at a 5-name concentration.
-- **Liquidity.** The backtester applies an ADV participation cap and a
-  liquidity penalty. An idea that systematically selects the thinnest names in
+  be rounded in live and paper trading, which matters at a 5-name
+  concentration; the backtest holds fractional weights and does not round.
+- **Liquidity.** The backtester applies a liquidity penalty on names in the
+  bottom fifth of 20-day traded value; the ADV participation cap exists only in
+  the paper-trading engine. An idea that systematically selects the thinnest names in
   the index will look profitable before costs and will not survive them. Check
   whether the idea's selections correlate with low traded value.
 - **Calendar.** Vietnamese public holidays, Tet in particular, create long

@@ -99,11 +99,11 @@
 <h1>VN30 Alpha Research — Results</h1>
 <p class="sub">Cross-sectional stock selection on the Vietnamese VN30 index, evaluated after transaction costs and Vietnam-specific execution frictions. Research framework, not a live trading system.</p>
 <p class="byline">Bao H. G. Nguyen, Grinnell College · <a href="https://github.com/nguyenhuygiabao/vn30-alpha-research">GitHub repository</a> · <a href="https://www.linkedin.com/in/huygiabaonguyen/">LinkedIn</a></p>
-<p class="meta">Generated 24 October 2026 from <a href="https://github.com/nguyenhuygiabao/vn30-alpha-research/tree/main/reports/tables"><code>reports/tables/</code></a> · point-in-time VN30 membership · walk-forward training window 63 trading dates</p>
+<p class="meta">Generated 25 October 2026 from <a href="https://github.com/nguyenhuygiabao/vn30-alpha-research/tree/main/reports/tables"><code>reports/tables/</code></a> · point-in-time VN30 membership · walk-forward training window 63 trading dates</p>
 </header>
 <section id="overview">
 <h2>Overview</h2>
-<p>Using FiinQuant daily data on the 60 stocks that were VN30 members at some point from 2016-07-26 to 2026-07-22, each counted only while it was in the index, this project asks whether 5 machine-learning models predicting each stock's 5-day return relative to the index from 99 features, scored walk-forward on a 63-date training window with a 5-day purge and turned into constrained long-only portfolios, can beat simply holding the index once trading costs and the ±7% daily price limit are charged.</p>
+<p>Using FiinQuant daily data on the 60 stocks that were VN30 members at some point from 2016-07-26 to 2026-07-22, each counted only while it was in the index, this project asks whether 5 machine-learning models predicting each stock's 5-day return relative to the other constituents from 99 features, scored walk-forward on a 63-date training window with a 5-day purge and turned into constrained long-only portfolios, can beat an equal-weight VN30 benchmark once trading costs and the ±7% daily price limit are charged.</p>
 <ol class="findings">
 <li><strong>No portfolio beats VN30 after costs:</strong> the best of the 4 optimizers, <code>sector_diversified</code>, turns 1.0 into 1.4850 from 2016-11-15 to 2026-07-16, while the VN30 benchmark turns it into 2.6918.</li>
 <li><strong>A one-feature momentum rule beats all 5 trained models:</strong> ranking on trailing 10-day return and holding the top five beats every model's own top five before cost, and the strongest, <code>elastic_net</code>, reaches 88% of it.</li>
@@ -141,7 +141,7 @@
 <tr><td><code>sector_aware</code></td><td>0.11%</td><td>21.15%</td><td>0.11</td><td>−62.1%</td><td>37.2%</td></tr>
 <tr><td>VN30 benchmark</td><td>10.89%</td><td>19.95%</td><td>0.62</td><td>−50.1%</td><td>0.3%</td></tr>
 </tbody></table></div>
-<div class="callout"><strong>Every optimizer mode takes more risk than the index for less return.</strong> All 4 are more volatile than VN30, fall further at their worst and compound more slowly, and the best Sharpe ratio among them, 0.30 for <code>sector_diversified</code>, is under half of VN30's 0.62.</div>
+<div class="callout"><strong>Every optimizer mode takes more risk than the VN30 benchmark for less return.</strong> All 4 are more volatile than VN30, fall further at their worst and compound more slowly, and the best Sharpe ratio among them, 0.30 for <code>sector_diversified</code>, is under half of VN30's 0.62.</div>
 <ul class="note">
 <li><strong>Annualized return</strong> is compound: final equity raised to the power 252 ÷ trading days, minus one.</li>
 <li><strong>Annualized volatility</strong> is the standard deviation of daily returns × √252.</li>
@@ -251,13 +251,13 @@
 <caption>Overlapping-tranche portfolio, after cost, price-limit-aware execution. 2,414 trading days, 2016-11-15 to 2026-07-16, which is 9.58 years at 252 trading days per year.</caption>
 <thead><tr><th scope="col">Optimizer</th><th scope="col">Strategy equity</th><th scope="col">VN30 benchmark</th><th scope="col">Active (compounded)</th><th scope="col">Equity ratio</th><th scope="col">Strategy drawdown</th><th scope="col">Active drawdown</th></tr></thead>
 <tbody>
-<tr><td><code>sector_diversified</code></td><td>1.4850</td><td>2.6918</td><td>0.5557 · behind the index</td><td>0.5517</td><td>−58.3%</td><td>−50.3%</td></tr>
-<tr><td><code>normal</code></td><td>1.1699</td><td>2.6918</td><td>0.4458 · behind the index</td><td>0.4346</td><td>−63.5%</td><td>−61.7%</td></tr>
-<tr><td><code>herding_aware</code></td><td>1.1945</td><td>2.6918</td><td>0.4345 · behind the index</td><td>0.4437</td><td>−57.7%</td><td>−61.4%</td></tr>
-<tr><td><code>sector_aware</code></td><td>1.0105</td><td>2.6918</td><td>0.3687 · behind the index</td><td>0.3754</td><td>−62.1%</td><td>−66.1%</td></tr>
+<tr><td><code>sector_diversified</code></td><td>1.4850</td><td>2.6918</td><td>0.5557 · behind the benchmark</td><td>0.5517</td><td>−58.3%</td><td>−50.3%</td></tr>
+<tr><td><code>normal</code></td><td>1.1699</td><td>2.6918</td><td>0.4458 · behind the benchmark</td><td>0.4346</td><td>−63.5%</td><td>−61.7%</td></tr>
+<tr><td><code>herding_aware</code></td><td>1.1945</td><td>2.6918</td><td>0.4345 · behind the benchmark</td><td>0.4437</td><td>−57.7%</td><td>−61.4%</td></tr>
+<tr><td><code>sector_aware</code></td><td>1.0105</td><td>2.6918</td><td>0.3687 · behind the benchmark</td><td>0.3754</td><td>−62.1%</td><td>−66.1%</td></tr>
 </tbody></table></div>
-<div class="callout"><strong>No optimizer mode beats buying and holding the index.</strong> Every active equity is below 1.0. The best configuration, <code>sector_diversified</code>, turns 1.0 into 1.4850 while the VN30 itself turns it into 2.6918. It takes a 58% peak-to-trough fall in capital along the way, and 50% on the active curve. The other three finish 55% to 63% behind the index on compounded active return.</div>
-<p class="note">Sampling every fifth date also gives non-overlapping periods, and its per-period means reconcile exactly with the figures above. But it leaves the starting offset as a free parameter, and that choice moves the answer more than the strategy does. One offset makes <code>sector_diversified</code> look positive throughout, which is a property of the sampling rather than of the strategy.</p>
+<div class="callout"><strong>No optimizer mode beats the VN30 benchmark.</strong> Every active equity is below 1.0. The best configuration, <code>sector_diversified</code>, turns 1.0 into 1.4850 while the VN30 benchmark turns it into 2.6918. It takes a 58% peak-to-trough fall in capital along the way, and 50% on the active curve. The other three finish 55% to 63% behind the benchmark on compounded active return. The benchmark is an equal-weight basket of the point-in-time constituents, run through the same construction without cost.</div>
+<p class="note">Sampling every fifth date also gives non-overlapping periods, and its per-period means reconcile exactly with the figures above. But it leaves the starting offset as a free parameter, and that choice moves the answer more than the strategy does. On the published active series the offset alone moves <code>sector_diversified</code> between 0.8927 and 1.0430 final active equity, ahead of the benchmark on some offsets and behind it on others, which is a property of the sampling rather than of the strategy.</p>
 <div class="tablewrap"><table>
 <caption>Final-equity spread: sampling phase versus tranche start offset</caption>
 <thead><tr><th scope="col">Optimizer</th><th scope="col">Across 5 sampling phases</th><th scope="col">Across tranche start offsets</th><th scope="col">Ratio</th></tr></thead>
@@ -398,11 +398,11 @@
 <h2>Limitations</h2>
 <ul>
 <li><strong>A one-feature momentum baseline beats every trained model</strong> — 0.002264 against 0.001992 for <code>elastic_net</code>, before cost on matched dates.</li>
-<li><strong>No optimizer mode beats holding the index.</strong> Compounded as the overlapping-tranche portfolio the strategy would actually trade, every mode finishes behind the VN30 after costs.</li>
+<li><strong>No optimizer mode beats the VN30 benchmark.</strong> Compounded as the overlapping-tranche portfolio the strategy would actually trade, every mode finishes behind the equal-weight VN30 benchmark after costs.</li>
 <li><strong>Margins are thin.</strong> The most conservative portfolio configuration does not clear cost, at a diagnostic Sharpe of −0.042, and a 95% bootstrap interval on mean active return of [−0.002056, 0.000462], which spans zero.</li>
 <li><strong>Concentration reduces performance</strong>, which is what a weak ranking signal looks like.</li>
 <li><strong>Foreign buy/sell features are not promoted.</strong> Pre-registered test, paired block bootstrap on daily Rank IC over 222 non-overlapping signals: mean difference −0.002608, 95% CI [−0.013314, 0.008297]. The interval spans zero and the point estimate is negative. The promotion rule was fixed before the result was seen: promote only if the interval excludes zero.</li>
-<li><strong>Features are fitted in raw levels</strong> while the target is demeaned against the index, and no within-date standardisation is applied. Whether that specification handicaps the models is untested.</li>
+<li><strong>Features are fitted in raw levels</strong> while the target is demeaned against the constituent benchmark, and no within-date standardisation is applied. Whether that specification handicaps the models is untested.</li>
 </ul>
 <div class="callout"><strong>Multiple comparisons.</strong> The training window is chosen by measuring five values against the same history, on top of three horizons, five ablation configurations, four optimizer modes, two execution modes and five foreign-flow feature sets tested against it. Nothing here corrects for the number of comparisons, and the intervals that exist (12 strategy and baseline rows of <a href="https://github.com/nguyenhuygiabao/vn30-alpha-research/blob/main/reports/tables/benchmark_results.csv"><code>benchmark_results.csv</code></a>, plus the foreign-flow test) are each marginal rather than family-wise. Rank IC, hit rate, and every per-horizon and per-ablation figure on this page is a point estimate with no interval at all. This is a statement about the configurations measured here, not about the VN30 market.</div>
 </section>

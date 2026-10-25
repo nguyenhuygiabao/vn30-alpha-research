@@ -10,7 +10,7 @@ units of capital, and a drawdown read off it is not a percentage of anything.
 Sampling every fifth date and compounding removes the double counting but
 introduces a free parameter -- which of the five weekday phases the sampling
 starts on. For the `normal` optimisation mode under price-limit-aware execution
-that parameter alone moves final equity between 0.73 and 1.39.
+that parameter alone moves final equity between 0.47 and 0.89.
 
 This module removes the parameter rather than choosing a value for it. One
 fifth of capital rebalances into each date's target weights and is held for the

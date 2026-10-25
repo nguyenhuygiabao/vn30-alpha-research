@@ -93,16 +93,19 @@ year, not 9.67 calendar years — after costs, under price-limit-aware execution
 | `herding_aware` | 1.1945 | 2.6918 | 0.4345 | 0.4437 | -57.7% | -61.4% |
 | `sector_aware` | 1.0105 | 2.6918 | 0.3687 | 0.3754 | -62.1% | -66.1% |
 
-**No optimizer mode beats buying and holding the index.** Every active equity
-is below 1.0: the best configuration turns 1.0 into 1.4850 while the VN30
-itself turns it into 2.6918, and takes a 58 percent peak-to-trough fall in
-capital on the way. The three other modes end 55 to 63 percent behind the index
-on compounded active return.
+**No optimizer mode beats the VN30 benchmark.** Every active equity is below
+1.0: the best configuration turns 1.0 into 1.4850 while the VN30 benchmark
+turns it into 2.6918, and takes a 58 percent peak-to-trough fall in capital on
+the way. The three other modes end 55 to 63 percent behind the benchmark on
+compounded active return. The benchmark is an equal-weight basket of the
+point-in-time VN30 constituents, run through the same five-tranche
+construction without cost; the canonical history carries no VN30 index price
+series.
 
 **`Active` is not `Strategy equity / VN30 benchmark`.** It is the compounded
 daily active return, the product over trading days of 1 + (strategy return −
-benchmark return), which is what a daily-rebalanced long-strategy/short-index
-sleeve would have returned. The equity ratio is published beside it because the
+benchmark return), which is what a daily-rebalanced
+long-strategy/short-benchmark sleeve would have returned. The equity ratio is published beside it because the
 two differ — compounding a difference of returns is not the same as taking a
 ratio of compounded returns, and the gap is the covariance of the two legs, not
 rounding.
@@ -111,11 +114,11 @@ rounding.
 one.** `Strategy drawdown` is the peak-to-trough fall of the optimizer's own
 compounded equity curve: -58.3 percent means capital fell 58.3 percent from its
 high-water mark. `Active drawdown` is the peak-to-trough fall of the compounded
-*active* curve, the long-strategy / short-index sleeve, at -50.3 percent. Both
+*active* curve, the long-strategy / short-benchmark sleeve, at -50.3 percent. Both
 are compounded and both are percentages of capital; they differ because a
 portfolio and a hedged version of that portfolio fall at different times and by
 different amounts. The strategy column answers "how far did the account fall",
-the active column answers "how far did the bet against the index fall", and
+the active column answers "how far did the bet against the benchmark fall", and
 neither substitutes for the other.
 
 **A third, non-comparable drawdown convention appears in the per-period
@@ -135,16 +138,19 @@ leg, so a round trip costs 0.5 percent. That matches
 5,900 and slippage 5,900, both per side.
 
 Sampling non-overlapping periods instead leaves the starting offset as a free
-parameter, and that choice moves the answer more than the strategy does: final
-equity spreads by 0.48 to 1.06 across the five offsets, against 0.023 to 0.030
-for the tranche portfolio — a factor of 20 to 45. One of those offsets makes
-`sector_diversified` look positive throughout. That is a property of the
+parameter, and that choice moves the answer more than the strategy does: under
+price-limit-aware execution, final equity spreads by 0.27 to 0.60 across the
+five offsets, against 0.014 to 0.018 for the tranche portfolio — a factor of 15
+to 43. On the published active series the offset alone moves
+`sector_diversified` between 0.8927 and 1.0430 final active equity, ahead of
+the benchmark on two offsets and behind it on three. That is a property of the
 sampling, not of the strategy, which is why the tranche construction is the
 one reported here.
 
 This is a statement about the configurations measured here, not about the VN30
 market. Features are fitted in raw levels while the target is demeaned against
-the index, and no within-date standardisation is applied; whether that
+the constituent benchmark, and no within-date standardisation is applied;
+whether that
 specification handicaps the models is untested.
 
 Sources: `reports/tables/tranche_portfolio_diagnostic.csv` from
@@ -199,10 +205,21 @@ Full detail in [`reports/methodology.md`](reports/methodology.md).
 
 ### Labels
 
-Forward return relative to the VN30 benchmark at 1, 5, and 10 trading days.
-The production target is `forward_relative_return_5d`. Because the label is
-demeaned against the index, the market-wide component of any feature is
+Forward return relative to the VN30 benchmark at 1, 5, and 10 trading days:
+the stock's forward return on adjusted close minus the equal-weight mean
+forward return of the other point-in-time constituents on the same date. The
+production target is `forward_relative_return_5d`. Because the label is
+demeaned against the constituents, the market-wide component of any feature is
 orthogonal to it by construction.
+
+### Benchmark
+
+The canonical history carries no VN30 index price series, so the VN30
+benchmark is built from the constituents throughout this repository. Labels
+use the leave-one-out equal-weight mean described above. The compounded
+deployability comparison uses an equal-weight basket of the point-in-time
+constituents, run through the same five-tranche construction as the strategy,
+without cost.
 
 ### Features
 
@@ -234,7 +251,7 @@ boosting feeds portfolio construction.
 | Random forest | 100 estimators, max depth 3, min samples per leaf 2 |
 | Ridge | alpha 1.0 |
 | Elastic net | alpha 0.001, L1 ratio 0.5 |
-| Gradient-boosting classifier | Direction classification on the same features |
+| Classification | Class-balanced logistic regression on standardised features, predicting whether a stock finishes in the top fifth of that date's 5-day relative return; ranks by the predicted probability |
 
 Elastic net currently beats gradient boosting on every diagnostic measured,
 while gradient boosting remains the production model. That inconsistency is
@@ -278,10 +295,23 @@ not by the 20 percent single-name cap, and no constituent of that group exceeds
 
 ### Costs and execution
 
-10 bps commission, 10 bps slippage, 10 bps sell tax, a liquidity penalty, a
-5 percent ADV participation cap, 100-share board lots, and T+2 settlement.
-Two execution modes are reported: frictionless, and price-limit-aware, which
-blocks buys at the ceiling and sells at the floor.
+The backtest charges 10 bps commission and 10 bps slippage per side on both
+legs of a rebalance, the statutory 10 bps sell tax on the sale leg, and a
+10 bps per-side liquidity penalty scaled by the portfolio's weight in
+low-liquidity names (20-day average traded value at or below the 20th
+percentile of that date's constituents). Turnover is capped per rebalance by
+the optimizer (40 percent one-way, 25 percent for `sector_diversified`) and at
+40 percent by price-limit-aware execution. Two execution modes are reported:
+frictionless, which fills every intended trade, and price-limit-aware, which
+blocks a buy when the close is at the ±7 percent HOSE ceiling and a sell when
+it is at the floor, estimated from the previous close and the HOSE tick table.
+Trades fill at the signal date's close; settlement is not modelled.
+
+Board lots (100 shares), a 5 percent ADV participation cap and T+2 settlement
+are implemented only in the paper-trading engine, `src/paper_trading/`,
+configured by `config/paper_trading_config.yaml`. No backtest figure uses them.
+The report page's "Cost and execution assumptions" section lists every rule
+with the constant that sets it.
 
 ### Invariants enforced by tests
 

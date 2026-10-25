@@ -23,8 +23,7 @@ Pipeline components: point-in-time VN30 membership, an enforced raw/adjusted pri
 Every cumulative figure below sums overlapping forecast-period active returns. It is not a compounded portfolio return and should not be read as a track record. Max active drawdown is measured on that same summed series, so it is reported as a plain number in summed-return units, not as a percentage of capital.
 
 Run as the overlapping-tranche portfolio it would actually trade, no optimizer
-mode beats buying and holding the index after costs. Section 12 gives the
-figures.
+mode beats the VN30 benchmark after costs. Section 12 gives the figures.
 
 ## 2. Main Portfolio Backtest
 
@@ -267,7 +266,7 @@ confidence interval supports the choice.
 
 ## 12. Conclusion
 
-**No optimizer mode beats buying and holding the VN30 after costs.** The
+**No optimizer mode beats the VN30 benchmark after costs.** Two of the
 per-period figures above are after-cost positive, but they are means over
 overlapping forecast periods, and a portfolio cannot hold an overlapping
 period. What decides deployability is what a portfolio running this strategy
@@ -287,10 +286,14 @@ price-limit-aware execution:
 | `herding_aware` | 1.1945 | 2.6918 | 0.4345 | 0.4437 | -57.7% | -61.4% |
 | `sector_aware` | 1.0105 | 2.6918 | 0.3687 | 0.3754 | -62.1% | -66.1% |
 
+The VN30 benchmark is an equal-weight basket of the point-in-time
+constituents, run through the same construction without cost, because the
+canonical history carries no VN30 index price series.
+
 Every active equity is below 1.0. The best configuration turns 1.0 into
-1.4850 against the index's 2.6918, with a
+1.4850 against the benchmark's 2.6918, with a
 58 percent peak-to-trough fall in capital;
-the others finish 55 to 63 percent behind the index on
+the others finish 55 to 63 percent behind the benchmark on
 compounded active return. Nothing here is deployable, and the ranking among the
 four modes is a ranking of how far behind they finish.
 
@@ -318,18 +321,21 @@ percentage of capital.
 Sampling every fifth date also produces non-overlapping periods, and the
 per-period means reconcile exactly with section 3 once weighted by period
 count. But it leaves the starting offset as a free parameter, and that choice
-moves the answer more than the strategy does:
+moves the answer more than the strategy does. Under price-limit-aware
+execution:
 
 | Optimizer | Final-equity spread across the 5 phases | Across tranche start offsets |
 |---|---:|---:|
-| `herding_aware` | 1.0608 | 0.0235 |
-| `normal` | 0.7719 | 0.0279 |
-| `sector_aware` | 0.6483 | 0.0233 |
-| `sector_diversified` | 0.4803 | 0.0303 |
+| `herding_aware` | 0.5966 | 0.0138 |
+| `normal` | 0.4294 | 0.0162 |
+| `sector_aware` | 0.3647 | 0.0137 |
+| `sector_diversified` | 0.2683 | 0.0178 |
 
-A factor of 20 to 45. One offset makes `sector_diversified` appear positive in
-all five phases, which is a property of the sampling rather than of the
-strategy. The tranche construction is reported above for that reason.
+A factor of 15 to 43. On the published active series the offset alone moves
+`sector_diversified` between 0.8927 and 1.0430 final active equity, ahead of
+the benchmark on two offsets and behind it on three, which is a property of
+the sampling rather than of the strategy. The tranche construction is reported
+above for that reason.
 
 Sources: `reports/tables/tranche_portfolio_diagnostic.csv` from
 `scripts/diagnose_tranche_drawdown.py`, and
@@ -338,7 +344,8 @@ Sources: `reports/tables/tranche_portfolio_diagnostic.csv` from
 
 Three further results point the same way. A single-feature momentum rule
 outperforms every trained model on a matched basis. The best portfolio
-configuration earns 0.000930 per 5-day period at a diagnostic Sharpe of 0.07.
+configuration, `sector_diversified` under normal execution, earns 0.000225 per
+5-day period after cost at a diagnostic Sharpe of 0.017.
 Foreign buy/sell features failed a pre-registered test. None of the figures in
 this document carry confidence intervals, and each additional configuration
 tested against the same history compounds the multiple-comparisons problem in
@@ -352,7 +359,7 @@ no tradable structure exists in VN30:
 
 - Features enter the models as raw levels, standardised only over the pooled
   training window and never within a date, while the target is demeaned
-  against the index by construction. The market-wide component of every
+  against the constituent benchmark by construction. The market-wide component of every
   feature is therefore orthogonal to the target but still shapes split
   thresholds and coefficients. A within-date sort, which is what the momentum
   baseline performs, cancels that component exactly. Whether this explains the

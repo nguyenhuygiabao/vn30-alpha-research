@@ -44,11 +44,13 @@ Links to the main outputs of the VN30 Alpha Research Framework.
 
 Point-in-time VN30 membership across 60 historical constituents, FiinQuant raw and adjusted price data, and foreign-flow data, evaluated with purged walk-forward validation and after transaction costs and price-limit execution rules.
 
-**No optimizer mode beats buying and holding the VN30 after costs.** Run as
-the overlapping-tranche portfolio the strategy would actually trade, the best
-configuration turns 1.0 into 1.4850 over 9.58 years against the index's
+**No optimizer mode beats the VN30 benchmark after costs.** Run as the
+overlapping-tranche portfolio the strategy would actually trade, the best
+configuration turns 1.0 into 1.4850 over 9.58 years against the benchmark's
 2.6918, with a 58 percent peak-to-trough fall in capital; the other three
-finish 55 to 63 percent behind the index on compounded active return.
+finish 55 to 63 percent behind the benchmark on compounded active return. The
+benchmark is an equal-weight basket of the point-in-time constituents, since
+the canonical history carries no VN30 index price series.
 The per-period figures below are correct; they simply do not
 survive being compounded as a portfolio. See section 12 of the final
 results.

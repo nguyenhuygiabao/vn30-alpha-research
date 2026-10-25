@@ -411,7 +411,7 @@ def test_all_three_ticker_counts_are_stated() -> None:
 def test_the_honest_conclusions_survive() -> None:
     text = prose(build_page())
 
-    assert "No optimizer mode beats buying and holding the index" in text
+    assert "No optimizer mode beats the VN30 benchmark" in text
     assert "momentum rule beats every trained model" in text
     assert "Nothing on this page supports an alpha claim" in text
     assert "Foreign buy/sell features are not promoted" in text
