@@ -7,7 +7,9 @@ import pandas as pd
 import pytest
 
 from scripts.build_report_page import (
+    AUTHOR_LINKEDIN_URL,
     MINUS,
+    REPO_URL,
     TABLES,
     build_page,
     num,
@@ -22,6 +24,8 @@ REQUIRED_TABLES = (
     "horizon_sample_disclosure.csv",
     "concentration_summary.csv",
     "latest_rank_diagnostic.csv",
+    "dataset_description.csv",
+    "feature_groups.csv",
 )
 
 needs_tables = pytest.mark.skipif(
@@ -74,11 +78,23 @@ def test_no_value_is_encoded_by_colour_alone() -> None:
 
 @needs_tables
 def test_page_is_self_contained() -> None:
-    # Published under a strict CSP on GitHub Pages, and useful offline.
+    # Published under a strict CSP on GitHub Pages, and useful offline: the
+    # page loads nothing from anywhere. Links out are navigation rather than
+    # resources, and go only to the repository and the author's profile.
     html = build_page()
 
-    assert not re.search(r'(?:src|href)="https?://', html)
+    assert not re.search(r'src="https?://', html)
     assert "<script" not in html
+    assert "<link" not in html
+    assert "@import" not in html
+    assert not re.search(r"url\(\s*['\"]?https?://", html)
+
+    for href in re.findall(r'href="(https?://[^"]+)"', html):
+        assert (
+            href == REPO_URL
+            or href.startswith(f"{REPO_URL}/")
+            or href == AUTHOR_LINKEDIN_URL
+        ), f"unexpected outbound link {href}"
 
 
 @needs_tables

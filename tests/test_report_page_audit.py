@@ -33,6 +33,8 @@ REQUIRED_TABLES = (
     "horizon_sample_disclosure.csv",
     "concentration_summary.csv",
     "latest_rank_diagnostic.csv",
+    "dataset_description.csv",
+    "feature_groups.csv",
 )
 
 needs_tables = pytest.mark.skipif(
@@ -204,25 +206,29 @@ def test_no_table_has_a_ragged_header_or_an_empty_header_cell() -> None:
 
 
 @needs_tables
-def test_sweep_chart_labels_do_not_overlap() -> None:
+def test_chart_labels_do_not_overlap() -> None:
     # A negative bar used to print its value label two pixels from its own
     # category label, so the only negative bar in the sweep was illegible.
+    # Every chart on the page is held to the same spacing.
     html = build_page()
-    svg = html[html.index("<svg") : html.index("</svg>")]
+    svgs = re.findall(r"<svg.*?</svg>", html, flags=re.S)
 
-    labels = [
-        (float(x), float(y))
-        for x, y in re.findall(r'<text x="([\d.]+)" y="([\d.]+)"', svg)
-    ]
+    assert svgs, "expected the page to contain charts"
 
-    by_column: dict[float, list[float]] = {}
-    for x, y in labels:
-        by_column.setdefault(x, []).append(y)
+    for svg in svgs:
+        labels = [
+            (float(x), float(y))
+            for x, y in re.findall(r'<text x="([\d.]+)" y="([\d.]+)"', svg)
+        ]
 
-    for x, ys in by_column.items():
-        ordered = sorted(ys)
-        for first, second in zip(ordered, ordered[1:]):
-            assert second - first >= 10.0, f"labels collide at x={x}: {ordered}"
+        by_column: dict[float, list[float]] = {}
+        for x, y in labels:
+            by_column.setdefault(x, []).append(y)
+
+        for x, ys in by_column.items():
+            ordered = sorted(ys)
+            for first, second in zip(ordered, ordered[1:]):
+                assert second - first >= 10.0, f"labels collide at x={x}: {ordered}"
 
 
 @needs_tables

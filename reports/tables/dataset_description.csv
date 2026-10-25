@@ -1,0 +1,2 @@
+market_history_rows,market_history_tickers,market_history_first_date,market_history_last_date,modeling_rows,modeling_tickers,modeling_first_date,modeling_last_date,target_column,last_labeled_date
+137719,60,2016-07-26,2026-07-22,74910,60,2016-07-26,2026-07-22,forward_relative_return_5d,2026-07-15

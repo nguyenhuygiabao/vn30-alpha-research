@@ -15,9 +15,10 @@ It also prints the five single-phase curves, which are what you get by sampling
 every fifth date, so the size of the arbitrary starting-offset parameter that
 the tranche construction removes can be read rather than taken on trust.
 
-It is a diagnostic. It reads existing artefacts, writes only
-`reports/tables/tranche_portfolio_diagnostic.csv`, and changes no published
-number.
+It is a diagnostic. It reads existing artefacts, writes
+`reports/tables/tranche_portfolio_diagnostic.csv` and, beside it, the daily
+price-limit-aware series those summaries compound
+(`reports/tables/tranche_daily_returns.csv`), and changes no published number.
 """
 
 from __future__ import annotations
@@ -54,6 +55,7 @@ from src.tranche_portfolio import (
     build_equal_weight_benchmark_weights,
     build_equity_curves,
     calculate_tranche_costs,
+    calculate_tranche_turnover,
     calculate_tranche_horizon_returns,
     simulate_tranche_portfolio,
     summarize_equity_curve,
@@ -63,6 +65,7 @@ from src.tranche_portfolio import (
 from src.universe_history import filter_to_point_in_time_universe
 
 OUTPUT_PATH: str = "reports/tables/tranche_portfolio_diagnostic.csv"
+DAILY_OUTPUT_PATH: str = "reports/tables/tranche_daily_returns.csv"
 
 FRICTIONLESS_EXECUTION: str = "frictionless"
 PRICE_LIMIT_EXECUTION: str = "price_limit_aware_tranche"
@@ -93,6 +96,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--output", default=OUTPUT_PATH)
+    parser.add_argument(
+        "--daily-output",
+        default=DAILY_OUTPUT_PATH,
+        help=(
+            "Where to write the daily price-limit-aware series the summary "
+            "compounds. Not written under --skip-price-limit."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -283,6 +294,63 @@ def summarize_published_phase_sampling(
         "published_phase_max_drawdown_percent_best": 100.0 * float(max(drawdowns)),
         "published_phase_mean_of_phase_means": float(np.mean(means)),
     }
+
+
+def build_daily_series_table(
+    after_cost_returns: dict[str, pd.DataFrame],
+    tranche_turnover: dict[str, pd.DataFrame],
+    benchmark: pd.DataFrame,
+    benchmark_turnover: pd.DataFrame,
+) -> pd.DataFrame:
+    """One row per date: each optimizer's after-cost return, the benchmark's
+    return, and the turnover of the tranche rebalanced on that date.
+
+    Returns are present only on dates when every phase sleeve is live, which are
+    exactly the dates the summary table compounds, so compounding a return
+    column reproduces that table's final equity and drawdown. Turnover is
+    present on every rebalance date, including the warm-up dates before every
+    phase is live, because the published average turnover is the mean over all
+    of them.
+    """
+    frames = [
+        benchmark[["date", "benchmark_return"]],
+        benchmark_turnover.rename(
+            columns={"tranche_turnover": "benchmark_tranche_turnover"}
+        ),
+    ]
+
+    for optimization_mode in sorted(after_cost_returns):
+        frames.append(
+            after_cost_returns[optimization_mode][
+                ["date", "after_cost_return"]
+            ].rename(
+                columns={
+                    "after_cost_return": (
+                        f"{optimization_mode}_after_cost_return"
+                    )
+                }
+            )
+        )
+        frames.append(
+            tranche_turnover[optimization_mode].rename(
+                columns={
+                    "tranche_turnover": f"{optimization_mode}_tranche_turnover"
+                }
+            )
+        )
+
+    for frame in frames:
+        if frame["date"].duplicated().any():
+            raise ValueError("Daily series carries a duplicated date")
+
+    table = frames[0]
+    for frame in frames[1:]:
+        table = table.merge(frame, on="date", how="outer")
+
+    table = table.sort_values("date").reset_index(drop=True)
+    table["date"] = pd.to_datetime(table["date"]).dt.strftime("%Y-%m-%d")
+
+    return table
 
 
 def summarize_mode(
@@ -543,6 +611,8 @@ def main() -> None:
         print()
 
     summary_rows = []
+    daily_after_cost_returns: dict[str, pd.DataFrame] = {}
+    daily_tranche_turnover: dict[str, pd.DataFrame] = {}
 
     for execution_mode, execution_weights in execution_weight_sets.items():
         for optimization_mode in modes:
@@ -557,6 +627,15 @@ def main() -> None:
                 liquidity=liquidity,
                 horizon=args.horizon,
             )
+
+            if execution_mode == PRICE_LIMIT_EXECUTION:
+                daily_after_cost_returns[optimization_mode] = curves
+                daily_tranche_turnover[optimization_mode] = (
+                    calculate_tranche_turnover(
+                        weights=mode_weights[["date", "ticker", "weight"]],
+                        horizon=args.horizon,
+                    )
+                )
 
             published = backtest_returns[
                 (backtest_returns["optimization_mode"] == optimization_mode)
@@ -622,6 +701,20 @@ def main() -> None:
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     summary.to_csv(output_path, index=False)
+
+    if daily_after_cost_returns:
+        daily_table = build_daily_series_table(
+            after_cost_returns=daily_after_cost_returns,
+            tranche_turnover=daily_tranche_turnover,
+            benchmark=benchmark,
+            benchmark_turnover=calculate_tranche_turnover(
+                weights=benchmark_weights[["date", "ticker", "weight"]],
+                horizon=args.horizon,
+            ),
+        )
+        daily_path = Path(args.daily_output)
+        daily_path.parent.mkdir(parents=True, exist_ok=True)
+        daily_table.to_csv(daily_path, index=False)
 
     print()
     print("DRAWDOWN: COMPOUNDED CAPITAL VERSUS PUBLISHED SUMMED UNITS")
@@ -690,6 +783,10 @@ def main() -> None:
 
     print()
     print("Output:", output_path)
+    if daily_after_cost_returns:
+        print("Daily series:", Path(args.daily_output))
+    else:
+        print("Daily series: not written under --skip-price-limit")
     print(
         "Diagnostic only. No production default, published table, or model "
         "configuration was changed."

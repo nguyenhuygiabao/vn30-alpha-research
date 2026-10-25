@@ -6,9 +6,16 @@ hardcoded figure would survive a pipeline run that changed it.
 
 The page reports what the framework measures, in the present tense. It is not a
 changelog: version history lives in git, not in the results. Every figure here
-is read from a table, and the only literals are the pre-registered foreign-flow
-comparison keys and the paper-horizon file identity, both of which name rows
-rather than values.
+is read from a table or from the constant that sets it, and the only literals
+are the pre-registered foreign-flow comparison keys, the paper-horizon file
+identity, and the author line and repository address, none of which is a
+result.
+
+The charts and the performance summary are drawn from
+`reports/tables/tranche_daily_returns.csv` and must reproduce
+`reports/tables/tranche_portfolio_diagnostic.csv` exactly, or the build fails.
+Every file the page names is linked to its page on GitHub, and a link to a
+path missing from the checkout fails the build too.
 
 Output: reports/reportpage.html
 """
@@ -16,20 +23,68 @@ Output: reports/reportpage.html
 from __future__ import annotations
 
 import argparse
+import inspect
+import math
+import platform
 import sys
+from collections.abc import Callable
 from datetime import date
 from html import escape
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.optimizer import MAX_ISSUER_GROUP_WEIGHT, MAX_WEIGHT
+from src.ablation_tests import ABLATION_GROUPS
+from src.backtester import (
+    COMMISSION_RATE,
+    LIQUIDITY_PENALTY_RATE,
+    LOW_LIQUIDITY_QUANTILE,
+    MAX_EXECUTION_TURNOVER,
+    SELL_TAX_RATE,
+    SLIPPAGE_RATE,
+    TRADED_LEGS_PER_UNIT_TURNOVER,
+)
+from src.classification_models import TOP_QUINTILE_FRACTION
+from src.labels import (
+    FORWARD_HORIZON_LONG,
+    FORWARD_HORIZON_MEDIUM,
+    FORWARD_HORIZON_SHORT,
+)
+from src.linear_models import create_linear_models
+from src.optimizer import (
+    HERDING_AWARE_MAX_WEIGHT,
+    HERDING_AWARE_TARGET_EXPOSURE,
+    HERDING_AWARE_TOP_N,
+    HERDING_SCORE_COLUMN,
+    HIGH_HERDING_THRESHOLD,
+    MAX_ISSUER_GROUP_WEIGHT,
+    MAX_SECTOR_WEIGHT,
+    MAX_TURNOVER,
+    MAX_WEIGHT,
+    MODEL_NAME,
+    PAPER_MAX_ISSUER_GROUP_WEIGHT,
+    PAPER_MAX_SECTOR_WEIGHT,
+    PAPER_MAX_SINGLE_NAME_WEIGHT,
+    PAPER_MAX_TURNOVER,
+    PAPER_TARGET_EXPOSURE,
+    PAPER_TARGET_HOLDINGS,
+    TOP_N,
+)
+from src.paper_trading.config import load_paper_trading_config
+from src.price_limit import HOSE_NORMAL_DAILY_LIMIT, HOSE_WIDE_DAILY_LIMIT
+from src.tranche_portfolio import (
+    HOLD_HORIZON_DAYS,
+    TRADING_DAYS_PER_YEAR,
+    summarize_equity_curve,
+)
+from src.tree_models import build_tree_model_outputs, create_tree_models
 from src.vn30_universe import EXPECTED_CONSTITUENTS
-from src.walk_forward_split import DEFAULT_TRAIN_SIZE
+from src.walk_forward_split import DEFAULT_TRAIN_SIZE, PURGE_DAYS, TARGET_COLUMN
 
 TABLES = ROOT / "reports" / "tables"
 OUTPUT_PATH = ROOT / "reports" / "reportpage.html"
@@ -51,6 +106,23 @@ PAPER_HORIZON_PREDICTIONS_PATH = (
 # current constituents plus 30 names that have left the index.
 DATASET_TICKERS = 60
 
+PAPER_TRADING_CONFIG_PATH = ROOT / "config" / "paper_trading_config.yaml"
+
+# The execution mode every compounded figure on the page is reported under.
+TRANCHE_EXECUTION_MODE = "price_limit_aware_tranche"
+
+REPO_URL = "https://github.com/nguyenhuygiabao/vn30-alpha-research"
+REPO_BRANCH = "main"
+AUTHOR_NAME = "Bao H. G. Nguyen"
+AUTHOR_AFFILIATION = "Grinnell College"
+AUTHOR_LINKEDIN_URL = "https://www.linkedin.com/in/huygiabaonguyen/"
+
+# Chart geometry, shared so the two time-series charts align when stacked.
+CHART_WIDTH = 720.0
+PLOT_LEFT = 52.0
+PLOT_RIGHT = 590.0
+END_LABEL_X = PLOT_RIGHT + 12.0
+
 STRATEGY_LABELS = {
     "ml_sector_diversified_normal": ("sector_diversified", "normal"),
     "ml_sector_diversified_price_limit_aware": ("sector_diversified", "price_limit_aware"),
@@ -71,6 +143,7 @@ STYLE = """
     --ink-1:#0b0b0b; --ink-2:#52514e; --ink-muted:#898781;
     --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,0.10);
     --series-1:#2a78d6; --good:#006300; --critical:#d03b3b; --neutral-mid:#f0efec;
+    --series-2:#eb6834; --link:#1c5cab;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
@@ -79,6 +152,7 @@ STYLE = """
       --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-muted:#898781;
       --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
       --series-1:#3987e5; --good:#0ca30c; --critical:#d03b3b; --neutral-mid:#383835;
+      --series-2:#d95926; --link:#86b6ef;
     }
   }
   :root[data-theme="dark"] {
@@ -87,6 +161,7 @@ STYLE = """
     --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-muted:#898781;
     --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
     --series-1:#3987e5; --good:#0ca30c; --critical:#d03b3b; --neutral-mid:#383835;
+    --series-2:#d95926; --link:#86b6ef;
   }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--page); color:var(--ink-1);
@@ -126,6 +201,28 @@ STYLE = """
   figure { margin:14px 0 0; }
   svg { display:block; max-width:100%; height:auto; }
   footer { color:var(--ink-muted); font-size:0.82rem; margin-top:26px; text-align:center; }
+  a { color:var(--link); text-decoration:underline; text-decoration-thickness:1px;
+    text-underline-offset:2px; }
+  a code { color:inherit; }
+  .byline { color:var(--ink-2); margin:10px 0 4px; font-size:0.92rem; }
+  h3 { font-size:0.98rem; margin:20px 0 0; letter-spacing:-0.005em; }
+  ol.findings { margin:12px 0 0; padding-left:22px; } ol.findings li { margin:8px 0; }
+  td.prose { white-space:normal; min-width:220px; }
+  th.prose, td.prose { text-align:left; }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:10px;
+    font-size:0.84rem; color:var(--ink-2); }
+  .legend .key { display:inline-block; width:16px; border-top:2px solid; border-radius:1px;
+    vertical-align:middle; margin-right:6px; }
+  .key-s1 { border-color:var(--series-1); }
+  .key-s2 { border-color:var(--series-2); }
+  .key-muted { border-color:var(--ink-muted); opacity:0.7; }
+  .chartwrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .chartwrap svg { min-width:560px; }
+  .hit .crosshair { opacity:0; }
+  .hit:hover .crosshair { opacity:1; }
+  dl.glossary { margin:12px 0 0; }
+  dl.glossary dt { font-weight:600; margin-top:12px; }
+  dl.glossary dd { margin:3px 0 0; color:var(--ink-2); }
 """
 
 
@@ -208,8 +305,9 @@ def interval_sentence(benchmark: pd.DataFrame, ml_sorted: pd.DataFrame) -> str:
     if not needed.issubset(benchmark.columns):
         return (
             '<p class="note">No confidence interval is published for these '
-            "rows. Regenerate <code>benchmark_results.csv</code> with "
-            "<code>scripts/build_report_tables.py</code> to add one.</p>"
+            "rows. Rebuild "
+            f"{file_link('reports/tables/benchmark_results.csv', 'benchmark_results.csv')} "
+            f"with {file_link('scripts/build_report_tables.py')} to add one.</p>"
         )
 
     best_name = str(ml_sorted.index[0])
@@ -521,9 +619,9 @@ def deployability_section(tranche: pd.DataFrame) -> str:
             *spread_rows,
             "</tbody></table></div>",
             '<p class="caption">Source: '
-            "<code>reports/tables/tranche_portfolio_diagnostic.csv</code>, "
+            f"{file_link('reports/tables/tranche_portfolio_diagnostic.csv')}, "
             "generated by "
-            "<code>scripts/diagnose_tranche_drawdown.py</code>. This "
+            f"{file_link('scripts/diagnose_tranche_drawdown.py')}. This "
             f"{years:.2f}-year window ({first_date} to {last_date}) is the "
             "backtest period, which is longer than the prediction range under "
             "Universe and periods below.</p>",
@@ -629,6 +727,1391 @@ def sweep_chart(sweep: pd.DataFrame, chosen: int) -> str:
     )
 
 
+def repo_url(path: str) -> str:
+    """The GitHub address of a repository file or directory.
+
+    The path must exist in this checkout, so a renamed or deleted file fails
+    the build rather than publishing a dead link. A directory is linked as a
+    tree and a file as a blob.
+    """
+    target = ROOT / path
+    if not target.exists():
+        raise FileNotFoundError(f"Linked path is not in this checkout: {path}")
+    kind = "tree" if target.is_dir() else "blob"
+    return f"{REPO_URL}/{kind}/{REPO_BRANCH}/{path.rstrip('/')}"
+
+
+def file_link(path: str, label: str | None = None) -> str:
+    """A repository path, set as code and linked to its page on GitHub."""
+    return f'<a href="{repo_url(path)}"><code>{escape(label or path)}</code></a>'
+
+
+def pct(fraction: float, digits: int = 1) -> str:
+    """A fraction as a percentage, with a true minus sign."""
+    return f"{fraction * 100:.{digits}f}%".replace("-", MINUS)
+
+
+def tranche_curves(daily: pd.DataFrame, modes: list[str]) -> pd.DataFrame:
+    """The live-date return of every optimizer mode and of the benchmark.
+
+    Returns sit only on dates when every phase sleeve is live, and turnover on
+    every rebalance date, so a row carrying some returns but not all means the
+    file was assembled wrong. That raises rather than being dropped.
+    """
+    columns = ["benchmark_return", *[f"{mode}_after_cost_return" for mode in modes]]
+    missing = [column for column in columns if column not in daily.columns]
+    if missing:
+        raise ValueError(f"tranche_daily_returns.csv is missing columns: {missing}")
+
+    present = daily[columns].notna()
+    if (present.any(axis=1) & ~present.all(axis=1)).any():
+        raise ValueError(
+            "tranche_daily_returns.csv has a date carrying some returns but not all"
+        )
+
+    live = daily.loc[present.all(axis=1), ["date", *columns]].copy()
+    live["date"] = pd.to_datetime(live["date"])
+    return live.reset_index(drop=True)
+
+
+def tranche_statistics(
+    daily: pd.DataFrame,
+    live: pd.DataFrame,
+    modes: list[str],
+) -> dict[str, dict[str, float]]:
+    """Annualized figures for each optimizer and the benchmark.
+
+    Compounding goes through `summarize_equity_curve`, the function that wrote
+    the published tranche table, so the two cannot use different arithmetic.
+    The Sharpe ratio is the only figure added here: mean daily return over its
+    standard deviation, annualized by the square root of the trading year,
+    against a zero risk-free rate.
+    """
+    sources = [
+        (mode, f"{mode}_after_cost_return", f"{mode}_tranche_turnover")
+        for mode in modes
+    ]
+    sources.append(("benchmark", "benchmark_return", "benchmark_tranche_turnover"))
+
+    statistics: dict[str, dict[str, float]] = {}
+    for name, return_column, turnover_column in sources:
+        returns = live[return_column]
+        summary = summarize_equity_curve(returns)
+        summary["sharpe"] = (
+            float(returns.mean())
+            / float(returns.std(ddof=1))
+            * math.sqrt(TRADING_DAYS_PER_YEAR)
+        )
+        summary["average_tranche_turnover"] = float(
+            daily[turnover_column].dropna().mean()
+        )
+        statistics[name] = summary
+
+    return statistics
+
+
+def reconcile_tranche_statistics(
+    statistics: dict[str, dict[str, float]],
+    live: pd.DataFrame,
+    limited: pd.DataFrame,
+) -> None:
+    """The daily file must reproduce every figure in the published tranche table.
+
+    The charts and the performance summary are drawn from the daily file and
+    the Deployability table from the summary table. If the two disagree the
+    page would contradict itself, so a mismatch fails the build.
+    """
+    tolerance = 1e-9
+    checks: list[tuple[str, float, float]] = []
+
+    for mode, row in limited.iterrows():
+        mode_statistics = statistics[mode]
+        checks += [
+            (f"{mode} periods", mode_statistics["periods"], row["periods"]),
+            (
+                f"{mode} final equity",
+                mode_statistics["final_equity"],
+                row["final_equity_after_cost"],
+            ),
+            (
+                f"{mode} max drawdown",
+                100.0 * mode_statistics["max_drawdown"],
+                row["max_drawdown_percent_after_cost"],
+            ),
+            (
+                f"{mode} annualized return",
+                100.0 * mode_statistics["annualised_return"],
+                row["annualised_return_percent_after_cost"],
+            ),
+            (
+                f"{mode} annualized volatility",
+                100.0 * mode_statistics["annualised_volatility"],
+                row["annualised_volatility_percent_after_cost"],
+            ),
+            (
+                f"{mode} average tranche turnover",
+                mode_statistics["average_tranche_turnover"],
+                row["average_tranche_turnover"],
+            ),
+        ]
+
+    first = limited.iloc[0]
+    benchmark = statistics["benchmark"]
+    checks += [
+        (
+            "benchmark final equity",
+            benchmark["final_equity"],
+            first["benchmark_final_equity"],
+        ),
+        (
+            "benchmark max drawdown",
+            100.0 * benchmark["max_drawdown"],
+            first["benchmark_max_drawdown_percent"],
+        ),
+        (
+            "benchmark annualized return",
+            100.0 * benchmark["annualised_return"],
+            first["benchmark_annualised_return_percent"],
+        ),
+    ]
+
+    failures = [
+        name
+        for name, measured, published in checks
+        if abs(float(measured) - float(published))
+        > tolerance * max(1.0, abs(float(published)))
+    ]
+
+    first_date = str(live["date"].iloc[0].date())
+    last_date = str(live["date"].iloc[-1].date())
+    if first_date != str(first["first_date"]) or last_date != str(first["last_date"]):
+        failures.append("date range")
+
+    if failures:
+        raise ValueError(
+            "tranche_daily_returns.csv does not reproduce "
+            "tranche_portfolio_diagnostic.csv: " + ", ".join(failures)
+        )
+
+
+def chart_x(count: int) -> np.ndarray:
+    """One evenly spaced x position per trading day."""
+    return PLOT_LEFT + (PLOT_RIGHT - PLOT_LEFT) * np.arange(count) / max(count - 1, 1)
+
+
+def decimate(xs: np.ndarray, ys: np.ndarray) -> str:
+    """Polyline points keeping the lowest and highest point in each pixel.
+
+    At several trading days per pixel that draws the same picture as every
+    point, including each trough and peak the page cites, in half the bytes.
+    The first and last points are always kept, so the line starts at 1.0 and
+    ends on its end marker.
+    """
+    columns = np.floor(xs).astype(int)
+    keep: set[int] = {0, len(xs) - 1}
+    for column in np.unique(columns):
+        index = np.flatnonzero(columns == column)
+        keep.update(
+            (
+                int(index[np.argmin(ys[index])]),
+                int(index[np.argmax(ys[index])]),
+            )
+        )
+    return " ".join(f"{xs[i]:.1f},{ys[i]:.1f}" for i in sorted(keep))
+
+
+def year_ticks(
+    dates: pd.Series,
+    xs: np.ndarray,
+    axis_y: float,
+    label_y: float,
+) -> list[str]:
+    """A tick and label at the first trading day of each calendar year.
+
+    The partial first year is left unlabelled: its first day is the start of
+    the series, only a few pixels from the following January.
+    """
+    parts: list[str] = []
+    years = dates.dt.year.to_numpy()
+    for year in np.unique(years):
+        index = int(np.flatnonzero(years == year)[0])
+        if index == 0:
+            continue
+        x = xs[index]
+        parts.append(
+            f'<line x1="{x:.1f}" y1="{axis_y:.0f}" x2="{x:.1f}" '
+            f'y2="{axis_y + 4:.0f}" stroke="var(--axis)" stroke-width="1"/>'
+        )
+        parts.append(
+            f'<text x="{x:.1f}" y="{label_y:.0f}" text-anchor="middle" '
+            f'fill="var(--ink-muted)" font-size="11">{year}</text>'
+        )
+    return parts
+
+
+def hover_layer(
+    dates: pd.Series,
+    xs: np.ndarray,
+    top: float,
+    bottom: float,
+    readout: Callable[[int], str],
+) -> str:
+    """A month-end crosshair and readout, in SVG and CSS alone.
+
+    The page carries no script, so each month end gets a transparent hit band
+    with a native tooltip and a hairline that CSS reveals on hover. The
+    tooltip only enhances: every value it shows is in the linked CSV.
+    """
+    months = dates.dt.strftime("%Y-%m").to_numpy()
+    ends = [
+        index
+        for index in range(len(months))
+        if index == len(months) - 1 or months[index + 1] != months[index]
+    ]
+
+    parts = ['<g class="hover">']
+    for position, index in enumerate(ends):
+        x = xs[index]
+        start = PLOT_LEFT if position == 0 else (xs[ends[position - 1]] + x) / 2
+        stop = (
+            PLOT_RIGHT
+            if position == len(ends) - 1
+            else (x + xs[ends[position + 1]]) / 2
+        )
+        parts.append(
+            '<g class="hit">'
+            f"<title>{escape(readout(index))}</title>"
+            f'<rect x="{start:.1f}" y="{top:.0f}" width="{stop - start:.1f}" '
+            f'height="{bottom - top:.0f}" fill="transparent"/>'
+            f'<line class="crosshair" x1="{x:.1f}" y1="{top:.0f}" x2="{x:.1f}" '
+            f'y2="{bottom:.0f}" stroke="var(--ink-muted)" stroke-width="1"/>'
+            "</g>"
+        )
+    parts.append("</g>")
+    return "".join(parts)
+
+
+def spread_label_positions(positions: list[float], gap: float) -> list[float]:
+    """Push label baselines apart to at least `gap`, keeping their order."""
+    order = sorted(range(len(positions)), key=lambda index: positions[index])
+    placed = list(positions)
+    for previous, current in zip(order, order[1:]):
+        if placed[current] - placed[previous] < gap:
+            placed[current] = placed[previous] + gap
+    return placed
+
+
+def legend(entries: list[tuple[str, str]]) -> str:
+    """Line keys beside the series names, so identity is never colour alone."""
+    items = "".join(
+        f'<span><span class="key {key}"></span>{label}</span>'
+        for key, label in entries
+    )
+    return f'<div class="legend">{items}</div>'
+
+
+def growth_chart(live: pd.DataFrame, highlight: str, others: list[str]) -> str:
+    """Growth of 1.0 for every optimizer and the benchmark, after cost.
+
+    The best optimizer and the benchmark carry colour and direct labels. The
+    other three are context in muted ink, named in the legend and in the
+    hover readout, because their end values sit too close to label apart.
+    """
+    top, bottom, label_y, height = 18.0, 258.0, 278.0, 292.0
+    dates = live["date"]
+    xs = chart_x(len(live))
+    equity = {
+        name: (1.0 + live[f"{name}_after_cost_return"]).cumprod().to_numpy()
+        for name in [highlight, *others]
+    }
+    equity["benchmark"] = (1.0 + live["benchmark_return"]).cumprod().to_numpy()
+
+    low = math.floor(min(float(curve.min()) for curve in equity.values()) * 2) / 2
+    high = math.ceil(max(float(curve.max()) for curve in equity.values()) * 2) / 2
+
+    def y_of(value):
+        return bottom - (value - low) / (high - low) * (bottom - top)
+
+    parts: list[str] = []
+    for tick in np.arange(low, high + 1e-9, 0.5):
+        y = y_of(tick)
+        stroke = "var(--axis)" if abs(tick - 1.0) < 1e-9 else "var(--grid)"
+        parts.append(
+            f'<line x1="{PLOT_LEFT:.0f}" y1="{y:.1f}" x2="{PLOT_RIGHT:.0f}" '
+            f'y2="{y:.1f}" stroke="{stroke}" stroke-width="1"/>'
+        )
+        parts.append(
+            f'<text x="{PLOT_LEFT - 8:.0f}" y="{y + 4:.1f}" text-anchor="end" '
+            f'fill="var(--ink-muted)" font-size="11">{tick:.1f}</text>'
+        )
+    parts += year_ticks(dates, xs, bottom, label_y)
+
+    for name in others:
+        parts.append(
+            f'<polyline points="{decimate(xs, y_of(equity[name]))}" fill="none" '
+            'stroke="var(--ink-muted)" stroke-width="1.5" stroke-opacity="0.6" '
+            'stroke-linejoin="round" stroke-linecap="round"/>'
+        )
+    for name, stroke in (
+        ("benchmark", "var(--series-2)"),
+        (highlight, "var(--series-1)"),
+    ):
+        parts.append(
+            f'<polyline points="{decimate(xs, y_of(equity[name]))}" fill="none" '
+            f'stroke="{stroke}" stroke-width="2" stroke-linejoin="round" '
+            'stroke-linecap="round"/>'
+        )
+
+    ends = [
+        (highlight, "var(--series-1)", float(equity[highlight][-1])),
+        ("VN30", "var(--series-2)", float(equity["benchmark"][-1])),
+    ]
+    anchors = spread_label_positions([y_of(value) for _, _, value in ends], 30.0)
+    for (label, fill, value), anchor in zip(ends, anchors):
+        parts.append(
+            f'<circle cx="{PLOT_RIGHT:.1f}" cy="{y_of(value):.1f}" r="4" '
+            f'fill="{fill}" stroke="var(--surface-1)" stroke-width="2"/>'
+        )
+        parts.append(
+            f'<text x="{END_LABEL_X:.0f}" y="{anchor - 3:.1f}" '
+            f'fill="var(--ink-2)" font-size="11.5">{label}</text>'
+        )
+        parts.append(
+            f'<text x="{END_LABEL_X:.0f}" y="{anchor + 12:.1f}" '
+            f'fill="var(--ink-1)" font-size="12.5" font-weight="600">'
+            f"{value:.4f}</text>"
+        )
+
+    names = [highlight, "benchmark", *others]
+
+    def display(name: str) -> str:
+        return "VN30" if name == "benchmark" else name
+
+    def readout(index: int) -> str:
+        values = " · ".join(
+            f"{display(name)} {equity[name][index]:.4f}" for name in names
+        )
+        return f"{dates.iloc[index]:%d %b %Y} · {values}"
+
+    parts.append(hover_layer(dates, xs, top, bottom, readout))
+
+    described = ", ".join(
+        f"{display(name)} {equity[name][-1]:.4f}" for name in names
+    )
+    label = escape(
+        "Line chart of the growth of 1.0, after cost, from "
+        f"{dates.iloc[0]:%d %B %Y} to {dates.iloc[-1]:%d %B %Y}. "
+        f"Final values: {described}."
+    )
+    return (
+        f'<svg viewBox="0 0 {CHART_WIDTH:.0f} {height:.0f}" role="img" '
+        f'aria-label="{label}">' + "".join(parts) + "</svg>"
+    )
+
+
+def drawdown_chart(live: pd.DataFrame, highlight: str) -> str:
+    """Peak-to-trough drawdown of the best optimizer against the benchmark."""
+    top, bottom, label_y, height = 12.0, 192.0, 212.0, 226.0
+    dates = live["date"]
+    xs = chart_x(len(live))
+    series = {
+        highlight: live[f"{highlight}_after_cost_return"],
+        "VN30": live["benchmark_return"],
+    }
+    drawdown = {}
+    for name, returns in series.items():
+        equity = (1.0 + returns).cumprod().to_numpy()
+        drawdown[name] = equity / np.maximum.accumulate(equity) - 1.0
+
+    low = math.floor(min(float(curve.min()) for curve in drawdown.values()) * 10) / 10
+
+    def y_of(value):
+        return top + value / low * (bottom - top)
+
+    parts: list[str] = []
+    for step in range(0, int(round(-low * 10)) + 1):
+        tick = -step / 10
+        y = y_of(tick)
+        stroke = "var(--axis)" if step == 0 else "var(--grid)"
+        parts.append(
+            f'<line x1="{PLOT_LEFT:.0f}" y1="{y:.1f}" x2="{PLOT_RIGHT:.0f}" '
+            f'y2="{y:.1f}" stroke="{stroke}" stroke-width="1"/>'
+        )
+        parts.append(
+            f'<text x="{PLOT_LEFT - 8:.0f}" y="{y + 4:.1f}" text-anchor="end" '
+            f'fill="var(--ink-muted)" font-size="11">{pct(tick, 0)}</text>'
+        )
+    parts += year_ticks(dates, xs, bottom, label_y)
+
+    strokes = {highlight: "var(--series-1)", "VN30": "var(--series-2)"}
+    for name in ("VN30", highlight):
+        parts.append(
+            f'<polyline points="{decimate(xs, y_of(drawdown[name]))}" fill="none" '
+            f'stroke="{strokes[name]}" stroke-width="2" stroke-linejoin="round" '
+            'stroke-linecap="round"/>'
+        )
+
+    troughs = [(name, int(np.argmin(curve))) for name, curve in drawdown.items()]
+    anchors = spread_label_positions(
+        [y_of(drawdown[name][index]) for name, index in troughs], 14.0
+    )
+    for (name, index), anchor in zip(troughs, anchors):
+        value = float(drawdown[name][index])
+        parts.append(
+            f'<circle cx="{xs[index]:.1f}" cy="{y_of(value):.1f}" r="4" '
+            f'fill="{strokes[name]}" stroke="var(--surface-1)" stroke-width="2"/>'
+        )
+        parts.append(
+            f'<text x="{xs[index] + 9:.1f}" y="{anchor + 4:.1f}" '
+            'fill="var(--ink-1)" stroke="var(--surface-1)" stroke-width="3" '
+            'stroke-linejoin="round" paint-order="stroke" font-size="11.5" '
+            f'font-weight="600">{name} {pct(value)}</text>'
+        )
+
+    def readout(index: int) -> str:
+        values = " · ".join(
+            f"{name} {pct(float(drawdown[name][index]))}" for name in drawdown
+        )
+        return f"{dates.iloc[index]:%d %b %Y} · drawdown from peak · {values}"
+
+    parts.append(hover_layer(dates, xs, top, bottom, readout))
+
+    described = ", ".join(
+        f"{name} deepest {pct(float(drawdown[name][index]))} on "
+        f"{dates.iloc[index]:%d %B %Y}"
+        for name, index in troughs
+    )
+    label = escape(
+        f"Line chart of drawdown from the previous peak, after cost: {described}."
+    )
+    return (
+        f'<svg viewBox="0 0 {CHART_WIDTH:.0f} {height:.0f}" role="img" '
+        f'aria-label="{label}">' + "".join(parts) + "</svg>"
+    )
+
+
+def overview_section(
+    limited: pd.DataFrame | None,
+    benchmark: pd.DataFrame,
+    models: pd.DataFrame,
+    top5_col: str,
+    dataset: pd.Series,
+    feature_count: int,
+) -> str:
+    """The research question, the data and method, and the three findings.
+
+    Every number is read from a table and every verdict is computed, so the
+    paragraph cannot outlive the result it summarises. `limited` is the
+    price-limit-aware tranche table, best optimizer first, or None when the
+    tranche diagnostic has not been run.
+    """
+    momentum = float(benchmark.loc["top5_momentum", "average_period_active_return"])
+    best_model = str(models[top5_col].idxmax())
+    ratio = float(models.loc[best_model, top5_col]) / momentum * 100
+    beats_every_model = bool((models[top5_col] < momentum).all())
+
+    ml = benchmark[benchmark["comparison_type"] == "ml_strategy"]
+
+    question = (
+        f"Using FiinQuant daily data on the {int(dataset['modeling_tickers'])} "
+        "stocks that were VN30 members at some point from "
+        f"{dataset['market_history_first_date']} to "
+        f"{dataset['market_history_last_date']}, each counted only while it was "
+        f"in the index, this project asks whether {len(models)} machine-learning "
+        f"models predicting each stock's {FORWARD_HORIZON_MEDIUM}-day return "
+        f"relative to the index from {feature_count} features, scored "
+        f"walk-forward on a {DEFAULT_TRAIN_SIZE}-date training window with a "
+        f"{PURGE_DAYS}-day purge and turned into constrained long-only "
+        "portfolios, can beat simply holding the index once trading costs and "
+        f"the ±{HOSE_NORMAL_DAILY_LIMIT * 100:.0f}% daily price limit are "
+        "charged."
+    )
+
+    if limited is None:
+        finding_costs = (
+            "<strong>The compounded comparison with VN30 is not in this "
+            "checkout:</strong> run "
+            f"{file_link('scripts/diagnose_tranche_drawdown.py')} to add it."
+        )
+    else:
+        best = limited.iloc[0]
+        behind = int((limited["active_final_equity_after_cost"] < 1.0).sum())
+        lead = (
+            "No portfolio beats VN30 after costs"
+            if behind == len(limited)
+            else f"{len(limited) - behind} of {len(limited)} portfolios beat "
+            "VN30 after costs"
+        )
+        finding_costs = (
+            f"<strong>{lead}:</strong> the best of the {len(limited)} "
+            f"optimizers, <code>{limited.index[0]}</code>, turns 1.0 into "
+            f"{float(best['final_equity_after_cost']):.4f} from "
+            f"{best['first_date']} to {best['last_date']}, while the VN30 "
+            f"benchmark turns it into {float(best['benchmark_final_equity']):.4f}."
+        )
+
+    if beats_every_model:
+        finding_models = (
+            "<strong>A one-feature momentum rule beats all "
+            f"{len(models)} trained models:</strong> ranking on trailing "
+            "10-day return and holding the top five beats every model's own "
+            f"top five before cost, and the strongest, <code>{best_model}</code>, "
+            f"reaches {ratio:.0f}% of it."
+        )
+    else:
+        finding_models = (
+            f"<strong>The strongest trained model, <code>{best_model}</code>, "
+            f"reaches {ratio:.0f}% of a one-feature momentum rule</strong> on "
+            "matched top-five selection before cost."
+        )
+
+    needed = {"mean_active_return_95pct_lower", "mean_active_return_95pct_upper"}
+    if needed.issubset(benchmark.columns):
+        lower = float(benchmark.loc["top5_momentum", "mean_active_return_95pct_lower"])
+        upper = float(benchmark.loc["top5_momentum", "mean_active_return_95pct_upper"])
+        momentum_excludes = lower > 0.0 or upper < 0.0
+        spanning = int(
+            (
+                (ml["mean_active_return_95pct_lower"] <= 0.0)
+                & (ml["mean_active_return_95pct_upper"] >= 0.0)
+            ).sum()
+        )
+        if momentum_excludes and spanning == len(ml):
+            finding_intervals = (
+                "<strong>The momentum signal is detectable, and nothing "
+                "survives the models and costs:</strong> its 95% bootstrap "
+                "interval excludes zero before costs, while all "
+                f"{len(ml)} model-driven portfolio configurations have "
+                "intervals that span zero after costs."
+            )
+        else:
+            finding_intervals = (
+                "<strong>Momentum's 95% bootstrap interval "
+                + ("excludes" if momentum_excludes else "spans")
+                + f" zero before costs</strong>, and {spanning} of the "
+                f"{len(ml)} model-driven portfolio configurations have "
+                "intervals that span zero after costs."
+            )
+    else:
+        finding_intervals = (
+            "<strong>No bootstrap interval is published</strong> in "
+            f"{file_link('reports/tables/benchmark_results.csv', 'benchmark_results.csv')}, "
+            "so no result here is tested against zero."
+        )
+
+    return "\n".join(
+        [
+            '<section id="overview">',
+            "<h2>Overview</h2>",
+            f"<p>{question}</p>",
+            '<ol class="findings">',
+            f"<li>{finding_costs}</li>",
+            f"<li>{finding_models}</li>",
+            f"<li>{finding_intervals}</li>",
+            "</ol>",
+            '<p class="caption">Full write-up: '
+            f"{file_link('README.md')} · {file_link('reports/methodology.md')} · "
+            f"{file_link('reports/final_results.md')}. Every figure on this page "
+            f"is read from {file_link('reports/tables/')}.</p>",
+            "</section>",
+        ]
+    )
+
+
+def performance_charts_section(
+    live: pd.DataFrame,
+    highlight: str,
+    others: list[str],
+) -> str:
+    """Growth of 1.0 and drawdown, drawn from the reconciled daily series."""
+    first = live["date"].iloc[0]
+    last = live["date"].iloc[-1]
+
+    def deepest(returns: pd.Series) -> pd.Timestamp:
+        equity = (1.0 + returns).cumprod().to_numpy()
+        return live["date"].iloc[int(np.argmin(equity / np.maximum.accumulate(equity)))]
+
+    strategy_trough = deepest(live[f"{highlight}_after_cost_return"])
+    benchmark_trough = deepest(live["benchmark_return"])
+    if strategy_trough == benchmark_trough:
+        trough_sentence = (
+            f"Both fall furthest on the same day, {strategy_trough:%d %B %Y}."
+        )
+    else:
+        trough_sentence = (
+            f"<code>{highlight}</code> falls furthest on "
+            f"{strategy_trough:%d %B %Y} and VN30 on {benchmark_trough:%d %B %Y}."
+        )
+
+    source = (
+        f"Data: {file_link('reports/tables/tranche_daily_returns.csv')}, written "
+        f"by {file_link('scripts/diagnose_tranche_drawdown.py')} beside the "
+        "Deployability table, and checked against it every time this page is "
+        "built."
+    )
+
+    return "\n".join(
+        [
+            '<section id="performance">',
+            "<h2>Growth of 1.0 and drawdown, after cost</h2>",
+            '<p class="note">What each optimizer would actually have returned as '
+            "the overlapping-tranche portfolio it trades, under "
+            f"price-limit-aware execution, from {first.date()} to {last.date()}. "
+            "Hover a month for its values.</p>",
+            "<h3>Growth of 1.0</h3>",
+            legend(
+                [
+                    ("key-s1", f"<code>{highlight}</code>"),
+                    ("key-s2", "VN30 benchmark"),
+                    (
+                        "key-muted",
+                        "other optimizer modes: "
+                        + ", ".join(f"<code>{mode}</code>" for mode in others),
+                    ),
+                ]
+            ),
+            '<figure><div class="chartwrap">',
+            growth_chart(live, highlight, others),
+            "</div>",
+            '<figcaption class="caption">Each line compounds daily after-cost '
+            "returns from 1.0, and the darker rule marks 1.0, the starting "
+            "capital. VN30 here is an equal-weight basket of the point-in-time "
+            "constituents, run through the same five-tranche construction "
+            "without cost, because the canonical history carries no VN30 index "
+            f"price series. {source}</figcaption>",
+            "</figure>",
+            "<h3>Drawdown from previous peak</h3>",
+            legend(
+                [
+                    ("key-s1", f"<code>{highlight}</code>"),
+                    ("key-s2", "VN30 benchmark"),
+                ]
+            ),
+            '<figure><div class="chartwrap">',
+            drawdown_chart(live, highlight),
+            "</div>",
+            '<figcaption class="caption">The fall of each compounded curve '
+            "from its running peak, as a percentage of capital. "
+            f"{trough_sentence}</figcaption>",
+            "</figure>",
+            "</section>",
+        ]
+    )
+
+
+def performance_summary_section(
+    statistics: dict[str, dict[str, float]],
+    limited: pd.DataFrame,
+    rebalance_dates: int,
+) -> str:
+    """Annualized return, risk and turnover for each optimizer and VN30."""
+    modes = [str(mode) for mode in limited.index]
+    first = limited.iloc[0]
+    benchmark = statistics["benchmark"]
+
+    def row(label: str, figures: dict[str, float], css: str = "") -> str:
+        return (
+            f"<tr{css}><td>{label}</td>"
+            f"<td>{pct(figures['annualised_return'], 2)}</td>"
+            f"<td>{pct(figures['annualised_volatility'], 2)}</td>"
+            f"<td>{num(figures['sharpe'], 2)}</td>"
+            f"<td>{pct(figures['max_drawdown'])}</td>"
+            f"<td>{pct(figures['average_tranche_turnover'])}</td></tr>"
+        )
+
+    rows = [
+        row(
+            f"<code>{mode}</code>",
+            statistics[mode],
+            ' class="highlight"' if index == 0 else "",
+        )
+        for index, mode in enumerate(modes)
+    ]
+    rows.append(row("VN30 benchmark", benchmark))
+
+    more_volatile = sum(
+        statistics[mode]["annualised_volatility"] > benchmark["annualised_volatility"]
+        for mode in modes
+    )
+    deeper = sum(
+        statistics[mode]["max_drawdown"] < benchmark["max_drawdown"] for mode in modes
+    )
+    best_sharpe_mode = max(modes, key=lambda mode: statistics[mode]["sharpe"])
+    best_sharpe = statistics[best_sharpe_mode]["sharpe"]
+    lower_return = sum(
+        statistics[mode]["annualised_return"] < benchmark["annualised_return"]
+        for mode in modes
+    )
+
+    if more_volatile == deeper == lower_return == len(modes):
+        relation = (
+            "under half of" if best_sharpe < benchmark["sharpe"] / 2 else "below"
+        )
+        callout = (
+            "<strong>Every optimizer mode takes more risk than the index for "
+            f"less return.</strong> All {len(modes)} are more volatile than "
+            "VN30, fall further at their worst and compound more slowly, and "
+            "the best Sharpe ratio among them, "
+            f"{num(best_sharpe, 2)} for <code>{best_sharpe_mode}</code>, is "
+            f"{relation} VN30's {num(benchmark['sharpe'], 2)}."
+        )
+    else:
+        callout = (
+            f"<strong>{lower_return} of {len(modes)} optimizer modes compound "
+            f"more slowly than VN30.</strong> {more_volatile} are more volatile "
+            f"and {deeper} fall further at their worst; the best Sharpe ratio "
+            f"among them is {num(best_sharpe, 2)} for "
+            f"<code>{best_sharpe_mode}</code>, against VN30's "
+            f"{num(benchmark['sharpe'], 2)}."
+        )
+
+    root = "√"
+    return "\n".join(
+        [
+            '<section id="performance-summary">',
+            "<h2>Performance summary</h2>",
+            '<div class="tablewrap"><table>',
+            "<caption>Overlapping-tranche portfolio, after cost, "
+            f"price-limit-aware execution, {int(first['periods']):,} trading days "
+            f"from {first['first_date']} to {first['last_date']}. Computed from "
+            "the daily series behind the charts.</caption>",
+            '<thead><tr><th scope="col">Portfolio</th>'
+            '<th scope="col">Annualized return</th>'
+            '<th scope="col">Annualized volatility</th>'
+            '<th scope="col">Sharpe ratio</th>'
+            '<th scope="col">Max drawdown</th>'
+            '<th scope="col">Average turnover</th></tr></thead>',
+            "<tbody>",
+            *rows,
+            "</tbody></table></div>",
+            f'<div class="callout">{callout}</div>',
+            '<ul class="note">',
+            "<li><strong>Annualized return</strong> is compound: final equity "
+            f"raised to the power {TRADING_DAYS_PER_YEAR} ÷ trading days, minus "
+            "one.</li>",
+            "<li><strong>Annualized volatility</strong> is the standard "
+            f"deviation of daily returns × {root}{TRADING_DAYS_PER_YEAR}.</li>",
+            "<li><strong>Sharpe ratio</strong> is the mean daily return ÷ its "
+            f"standard deviation × {root}{TRADING_DAYS_PER_YEAR}, annualized, "
+            "with a <strong>risk-free rate of 0%</strong>. A risk-free rate r "
+            "would lower each row by r ÷ that row's annualized volatility. It "
+            "uses the arithmetic mean, so it is not annualized return divided "
+            "by volatility, and it is not the per-period diagnostic Sharpe "
+            "reported further down.</li>",
+            "<li><strong>Max drawdown</strong> is the worst peak-to-trough fall "
+            "of the compounded curve, as a percentage of capital.</li>",
+            "<li><strong>Average turnover</strong> is one-way, half the sum of "
+            "absolute weight changes, for the tranche rebalanced each day "
+            "against the one it replaces "
+            f"{HOLD_HORIZON_DAYS} trading days earlier, averaged over all "
+            f"{rebalance_dates:,} rebalance dates. A tranche is "
+            f"1/{HOLD_HORIZON_DAYS} of capital, so 1/{HOLD_HORIZON_DAYS} of "
+            "this figure is traded across the whole portfolio each day. The VN30 basket turns over only when its "
+            "constituent list changes, and carries no cost.</li>",
+            "</ul>",
+            '<p class="caption">Source: '
+            f"{file_link('reports/tables/tranche_daily_returns.csv')}. Annualized "
+            "return, volatility, drawdown and optimizer turnover reproduce "
+            f"{file_link('reports/tables/tranche_portfolio_diagnostic.csv')} "
+            "exactly; the build fails if they do not.</p>",
+            "</section>",
+        ]
+    )
+
+
+def model_descriptions() -> dict[str, str]:
+    """Each model's type and settings, read from the objects the pipeline fits."""
+    linear = create_linear_models()
+    tree = create_tree_models()
+    ridge = linear["ridge"].get_params()
+    elastic = linear["elastic_net"].get_params()
+    forest = tree["random_forest"].get_params()
+    boosting = tree["gradient_boosting"].get_params()
+
+    return {
+        "ridge": f"Ridge regression, alpha {ridge['alpha']:g}",
+        "elastic_net": (
+            f"Elastic-net regression, alpha {elastic['alpha']:g}, "
+            f"L1 ratio {elastic['l1_ratio']:g}"
+        ),
+        "random_forest": (
+            f"Random forest, {forest['n_estimators']} trees of depth "
+            f"{forest['max_depth']}"
+        ),
+        "gradient_boosting": (
+            f"Gradient boosting, {boosting['n_estimators']} trees of depth "
+            f"{boosting['max_depth']}, learning rate {boosting['learning_rate']:g}"
+        ),
+        "classification": (
+            "Class-balanced logistic regression on standardized features, "
+            "predicting whether a stock finishes in the top "
+            f"{TOP_QUINTILE_FRACTION * 100:.0f}% of that date's "
+            f"{FORWARD_HORIZON_MEDIUM}-day relative return"
+        ),
+    }
+
+
+def ablation_name(row: pd.Series) -> str:
+    """The ablation that removes a feature group, or empty if none does."""
+    value = row["ablation_name"]
+    return "" if pd.isna(value) else str(value)
+
+
+def feature_overlap_sentence(groups: pd.DataFrame) -> str:
+    """Say where an ablation removes a different set than the group counted.
+
+    The six groups partition the features, but the four ablation lists were
+    written independently and overlap at the edges, so the ablation feature
+    counts are not the group sizes. This says exactly where they differ.
+    """
+    owner = {
+        feature: str(row["display_name"])
+        for _, row in groups.iterrows()
+        for feature in str(row["features"]).split(";")
+    }
+
+    def code_list(names: list[str]) -> str:
+        coded = [f"<code>{name}</code>" for name in names]
+        if len(coded) == 1:
+            return coded[0]
+        return ", ".join(coded[:-1]) + " and " + coded[-1]
+
+    clauses: list[str] = []
+    for _, row in groups.iterrows():
+        name = ablation_name(row)
+        if not name:
+            continue
+        members = set(str(row["features"]).split(";"))
+        removed = list(ABLATION_GROUPS[name])
+        elsewhere = [feature for feature in removed if feature not in members]
+        kept = [
+            feature
+            for feature in str(row["features"]).split(";")
+            if feature not in removed
+        ]
+        if not elsewhere and not kept:
+            continue
+        clause = f"<code>{name}</code> removes {len(removed)} columns"
+        if elsewhere:
+            clause += ", including " + code_list(elsewhere) + ", counted under " + (
+                ", ".join(sorted({owner[feature] for feature in elsewhere}))
+            )
+        if kept:
+            clause += ", and leaves " + code_list(kept) + " in place"
+        clauses.append(clause)
+
+    if not clauses:
+        return "Each ablation removes exactly the group it is listed against."
+    return "; ".join(clauses) + "."
+
+
+def data_and_method_section(
+    dataset: pd.Series,
+    groups: pd.DataFrame,
+    models: pd.DataFrame,
+    horizon: pd.DataFrame,
+) -> str:
+    """Where the data comes from and every step from it to a portfolio."""
+    walk_forward = inspect.signature(build_tree_model_outputs).parameters
+
+    def default(name: str) -> int:
+        return int(walk_forward[name].default)
+
+    descriptions = model_descriptions()
+    undescribed = [name for name in models.index if name not in descriptions]
+    if undescribed:
+        raise ValueError(f"No description for model(s): {undescribed}")
+
+    model_rows = []
+    for name, row in models.iterrows():
+        production = name == MODEL_NAME
+        css = ' class="highlight"' if production else ""
+        role = "feeds portfolio construction" if production else "comparison"
+        model_rows.append(
+            f"<tr{css}><td><code>{name}</code></td><td>{row['model_family']}</td>"
+            f'<td class="prose">{descriptions[name]}</td><td>{role}</td></tr>'
+        )
+
+    group_rows = [
+        "<tr>"
+        f"<td>{row['display_name']}</td><td>{int(row['feature_count'])}</td>"
+        + (
+            f"<td><code>{ablation_name(row)}</code></td>"
+            if ablation_name(row)
+            else "<td>not ablated</td>"
+        )
+        + "</tr>"
+        for _, row in groups.iterrows()
+    ]
+    group_rows.append(
+        '<tr class="highlight"><td>All model-facing features</td>'
+        f"<td>{int(groups['feature_count'].sum())}</td>"
+        "<td><code>all_features</code></td></tr>"
+    )
+
+    def cap(value: float | None) -> str:
+        return "none" if value is None else pct(value, 0)
+
+    herding_rule = (
+        f"<code>{HERDING_SCORE_COLUMN}</code> at or above "
+        f"{HIGH_HERDING_THRESHOLD:.2f}"
+    )
+    mode_rows = [
+        (
+            "normal",
+            f"top {TOP_N}",
+            cap(MAX_WEIGHT),
+            cap(MAX_ISSUER_GROUP_WEIGHT),
+            cap(None),
+            cap(MAX_TURNOVER),
+            pct(1.0, 0),
+        ),
+        (
+            "sector_aware",
+            f"top {TOP_N}",
+            cap(MAX_WEIGHT),
+            cap(MAX_ISSUER_GROUP_WEIGHT),
+            cap(MAX_SECTOR_WEIGHT),
+            cap(MAX_TURNOVER),
+            pct(1.0, 0),
+        ),
+        (
+            "herding_aware",
+            f"top {TOP_N}*",
+            f"{cap(MAX_WEIGHT)}*",
+            cap(MAX_ISSUER_GROUP_WEIGHT),
+            cap(None),
+            cap(MAX_TURNOVER),
+            f"{pct(1.0, 0)}*",
+        ),
+        (
+            "sector_diversified",
+            f"{PAPER_TARGET_HOLDINGS} names",
+            cap(PAPER_MAX_SINGLE_NAME_WEIGHT),
+            cap(PAPER_MAX_ISSUER_GROUP_WEIGHT),
+            cap(PAPER_MAX_SECTOR_WEIGHT),
+            cap(PAPER_MAX_TURNOVER),
+            pct(PAPER_TARGET_EXPOSURE, 0),
+        ),
+    ]
+
+    evaluated = int(horizon.loc[FORWARD_HORIZON_MEDIUM, "evaluated_dates"])
+
+    def dates(count: int) -> str:
+        return f"{count} date" if count == 1 else f"{count} dates"
+
+    return "\n".join(
+        [
+            '<section id="data-and-method">',
+            "<h2>Data and method</h2>",
+            "<h3>Data</h3>",
+            '<p class="note">Daily bars from FiinQuant, a Vietnamese '
+            "market-data vendor: open, high, low, close, volume, traded value, "
+            "and foreign investors' buy and sell value. The canonical history "
+            f"holds {int(dataset['market_history_rows']):,} rows across "
+            f"{int(dataset['market_history_tickers'])} tickers from "
+            f"{dataset['market_history_first_date']} to "
+            f"{dataset['market_history_last_date']}, and "
+            f"{int(dataset['modeling_rows']):,} of them fall on dates when the "
+            "ticker was an index constituent. Raw prices drive anything tied to "
+            "the printed price, such as limit bands and ceiling detection; "
+            "adjusted close drives returns and labels; "
+            f"{file_link('src/market_data_schema.py')} keeps the two apart.</p>",
+            "<h3>Universe</h3>",
+            '<p class="note">Point-in-time VN30 membership, rebuilt from '
+            f"index-review announcements in {file_link('config/vn30_history/')}, "
+            "each review backed by a source in "
+            f"{file_link('config/vn30_history/source_manifest.csv', 'source_manifest.csv')}. "
+            "A stock contributes rows only on dates it was in the index, so the "
+            f"{int(dataset['modeling_tickers'])} tickers include former members "
+            "that were later removed or delisted, which keeps survivorship bias "
+            "out of every result.</p>",
+            "<h3>Prediction target</h3>",
+            '<p class="note">For each stock on each signal date: its forward '
+            f"return over {FORWARD_HORIZON_SHORT}, {FORWARD_HORIZON_MEDIUM} and "
+            f"{FORWARD_HORIZON_LONG} trading days on adjusted close, minus the "
+            "equal-weight average forward return of the other constituents that "
+            "day, a leave-one-out VN30 benchmark. Production uses the "
+            f"{FORWARD_HORIZON_MEDIUM}-day target, <code>{TARGET_COLUMN}</code>; "
+            "the last signal date with a complete label is "
+            f"{dataset['last_labeled_date']}.</p>",
+            "<h3>Features</h3>",
+            '<div class="tablewrap"><table>',
+            f"<caption>{int(groups['feature_count'].sum())} model-facing "
+            "columns in six groups</caption>",
+            '<thead><tr><th scope="col">Group</th><th scope="col">Columns</th>'
+            '<th scope="col">Ablation that removes it</th></tr></thead>',
+            "<tbody>",
+            *group_rows,
+            "</tbody></table></div>",
+            '<p class="caption">Each column is counted in exactly one group. '
+            + feature_overlap_sentence(groups)
+            + " That is why the Feature ablation table's counts are not the "
+            "group sizes. Every column is listed in "
+            f"{file_link('reports/tables/feature_groups.csv')}, written by "
+            f"{file_link('scripts/describe_modeling_dataset.py')} from the "
+            f"removal lists in {file_link('src/ablation_tests.py')}.</p>",
+            "<h3>Models</h3>",
+            '<div class="tablewrap"><table>',
+            '<thead><tr><th scope="col">Model</th><th scope="col">Family</th>'
+            '<th scope="col" class="prose">Type and settings</th>'
+            '<th scope="col">Role</th>'
+            "</tr></thead>",
+            "<tbody>",
+            *model_rows,
+            "</tbody></table></div>",
+            '<p class="note">All five are used only to rank stocks within a '
+            "date: portfolio construction reads the ordering, not the size, of "
+            "a prediction.</p>",
+            "<h3>Walk-forward validation</h3>",
+            '<p class="note">Never a random split. Each window fits on '
+            f"{default('train_size')} consecutive trading dates, validates on "
+            f"{dates(default('validation_size'))} and tests on "
+            f"{dates(default('test_size'))}, with a {default('purge_size')}-date "
+            "purge before each, so no forward label in the training window "
+            "overlaps the date it is scored on. The window then steps forward "
+            f"{dates(default('step_size'))}, and the "
+            f"{FORWARD_HORIZON_MEDIUM}-day horizon is scored on {evaluated:,} "
+            "dates.</p>",
+            "<h3>Portfolio construction</h3>",
+            '<p class="note">Long-only, no shorting and no leverage, from '
+            f"<code>{MODEL_NAME}</code> scores. Four optimizer modes:</p>",
+            '<div class="tablewrap"><table>',
+            '<thead><tr><th scope="col">Mode</th><th scope="col">Names targeted</th>'
+            '<th scope="col">Single-name cap</th><th scope="col">Issuer-group cap</th>'
+            '<th scope="col">Sector cap</th><th scope="col">Turnover cap</th>'
+            '<th scope="col">Target invested</th></tr></thead>',
+            "<tbody>",
+            *[
+                "<tr>"
+                + f"<td><code>{mode_row[0]}</code></td>"
+                + "".join(f"<td>{cell}</td>" for cell in mode_row[1:])
+                + "</tr>"
+                for mode_row in mode_rows
+            ],
+            "</tbody></table></div>",
+            '<p class="caption">In the first three modes each selected name '
+            "gets an equal weight up to the single-name cap, and a breached "
+            "issuer-group or sector cap scales that group down, leaving the "
+            "excess in cash. <code>sector_diversified</code> instead fills from "
+            "further down the ranking when a cap binds, so it stays invested. "
+            f"* On a high-herding day, one with {herding_rule}, "
+            f"<code>herding_aware</code> holds only names in the top "
+            f"{HERDING_AWARE_TOP_N} with a positive score, caps each at "
+            f"{cap(HERDING_AWARE_MAX_WEIGHT)} and targets "
+            f"{pct(HERDING_AWARE_TARGET_EXPOSURE, 0)} invested. Turnover is "
+            "one-way, per rebalance. Names targeted is the target; the Holdings column "
+            "under Portfolio backtest measures what was held, which runs higher "
+            "because the turnover cap moves into new targets gradually. "
+            f"Constants: {file_link('src/optimizer.py')}.</p>",
+            "<h3>From signals to a portfolio</h3>",
+            '<p class="note">The strategy signals daily and holds for '
+            f"{HOLD_HORIZON_DAYS} trading days, so the portfolio it trades is "
+            f"{HOLD_HORIZON_DAYS} overlapping tranches: each day "
+            f"1/{HOLD_HORIZON_DAYS} of capital is rebalanced into that day's "
+            "target weights and held, buy-and-hold, for "
+            f"{HOLD_HORIZON_DAYS} days. The VN30 benchmark is an equal-weight "
+            "basket of the point-in-time constituents run through the same "
+            "construction without cost. The charts, the Performance summary "
+            "and Deployability all come from this construction, built in "
+            f"{file_link('src/tranche_portfolio.py')}; the per-period tables "
+            "further down average overlapping forecast periods instead.</p>",
+            "</section>",
+        ]
+    )
+
+
+def costs_section() -> str:
+    """Every cost and execution rule, read from the constants that apply them."""
+    legs = TRADED_LEGS_PER_UNIT_TURNOVER
+    per_turnover = legs * (COMMISSION_RATE + SLIPPAGE_RATE) + SELL_TAX_RATE
+    ceiling = 1.0 + HOSE_NORMAL_DAILY_LIMIT
+    floor = 1.0 - HOSE_NORMAL_DAILY_LIMIT
+
+    config = load_paper_trading_config(PAPER_TRADING_CONFIG_PATH)
+    execution = config["execution"]
+    settlement = config["settlement"]
+    timing = config["timing"]
+
+    def can(allowed: bool) -> str:
+        return "can" if allowed else "cannot"
+
+    backtest_rows = [
+        (
+            "Commission",
+            f"{pct(COMMISSION_RATE, 2)} per side",
+            f"Charged on both legs of a rebalance: {legs:g} × one-way turnover × "
+            "rate.",
+        ),
+        (
+            "Slippage",
+            f"{pct(SLIPPAGE_RATE, 2)} per side",
+            "A flat rate on both legs; it does not grow with order size.",
+        ),
+        (
+            "Sell tax",
+            f"{pct(SELL_TAX_RATE, 2)} of sale value",
+            "The statutory transfer tax, on the sale leg only: one-way turnover × "
+            "rate.",
+        ),
+        (
+            "Liquidity penalty",
+            f"{pct(LIQUIDITY_PENALTY_RATE, 2)} per side",
+            "Both legs, scaled by the portfolio's weight in low-liquidity "
+            "names: those whose 20-day average daily traded value is at or "
+            f"below the {LOW_LIQUIDITY_QUANTILE * 100:.0f}th percentile of that "
+            "date's constituents.",
+        ),
+        (
+            "Price limits",
+            f"±{HOSE_NORMAL_DAILY_LIMIT * 100:.0f}% HOSE band",
+            "In price-limit-aware execution a buy is blocked when the "
+            f"signal-date close is at or above the previous close × {ceiling:.2f}, "
+            "rounded down to the HOSE tick, and a sell when it is at or below × "
+            f"{floor:.2f}, rounded up. The blocked name keeps its previous "
+            "weight, and buys are scaled back if that leaves more than 100% "
+            f"invested. The ±{HOSE_WIDE_DAILY_LIMIT * 100:.0f}% band HOSE applies "
+            "on special sessions is not modelled. Frictionless execution fills "
+            "every intended trade.",
+        ),
+        (
+            "Execution turnover cap",
+            f"{pct(MAX_EXECUTION_TURNOVER, 0)} one-way",
+            "Price-limit-aware execution scales any rebalance above this back to "
+            "it, on top of the optimizer's own cap.",
+        ),
+        (
+            "Fill price",
+            "Signal-date close",
+            "Each tranche is valued from the adjusted close of the date it is "
+            "formed. No execution delay is modelled.",
+        ),
+        (
+            "Settlement",
+            "Not modelled",
+            f"Each tranche is held {HOLD_HORIZON_DAYS} trading days, so no share "
+            "is sold before it settles at T+2, but sale proceeds are reinvested "
+            "on the day of the sale.",
+        ),
+        (
+            "ADV cap and board lots",
+            "Not applied",
+            "Weights are fractional and no trade is limited by traded volume.",
+        ),
+    ]
+
+    paper_rows = [
+        (
+            "Board lot",
+            f"{int(execution['round_lot_size'])} shares; odd lots "
+            + ("allowed" if execution["allow_odd_lots"] else "not allowed"),
+        ),
+        ("Minimum trade", f"{int(execution['min_trade_value_vnd']):,} VND"),
+        (
+            "ADV participation cap",
+            f"{pct(float(execution['max_trade_adv_fraction']), 0)} of "
+            f"{int(execution['adv_lookback_trading_days'])}-day average daily "
+            "traded value per order; the excess is deferred",
+        ),
+        (
+            "Costs per fill",
+            f"commission {pct(float(execution['commission_rate']), 2)}, slippage "
+            f"{pct(float(execution['slippage_rate']), 2)}, sell tax "
+            f"{pct(float(execution['sell_tax_rate']), 2)} on sales",
+        ),
+        (
+            "Price limits",
+            ("buys blocked at the ceiling" if execution["block_buy_at_ceiling"] else "buys at the ceiling allowed")
+            + ", "
+            + ("sells blocked at the floor" if execution["block_sell_at_floor"] else "sells at the floor allowed"),
+        ),
+        (
+            "Settlement",
+            f"{settlement['cycle']}: trades settle "
+            f"{int(settlement['lag_trading_days'])} trading days later; unsettled "
+            "sale proceeds "
+            f"{can(settlement['allow_unsettled_sale_proceeds_for_buys'])} fund "
+            "buys and unsettled shares "
+            f"{can(settlement['allow_unsettled_bought_shares_for_sales'])} be sold",
+        ),
+        (
+            "Timing",
+            f"orders fill at the {str(timing['execution_price_source']).replace('_', ' ')}, "
+            f"{int(timing['execution_delay_trading_days'])} trading day after the "
+            f"signal; {int(timing['signal_horizon_trading_days'])}-day signal, "
+            f"rebalanced every {int(timing['rebalance_frequency_trading_days'])} "
+            "trading days",
+        ),
+    ]
+
+    return "\n".join(
+        [
+            '<section id="costs">',
+            "<h2>Cost and execution assumptions</h2>",
+            '<p class="note">As implemented in '
+            f"{file_link('src/backtester.py')} and "
+            f"{file_link('src/tranche_portfolio.py')}. These rules produce "
+            "every figure on this page.</p>",
+            '<div class="tablewrap"><table>',
+            "<caption>Backtest</caption>",
+            '<thead><tr><th scope="col">Item</th><th scope="col">Setting</th>'
+            '<th scope="col" class="prose">How it is applied</th></tr></thead>',
+            "<tbody>",
+            *[
+                f"<tr><td>{item}</td><td>{setting}</td>"
+                f'<td class="prose">{rule}</td></tr>'
+                for item, setting, rule in backtest_rows
+            ],
+            "</tbody></table></div>",
+            '<div class="callout"><strong>What a rebalance costs.</strong> A '
+            f"rebalance with one-way turnover t costs {pct(per_turnover, 2)} × t "
+            f"({legs:g} × ({pct(COMMISSION_RATE, 2)} + {pct(SLIPPAGE_RATE, 2)}) + "
+            f"{pct(SELL_TAX_RATE, 2)}), plus a liquidity penalty of up to "
+            f"{pct(legs * LIQUIDITY_PENALTY_RATE, 2)} × t when every name held "
+            "is in the low-liquidity group.</div>",
+            '<p class="note">Board lots, an ADV participation cap and T+2 '
+            "settlement are implemented, but in the paper-trading engine in "
+            f"{file_link('src/paper_trading/')}, configured by "
+            f"{file_link('config/paper_trading_config.yaml')}. No figure on "
+            "this page comes from it.</p>",
+            '<div class="tablewrap"><table>',
+            "<caption>Paper-trading engine</caption>",
+            '<thead><tr><th scope="col">Item</th>'
+            '<th scope="col" class="prose">Setting</th></tr></thead>',
+            "<tbody>",
+            *[
+                f'<tr><td>{item}</td><td class="prose">{setting}</td></tr>'
+                for item, setting in paper_rows
+            ],
+            "</tbody></table></div>",
+            "</section>",
+        ]
+    )
+
+
+def glossary_section() -> str:
+    """The terms the tables below use, defined once."""
+    terms = [
+        (
+            "Rank IC",
+            "On each signal date, the Spearman rank correlation between the "
+            "model's predicted scores and the realized forward relative returns "
+            "of that day's constituents, averaged over dates. 0 means no "
+            "ranking skill and 1 a perfect ranking.",
+        ),
+        (
+            "Top-5 hit rate",
+            "The share of the five highest-ranked stocks whose realized forward "
+            "return beats the leave-one-out benchmark, averaged over dates.",
+        ),
+        (
+            "Diagnostic Sharpe",
+            "Mean per-period active return divided by its standard deviation, "
+            "on overlapping forecast periods. It is per period and not "
+            "annualized, so it is not comparable with the Sharpe ratio in the "
+            "Performance summary.",
+        ),
+        (
+            "Cumulative sum",
+            "Per-period active returns summed over every evaluated date, not "
+            "compounded. Consecutive 5-day periods overlap, so each day's "
+            "return is counted about five times; read it as a diagnostic, not "
+            "a track record.",
+        ),
+        (
+            "Active (compounded)",
+            "The product over trading days of 1 + (strategy daily return "
+            f"{MINUS} benchmark daily return): the growth of a daily-rebalanced "
+            "sleeve long the strategy and short the benchmark. Below 1.0, the "
+            "strategy fell behind.",
+        ),
+        (
+            "Equity ratio",
+            "Strategy final equity divided by benchmark final equity. It "
+            "differs from active because compounding a difference of returns is "
+            "not the ratio of compounded returns.",
+        ),
+    ]
+    return "\n".join(
+        [
+            '<section id="definitions">',
+            "<h2>Metric definitions</h2>",
+            '<dl class="glossary">',
+            *[f"<dt>{term}</dt><dd>{definition}</dd>" for term, definition in terms],
+            "</dl>",
+            "</section>",
+        ]
+    )
+
+
+def reproduce_section() -> str:
+    """Setup, the commands that rebuild every table, and how to get the data."""
+    python = platform.python_version()
+    commands = [
+        ("scripts/run_full_pipeline.py", "every pipeline table, then this page"),
+        ("scripts/diagnose_training_window.py", "the training-window sweep"),
+        (
+            "scripts/diagnose_tranche_drawdown.py",
+            "Deployability, the daily series and the charts",
+        ),
+        ("scripts/describe_modeling_dataset.py", "the dataset and feature-group tables"),
+        ("scripts/build_report_page.py", "this page alone, from reports/tables/"),
+    ]
+    width = max(len(path) for path, _ in commands) + len("python ")
+
+    rebuild = "\n".join(
+        f"{('python ' + path):<{width}}  # {purpose}" for path, purpose in commands
+    )
+
+    return "\n".join(
+        [
+            '<section id="reproduce">',
+            "<h2>Reproduce</h2>",
+            "<h3>Setup</h3>",
+            f'<p class="note">This page was built with Python {python}, the '
+            "version the test suite runs on; version ranges are pinned in "
+            f"{file_link('requirements.txt')}.</p>",
+            "<pre><code>git clone "
+            f"{REPO_URL}.git\n"
+            "cd vn30-alpha-research\n"
+            "python -m venv .venv\n"
+            ".venv\\Scripts\\activate        # Windows\n"
+            "source .venv/bin/activate     # macOS and Linux\n"
+            "python -m pip install -r requirements.txt</code></pre>",
+            "<h3>Rebuild</h3>",
+            '<p class="note">Run from the repository root, since scripts read '
+            "paths relative to it. On Windows, <code>py</code> works in place "
+            "of <code>python</code>.</p>",
+            f"<pre><code>{rebuild}\npython -m pytest -q</code></pre>",
+            "<p class=\"note\">Scripts: "
+            + " · ".join(file_link(path) for path, _ in commands)
+            + ".</p>",
+            "<h3>Data access</h3>",
+            '<p class="note"><strong>The FiinQuant data is not in the '
+            "repository.</strong> <code>data/raw/</code> and "
+            f"<code>data/processed/</code> are excluded by {file_link('.gitignore')}, "
+            "so a clone can rebuild this page from the committed tables and "
+            "run the tests that read them, but cannot rerun the pipeline. "
+            "Rebuilding from raw data needs a FiinQuant account: install the "
+            "vendor's <code>FiinQuantX</code> wheel in its own environment as "
+            f"the {file_link('README.md')} describes, set "
+            "<code>FIINQUANT_USERNAME</code> and <code>FIINQUANT_PASSWORD</code>, "
+            f"and run {file_link('scripts/download_fiinquant_history.py')}, which "
+            "writes the canonical files under "
+            "<code>data/raw/fiinquant/canonical/</code>. FLC and ROS raw prices "
+            "need a vendor archive export as well, imported by "
+            f"{file_link('scripts/import_fiinquant_archived_history.py')}.</p>",
+            '<p class="caption">This page is generated by '
+            f"{file_link('scripts/build_report_page.py')} from "
+            f"{file_link('reports/tables/')} on every pipeline run, so its "
+            "figures cannot drift from the tables. Full detail in "
+            f"{file_link('reports/final_results.md')} and "
+            f"{file_link('reports/methodology.md')}.</p>",
+            "</section>",
+        ]
+    )
+
+
 def build_page() -> str:
     horizon = read_table("horizon_results.csv").set_index("forecast_horizon_days")
     ablation = read_table("ablation_results.csv").set_index("ablation_name")
@@ -683,16 +2166,64 @@ def build_page() -> str:
         "Research framework, not a live trading system.</p>"
     )
     add(
-        f'<p class="meta">Generated {date.today():%d %B %Y} from <code>reports/tables/</code> '
+        f'<p class="byline">{AUTHOR_NAME}, {AUTHOR_AFFILIATION} · '
+        f'<a href="{REPO_URL}">GitHub repository</a> · '
+        f'<a href="{AUTHOR_LINKEDIN_URL}">LinkedIn</a></p>'
+    )
+    add(
+        f'<p class="meta">Generated {date.today():%d %B %Y} from '
+        f"{file_link('reports/tables/')} "
         f"· point-in-time VN30 membership · walk-forward training window "
         f"{DEFAULT_TRAIN_SIZE} trading dates</p>"
     )
     add("</header>")
 
-    # --- Deployability ------------------------------------------------------
     # Optional: written by scripts/diagnose_tranche_drawdown.py, which is not
-    # a pipeline stage. Skip the section rather than fail the page build.
+    # a pipeline stage. Skip what depends on it rather than fail the build.
     tranche = optional_table("tranche_portfolio_diagnostic.csv")
+    daily = optional_table("tranche_daily_returns.csv")
+    limited = None
+    if tranche is not None:
+        limited = (
+            tranche[tranche["execution_mode"] == TRANCHE_EXECUTION_MODE]
+            .sort_values("active_final_equity_after_cost", ascending=False)
+            .set_index("optimization_mode")
+        )
+
+    dataset = read_table("dataset_description.csv").iloc[0]
+    groups = read_table("feature_groups.csv")
+    feature_count = int(groups["feature_count"].sum())
+    if feature_count != int(ablation.loc["all_features", "feature_count"]):
+        raise ValueError(
+            f"feature_groups.csv counts {feature_count} features against "
+            f"{int(ablation.loc['all_features', 'feature_count'])} in "
+            "ablation_results.csv"
+        )
+
+    # --- Overview -----------------------------------------------------------
+    add(overview_section(limited, benchmark, models, top5_col, dataset, feature_count))
+
+    # --- Performance --------------------------------------------------------
+    if limited is not None and daily is not None:
+        modes = [str(mode) for mode in limited.index]
+        live = tranche_curves(daily, modes)
+        statistics = tranche_statistics(daily, live, modes)
+        reconcile_tranche_statistics(statistics, live, limited)
+        add(performance_charts_section(live, modes[0], modes[1:]))
+        add(
+            performance_summary_section(
+                statistics,
+                limited,
+                int(daily[f"{modes[0]}_tranche_turnover"].notna().sum()),
+            )
+        )
+
+    # --- Method, costs and definitions --------------------------------------
+    add(data_and_method_section(dataset, groups, models, horizon))
+    add(costs_section())
+    add(glossary_section())
+
+    # --- Deployability ------------------------------------------------------
     if tranche is not None:
         add(deployability_section(tranche))
 
@@ -736,7 +2267,8 @@ def build_page() -> str:
     add(sweep_chart(sweep, DEFAULT_TRAIN_SIZE))
     add(
         '<figcaption class="caption">Gradient boosting, 5-day horizon, every configuration scored '
-        "on identical dates. Source: <code>reports/tables/training_window_diagnostic.csv</code>"
+        "on identical dates. Source: "
+        f"{file_link('reports/tables/training_window_diagnostic.csv')}"
         "</figcaption>"
     )
     add("</figure>")
@@ -783,7 +2315,8 @@ def build_page() -> str:
         )
     add(
         '<p class="caption">Chart and table render from the same rows of '
-        "<code>training_window_diagnostic.csv</code> — the chart rounds "
+        f"{file_link('reports/tables/training_window_diagnostic.csv', 'training_window_diagnostic.csv')}"
+        " — the chart rounds "
         "to four decimals, the table prints six, and neither carries a "
         "separate copy of the numbers. <code>Train rows</code> is the measured "
         "count of dataset rows falling on the first window's training dates, "
@@ -1024,7 +2557,8 @@ def build_page() -> str:
         '<p class="caption">Cumulative figures in <em>this</em> table sum '
         "overlapping forecast-period active returns, so they are not "
         "compounded portfolio returns, and <code>max_active_drawdown</code> in "
-        "<code>benchmark_results.csv</code> is a running-peak fall on that same "
+        f"{file_link('reports/tables/benchmark_results.csv', 'benchmark_results.csv')}"
+        " is a running-peak fall on that same "
         "summed series — in summed-return units, not as a percentage of "
         "capital. The Deployability table at the top of the page uses the "
         "other convention: both of its drawdown columns are peak-to-trough "
@@ -1097,7 +2631,7 @@ def build_page() -> str:
     add(
         '<p class="note">The universe is point-in-time VN30 membership, '
         "reconstructed from verified index-review history in "
-        "<code>config/vn30_history/</code>. Three different ticker counts "
+        f"{file_link('config/vn30_history/')}. Three different ticker counts "
         "appear across these outputs and all three are correct.</p>"
     )
     add('<div class="tablewrap"><table><thead><tr>'
@@ -1184,7 +2718,8 @@ def build_page() -> str:
         "comparisons, and the intervals that exist "
         + (
             f"({interval_rows} strategy and baseline rows of "
-            "<code>benchmark_results.csv</code>, plus the foreign-flow test) "
+            f"{file_link('reports/tables/benchmark_results.csv', 'benchmark_results.csv')}"
+            ", plus the foreign-flow test) "
             "are each marginal rather than family-wise"
             if interval_rows
             else "cover only the foreign-flow test"
@@ -1197,19 +2732,7 @@ def build_page() -> str:
     add("</section>")
 
     # --- Reproduce ----------------------------------------------------------
-    add("<section>")
-    add("<h2>Reproduce</h2>")
-    add("<pre><code>py .\\scripts\\run_full_pipeline.py          # rebuilds every table and this page\n"
-        "py .\\scripts\\diagnose_training_window.py    # the sweep behind the window size\n"
-        "py .\\scripts\\diagnose_tranche_drawdown.py   # the deployability table\n"
-        "py -m pytest -q                            # test suite</code></pre>")
-    add(
-        '<p class="caption">This page is generated by '
-        "<code>scripts/build_report_page.py</code> from <code>reports/tables/</code> on every "
-        "pipeline run, so its figures cannot drift from the tables. Full detail in "
-        "<code>reports/final_results.md</code> and <code>reports/methodology.md</code>.</p>"
-    )
-    add("</section>")
+    add(reproduce_section())
 
     add("<footer>Research framework, not a live trading system. Not investment advice.</footer>")
     add("</div>")
